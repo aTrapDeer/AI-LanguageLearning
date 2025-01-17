@@ -2,7 +2,6 @@ import { hash } from "bcryptjs"
 import { NextResponse } from "next/server"
 import { db } from "@/lib/db"
 import { z } from "zod"
-import { PrismaClient } from "@prisma/client"
 
 // Validation schema
 const registerSchema = z.object({
@@ -50,7 +49,7 @@ export async function POST(req: Request) {
     const hashedPassword = await hash(password, 12)
 
     // Create user with transaction to ensure all related records are created
-    const user = await db.$transaction(async (prisma: PrismaClient) => {
+    const user = await db.$transaction(async (prisma) => {
       // Create the user
       const newUser = await prisma.user.create({
         data: {
