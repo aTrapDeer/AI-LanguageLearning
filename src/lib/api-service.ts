@@ -12,7 +12,21 @@ export interface ChatResponse {
 function getHttpUrl(url: string | undefined): string {
   if (!url) return 'http://localhost:8000';
   
-  // If it's a WebSocket URL, convert it to HTTP
+  // In production, always use HTTPS
+  if (process.env.NODE_ENV === 'production') {
+    if (url.startsWith('ws://')) {
+      return url.replace('ws://', 'https://');
+    }
+    if (url.startsWith('wss://')) {
+      return url.replace('wss://', 'https://');
+    }
+    if (url.startsWith('http://')) {
+      return url.replace('http://', 'https://');
+    }
+    return url.startsWith('https://') ? url : `https://${url}`;
+  }
+  
+  // In development, convert WebSocket URLs to HTTP
   if (url.startsWith('ws://')) {
     return url.replace('ws://', 'http://');
   }
