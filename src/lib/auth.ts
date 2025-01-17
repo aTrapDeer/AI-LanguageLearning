@@ -16,56 +16,37 @@ export const authOptions: NextAuthOptions = {
         password: { label: "Password", type: "password" }
       },
       async authorize(credentials) {
-        try {
-          if (!credentials?.email || !credentials?.password) {
-            console.error("Missing credentials")
-            throw new Error("Missing credentials")
-          }
-
-          // Test database connection
-          try {
-            await db.$connect()
-            console.log("Database connection successful")
-          } catch (dbError) {
-            console.error("Database connection failed:", dbError)
-            throw new Error("Database connection failed")
-          }
-
-          const user = await db.user.findUnique({
-            where: {
-              email: credentials.email
-            },
-            select: {
-              id: true,
-              email: true,
-              name: true,
-              password: true,
-              learningLanguages: true
-            }
-          }).catch(error => {
-            console.error("Database query failed:", error)
-            throw error
-          })
-
-          if (!user) {
-            console.error("User not found:", credentials.email)
-            throw new Error("Invalid credentials")
-          }
-
-          const isPasswordValid = await compare(credentials.password, user.password)
-
-          if (!isPasswordValid) {
-            console.error("Invalid password for user:", credentials.email)
-            throw new Error("Invalid credentials")
-          }
-
-          // Return user without password
-          const { password: _, ...userWithoutPassword } = user
-          return userWithoutPassword
-        } catch (error) {
-          console.error("Authorization error:", error)
-          throw error
+        if (!credentials?.email || !credentials?.password) {
+          throw new Error("Missing credentials")
         }
+
+        const user = await db.user.findUnique({
+          where: {
+            email: credentials.email
+          },
+          select: {
+            id: true,
+            email: true,
+            name: true,
+            password: true,
+            learningLanguages: true
+          }
+        })
+
+        if (!user) {
+          throw new Error("Invalid credentials")
+        }
+
+        const isPasswordValid = await compare(credentials.password, user.password)
+
+        if (!isPasswordValid) {
+          throw new Error("Invalid credentials")
+        }
+
+        // Return user without password
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { password: _, ...userWithoutPassword } = user
+        return userWithoutPassword
       }
     })
   ],
