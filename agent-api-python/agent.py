@@ -20,6 +20,8 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:3000",
+        "https://laingfy.com",
+        "https://www.laingfy.com",
         "http://127.0.0.1:3000",
         "https://language-audio-clips.s3.us-east-1.amazonaws.com",
     ],

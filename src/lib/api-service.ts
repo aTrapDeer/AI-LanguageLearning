@@ -42,11 +42,9 @@ function getHttpUrl(url: string | undefined): string {
 }
 
 // Determine the API base URL based on environment
-const API_BASE_URL = getHttpUrl(
-  process.env.NODE_ENV === 'production'
-    ? process.env.NEXT_PUBLIC_AGENT_WS_URL
-    : process.env.NEXT_PUBLIC_API_URL
-);
+const API_BASE_URL = process.env.NODE_ENV === 'production'
+  ? 'https://api.laingfy.com'
+  : getHttpUrl(process.env.NEXT_PUBLIC_API_URL);
 
 // Log the API URL in development for debugging
 if (process.env.NODE_ENV === 'development') {
