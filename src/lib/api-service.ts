@@ -15,7 +15,22 @@ function getHttpUrl(url: string | undefined): string {
   // Remove /ws path if present for HTTP requests
   const cleanUrl = url.replace('/ws/', '/').replace('/ws', '');
   
-  // Convert WebSocket URLs to HTTP while preserving port
+  // In production with custom domain (api.laingfy.com)
+  if (process.env.NODE_ENV === 'production') {
+    if (cleanUrl.includes('api.laingfy.com')) {
+      // Already using the correct domain, just ensure HTTPS
+      return cleanUrl.replace(/^(ws|http|wss):\/\//, 'https://');
+    }
+    
+    // For ELB domain, remove port and use HTTPS unless HTTP is explicitly allowed
+    const allowHttp = process.env.NEXT_PUBLIC_ALLOW_HTTP === 'true';
+    if (!allowHttp) {
+      const urlWithoutPort = cleanUrl.replace(':8000', '');
+      return urlWithoutPort.replace(/^(ws|http|wss):\/\//, 'https://');
+    }
+  }
+  
+  // In development or when HTTP is allowed
   if (cleanUrl.startsWith('ws://')) {
     return cleanUrl.replace('ws://', 'http://');
   }
