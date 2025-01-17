@@ -9,6 +9,7 @@ export const authOptions: NextAuthOptions = {
     strategy: "jwt",
     maxAge: 24 * 60 * 60 // 24 hours
   },
+  debug: process.env.NODE_ENV === 'development',
   providers: [
     CredentialsProvider({
       credentials: {
@@ -16,37 +17,46 @@ export const authOptions: NextAuthOptions = {
         password: { label: "Password", type: "password" }
       },
       async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) {
-          throw new Error("Missing credentials")
-        }
-
-        const user = await db.user.findUnique({
-          where: {
-            email: credentials.email
-          },
-          select: {
-            id: true,
-            email: true,
-            name: true,
-            password: true,
-            learningLanguages: true
+        try {
+          if (!credentials?.email || !credentials?.password) {
+            console.error("Missing credentials")
+            throw new Error("Missing credentials")
           }
-        })
 
-        if (!user) {
-          throw new Error("Invalid credentials")
+          const user = await db.user.findUnique({
+            where: {
+              email: credentials.email
+            },
+            select: {
+              id: true,
+              email: true,
+              name: true,
+              password: true,
+              learningLanguages: true
+            }
+          })
+
+          if (!user) {
+            console.error("User not found:", credentials.email)
+            throw new Error("Invalid credentials")
+          }
+
+          const isPasswordValid = await compare(credentials.password, user.password)
+
+          if (!isPasswordValid) {
+            console.error("Invalid password for user:", credentials.email)
+            throw new Error("Invalid credentials")
+          }
+
+          // Return user without password
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          const { password: _, ...userWithoutPassword } = user
+          console.log("User authenticated successfully:", userWithoutPassword.email)
+          return userWithoutPassword
+        } catch (error) {
+          console.error("Auth error:", error)
+          throw error
         }
-
-        const isPasswordValid = await compare(credentials.password, user.password)
-
-        if (!isPasswordValid) {
-          throw new Error("Invalid credentials")
-        }
-
-        // Return user without password
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        const { password: _, ...userWithoutPassword } = user
-        return userWithoutPassword
       }
     })
   ],
