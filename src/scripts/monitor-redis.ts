@@ -1,5 +1,9 @@
 import { redis } from '../lib/redis'
 
+interface RedisMetrics {
+  [key: string]: string
+}
+
 async function monitorRedisUsage() {
   try {
     // Get Redis INFO
@@ -7,7 +11,7 @@ async function monitorRedisUsage() {
     console.log('\n📊 Redis Usage Statistics:')
     
     // Parse important metrics
-    const metrics = info.split('\n').reduce((acc: any, line) => {
+    const metrics = info.split('\n').reduce((acc: RedisMetrics, line) => {
       const [key, value] = line.split(':')
       if (key && value) acc[key.trim()] = value.trim()
       return acc

@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { use } from 'react';
-import { ApiService, ChatMessage, ChatResponse } from '@/lib/api-service';
+import { ApiService, ChatMessage } from '@/lib/api-service';
 
 interface LanguagePageProps {
   params: Promise<{

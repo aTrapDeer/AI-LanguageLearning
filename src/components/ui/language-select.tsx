@@ -9,7 +9,6 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "./dialog";
-import { Flag } from "lucide-react";
 import Link from "next/link";
 
 const languages = [

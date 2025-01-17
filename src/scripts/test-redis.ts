@@ -50,12 +50,14 @@ async function testRedisConnection(client: Redis) {
     console.log('✅ Test key removed')
 
     console.log('\n✨ All Redis tests passed successfully!')
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('\n❌ Redis connection test failed:', err)
-    console.error('Details:', {
-      message: err.message,
-      stack: err.stack
-    })
+    if (err instanceof Error) {
+      console.error('Details:', {
+        message: err.message,
+        stack: err.stack
+      })
+    }
   } finally {
     console.log('\n👋 Closing connection...')
     await client.quit()

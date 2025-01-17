@@ -1,5 +1,13 @@
 import { redis } from './redis'
 
+interface SessionData {
+  userId: string
+  email?: string
+  name?: string
+  lastActivity: number
+  [key: string]: string | number | undefined
+}
+
 export class RedisSessionStore {
   private redis: typeof redis
 
@@ -7,7 +15,7 @@ export class RedisSessionStore {
     this.redis = redis
   }
 
-  async createSession(userId: string, sessionData: any) {
+  async createSession(userId: string, sessionData: SessionData) {
     const sessionId = `session:${userId}:${Date.now()}`
     const sessionExpiry = 24 * 60 * 60 // 24 hours in seconds
 
@@ -25,13 +33,13 @@ export class RedisSessionStore {
     if (!data) return null
 
     try {
-      return JSON.parse(data)
+      return JSON.parse(data) as SessionData
     } catch {
       return null
     }
   }
 
-  async updateSession(sessionId: string, sessionData: any) {
+  async updateSession(sessionId: string, sessionData: SessionData) {
     const currentTTL = await this.redis.ttl(sessionId)
     if (currentTTL < 0) return false
 

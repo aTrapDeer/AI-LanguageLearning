@@ -4,7 +4,7 @@ interface SessionData {
   email?: string
   name?: string
   lastActivity?: number
-  [key: string]: any
+  [key: string]: string | number | undefined
 }
 
 export class SessionManager {

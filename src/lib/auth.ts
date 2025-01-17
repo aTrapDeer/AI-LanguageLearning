@@ -28,7 +28,8 @@ export const authOptions: NextAuthOptions = {
             id: true,
             email: true,
             name: true,
-            password: true
+            password: true,
+            learningLanguages: true
           }
         })
 
@@ -43,7 +44,7 @@ export const authOptions: NextAuthOptions = {
         }
 
         // Return user without password
-        const { password: _, ...userWithoutPassword } = user
+        const { password, ...userWithoutPassword } = user
         return userWithoutPassword
       }
     })
