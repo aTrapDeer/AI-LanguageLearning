@@ -1,0 +1,29 @@
+# Core dependencies
+fastapi>=0.100.0
+uvicorn>=0.23.0
+websockets>=11.0.0
+python-dotenv>=1.0.0
+pydantic>=2.0.0
+
+# LiveKit and its plugins
+livekit==0.17.4
+livekit-agents==0.10.0
+livekit-api==0.7.1
+livekit-protocol==0.6.0
+livekit-plugins-deepgram==0.6.7
+livekit-plugins-openai==0.10.2
+livekit-plugins-silero==0.7.1
+
+# OpenAI
+openai>=1.0.0
+
+# Additional dependencies
+requests>=2.31.0
+asyncio>=3.4.3
+aiohttp>=3.8.0
+
+# AWS SDK
+boto3>=1.28.0
+
+# Audio processing
+python-multipart>=0.0.5
