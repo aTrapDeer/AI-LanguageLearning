@@ -8,7 +8,15 @@ export interface ChatResponse {
   audio_url?: string;
 }
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+// Determine the API base URL based on environment
+const API_BASE_URL = process.env.NODE_ENV === 'production'
+  ? process.env.NEXT_PUBLIC_AGENT_WS_URL
+  : process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+
+// Log the API URL in development for debugging
+if (process.env.NODE_ENV === 'development') {
+  console.log('API Base URL:', API_BASE_URL);
+}
 
 export const ApiService = {
   async sendMessage(message: ChatMessage): Promise<ChatResponse> {
