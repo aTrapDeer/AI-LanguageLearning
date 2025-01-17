@@ -45,3 +45,12 @@ next-env.d.ts
 
 lambda_layer/*
 lambda_layer/
+
+#AWS Files
+launch-template-data.json
+capacity-provider.json
+cluster-config.json
+ecs-service.json
+ecs-task-definition.json
+task-role-trust-policy.json
+trust-policy.json
