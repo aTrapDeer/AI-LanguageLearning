@@ -50,7 +50,7 @@ export function LanguageSelect() {
         <DialogHeader>
           <DialogTitle>Choose Your Learning Path</DialogTitle>
           <DialogDescription>
-            Select the language you want to learn. We'll personalize your experience accordingly.
+            Select the language you want to learn. We&apos;ll personalize your experience accordingly.
           </DialogDescription>
         </DialogHeader>
         <div className="grid grid-cols-1 gap-4 py-4">
