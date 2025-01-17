@@ -8,10 +8,27 @@ export interface ChatResponse {
   audio_url?: string;
 }
 
+// Convert WebSocket URL to HTTP URL if needed
+function getHttpUrl(url: string | undefined): string {
+  if (!url) return 'http://localhost:8000';
+  
+  // If it's a WebSocket URL, convert it to HTTP
+  if (url.startsWith('ws://')) {
+    return url.replace('ws://', 'http://');
+  }
+  if (url.startsWith('wss://')) {
+    return url.replace('wss://', 'https://');
+  }
+  
+  return url;
+}
+
 // Determine the API base URL based on environment
-const API_BASE_URL = process.env.NODE_ENV === 'production'
-  ? process.env.NEXT_PUBLIC_AGENT_WS_URL
-  : process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const API_BASE_URL = getHttpUrl(
+  process.env.NODE_ENV === 'production'
+    ? process.env.NEXT_PUBLIC_AGENT_WS_URL
+    : process.env.NEXT_PUBLIC_API_URL
+);
 
 // Log the API URL in development for debugging
 if (process.env.NODE_ENV === 'development') {
@@ -30,7 +47,7 @@ export const ApiService = {
       });
 
       if (!response.ok) {
-        const error = await response.json();
+        const error = await response.json().catch(() => ({ detail: 'Network error' }));
         throw new Error(error.detail || 'Failed to send message');
       }
 
@@ -69,7 +86,7 @@ export const ApiService = {
       });
 
       if (!response.ok) {
-        const error = await response.json();
+        const error = await response.json().catch(() => ({ detail: 'Network error' }));
         throw new Error(error.detail || 'Failed to process audio');
       }
 
