@@ -16,8 +16,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "AI LangLearn - Learn Languages with AI",
-  description: "AI-powered language learning platform for personalized lessons and practice",
+  title: "LAIGNFY - AI-Powered Language Learning",
+  description: "Learn languages naturally with personalized AI tutoring, real-time feedback, and interactive conversations.",
 };
 
 export default function RootLayout({

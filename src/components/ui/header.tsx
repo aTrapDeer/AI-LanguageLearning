@@ -125,7 +125,11 @@ function Header1() {
                     </NavigationMenu>
                 </div>
                 <div className="flex lg:justify-center">
-                    <Link href="/" className="font-semibold">AI LangLearn</Link>
+                    <Link href="/" className="font-bold text-2xl">
+                        <span className="bg-gradient-to-r from-indigo-600 to-rose-500 bg-clip-text text-transparent hover:from-indigo-500 hover:to-rose-400 transition-all">L</span>
+                        <span className="bg-gradient-to-r from-rose-500 to-violet-500 bg-clip-text text-transparent hover:from-rose-400 hover:to-violet-400 transition-all">AI</span>
+                        <span className="bg-gradient-to-r from-violet-500 to-indigo-600 bg-clip-text text-transparent hover:from-violet-400 hover:to-indigo-500 transition-all">GNFY</span>
+                    </Link>
                 </div>
                 <div className="flex justify-end w-full gap-4">
                     <LanguageSelect />
