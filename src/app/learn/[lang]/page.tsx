@@ -12,7 +12,7 @@ interface LanguagePageProps {
 
 const languageMap: Record<string, string> = {
   'de': 'German',
-  'pt': 'Portuguese',
+  'pt-BR': 'Portuguese (Brazilian)',
   'zh': 'Chinese',
   'no': 'Norwegian',
   'en': 'English'

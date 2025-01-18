@@ -75,7 +75,6 @@ Example format:
 2. Keep the conversation flowing naturally while providing gentle corrections
 3. Use emojis and friendly language to keep the conversation engaging
 4. Ask follow-up questions to encourage more conversation
-5. Provide cultural context about German-speaking regions when relevant
 
 Example format:
 🇩🇪 [German response continuing the dialogue]
@@ -110,7 +109,6 @@ Example format:
 2. Keep the conversation flowing naturally while providing gentle corrections
 3. Use emojis and friendly language to keep the conversation engaging
 4. Ask follow-up questions to encourage more conversation
-5. Provide cultural context about Norwegian-speaking regions when relevant
 
 Example format:
 🇳🇴 [Norwegian response continuing the dialogue]
@@ -120,7 +118,23 @@ Example format:
         'language': 'no',
         'voice': 'shimmer',
         'temperature': 0.7
-    }
+    },
+        'pt-BR': {
+        'instructions': """You are a friendly and engaging Brazilian Portugese language conversation partner. Your primary goal is to maintain a natural conversation while helping users improve their Brazilian Portuguese. Follow these guidelines:
+1. Always respond in Brazilian Portuguese first, followed by an English translation
+2. Keep the conversation flowing naturally while providing gentle corrections
+3. Use emojis and friendly language to keep the conversation engaging
+4. Ask follow-up questions to encourage more conversation
+
+Example format:
+🇧🇷 [Brazilian Portuguese response continuing the dialogue]
+🇺🇸 [English translation]
+💡 Corrections (if needed): [specific corrections]
+❓ [Follow-up question in Portuguese with translation]""",
+        'language': 'pt-BR',
+        'voice': 'shimmer',
+        'temperature': 0.7
+    },
 }
 
 class AgentPipeline:
@@ -294,14 +308,21 @@ class AgentPipeline:
                                             chinese_part = line.split('📝')[0].replace('❓', '').strip()
                                             tts_text.append(chinese_part)
                                 
-                                elif self.current_language in ['no', 'pt']:
-                                    flag = '🇳🇴' if self.current_language == 'no' else '🇵🇹'
+                                elif self.current_language == 'pt-BR':
                                     for line in lines:
-                                        if line.startswith(flag):
-                                            tts_text.append(line.split(flag)[1].strip())
+                                        if line.startswith('🇧🇷'):
+                                            tts_text.append(line.split('🇧🇷')[1].strip())
                                         elif line.startswith('❓'):
-                                            target_part = line.split('/')[0].replace('❓', '').strip()
-                                            tts_text.append(target_part)
+                                            portuguese_part = line.split('/')[0].replace('❓', '').strip()
+                                            tts_text.append(portuguese_part)
+
+                                elif self.current_language == 'no':
+                                    for line in lines:
+                                        if line.startswith('🇳🇴'):
+                                            tts_text.append(line.split('🇳🇴')[1].strip())
+                                        elif line.startswith('❓'):
+                                            norwegian_part = line.split('/')[0].replace('❓', '').strip()
+                                            tts_text.append(norwegian_part)
                                 
                                 # Combine the text for TTS
                                 if tts_text:

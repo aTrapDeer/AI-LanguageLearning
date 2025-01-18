@@ -1,0 +1,73 @@
+{
+    "family": "langlearn-agent",
+    "taskRoleArn": "arn:aws:iam::654654451063:role/ecsTaskRole",
+    "executionRoleArn": "arn:aws:iam::654654451063:role/ecsTaskExecutionRole",
+    "networkMode": "bridge",
+    "containerDefinitions": [
+        {
+            "name": "langlearn-agent",
+            "image": "654654451063.dkr.ecr.us-east-1.amazonaws.com/ai-langlearn-agent:latest",
+            "cpu": 256,
+            "memory": 512,
+            "portMappings": [
+                {
+                    "containerPort": 8000,
+                    "hostPort": 8000,
+                    "protocol": "tcp"
+                }
+            ],
+            "essential": true,
+            "environment": [
+                {
+                    "name": "PORT",
+                    "value": "8000"
+                },
+                {
+                    "name": "HOST",
+                    "value": "0.0.0.0"
+                }
+            ],
+            "secrets": [
+                {
+                    "name": "OPENAI_API_KEY",
+                    "valueFrom": "arn:aws:secretsmanager:us-east-1:654654451063:secret:prod/langlearn/env-vars:OPENAI_API_KEY::"
+                },
+                {
+                    "name": "DEEPGRAM_API_KEY",
+                    "valueFrom": "arn:aws:secretsmanager:us-east-1:654654451063:secret:prod/langlearn/env-vars:DEEPGRAM_API_KEY::"
+                },
+                {
+                    "name": "AWS_ACCESS_KEY_ID",
+                    "valueFrom": "arn:aws:secretsmanager:us-east-1:654654451063:secret:prod/langlearn/env-vars:AWS_ACCESS_KEY_ID::"
+                },
+                {
+                    "name": "AWS_SECRET_ACCESS_KEY",
+                    "valueFrom": "arn:aws:secretsmanager:us-east-1:654654451063:secret:prod/langlearn/env-vars:AWS_SECRET_ACCESS_KEY::"
+                }
+            ],
+            "logConfiguration": {
+                "logDriver": "awslogs",
+                "options": {
+                    "awslogs-group": "/ecs/langlearn-agent",
+                    "awslogs-region": "us-east-1",
+                    "awslogs-stream-prefix": "ecs"
+                }
+            },
+            "healthCheck": {
+                "command": [
+                    "CMD-SHELL",
+                    "curl -f http://localhost:8000/health || exit 1"
+                ],
+                "interval": 60,
+                "timeout": 10,
+                "retries": 3,
+                "startPeriod": 60
+            }
+        }
+    ],
+    "requiresCompatibilities": [
+        "EC2"
+    ],
+    "cpu": "256",
+    "memory": "512"
+} 

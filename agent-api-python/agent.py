@@ -51,7 +51,7 @@ async def chat(request: ChatRequest) -> ChatResponse:
         language_code = {
             "English": "en",  # Add English mapping
             "German": "de",
-            "Portuguese": "pt",
+            "Portuguese": "pt-BR",
             "Chinese": "zh",
             "Norwegian": "no"
         }.get(request.language, "en")  # Default to 'en' instead of 'de'
@@ -116,7 +116,7 @@ async def chat_audio(audio: UploadFile = File(...), language: str = Form("Englis
         language_code = {
             "English": "en",
             "German": "de",
-            "Portuguese": "pt",
+            "Portuguese": "pt-BR",
             "Chinese": "zh",
             "Norwegian": "no"
         }.get(language, "en")
