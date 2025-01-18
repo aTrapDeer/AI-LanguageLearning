@@ -36,9 +36,13 @@ AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text) || e
 echo "Logging into ECR..."
 aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com || error_exit "ECR login failed"
 
-# Build Docker image
+# Clean up any old containers with the same name
+echo "Cleaning up old containers..."
+docker rm -f $ECR_REPO 2>/dev/null || true
+
+# Build Docker image with no cache to ensure fresh build
 echo "Building Docker image..."
-MSYS_NO_PATHCONV=1 docker build -t $ECR_REPO:latest . || error_exit "Docker build failed"
+MSYS_NO_PATHCONV=1 docker build --no-cache -t $ECR_REPO:latest . || error_exit "Docker build failed"
 
 # Tag image for ECR
 echo "Tagging image..."
@@ -52,7 +56,7 @@ docker push $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPO:latest |
 echo "Updating target group health check settings..."
 MSYS_NO_PATHCONV=1 aws elbv2 modify-target-group \
     --target-group-arn "$TARGET_GROUP_ARN" \
-    --health-check-path //health \
+    --health-check-path /health \
     --health-check-interval-seconds 60 \
     --health-check-timeout-seconds 10 \
     --healthy-threshold-count 2 \
@@ -73,7 +77,17 @@ echo "Registering new task definition..."
 NEW_TASK_INFO=$(aws ecs register-task-definition --region $AWS_REGION --cli-input-json "$NEW_TASK_DEFINITION") || error_exit "Failed to register task definition"
 NEW_REVISION=$(echo $NEW_TASK_INFO | jq -r '.taskDefinition.revision') || error_exit "Failed to get task definition revision"
 
-# Update service
+# Stop existing tasks to force new deployment
+echo "Stopping existing tasks..."
+TASK_LIST=$(aws ecs list-tasks --cluster $CLUSTER_NAME --service-name $SERVICE_NAME --region $AWS_REGION --output json)
+TASK_ARNS=$(echo $TASK_LIST | jq -r '.taskArns[]')
+
+for TASK_ARN in $TASK_ARNS; do
+    echo "Stopping task: $TASK_ARN"
+    aws ecs stop-task --cluster $CLUSTER_NAME --task $TASK_ARN --region $AWS_REGION
+done
+
+# Update service with force new deployment
 echo "Updating ECS service..."
 aws ecs update-service \
     --cluster $CLUSTER_NAME \
@@ -117,6 +131,16 @@ while true; do
             TASK_STATUS=$(echo $TASK_INFO | jq -r '.tasks[0].lastStatus')
             TASK_HEALTH=$(echo $TASK_INFO | jq -r '.tasks[0].healthStatus')
             echo "Task $TASK_ID: Status=$TASK_STATUS, Health=$TASK_HEALTH"
+            
+            # Get container logs
+            if [ "$TASK_STATUS" != "RUNNING" ]; then
+                echo "Container logs for task $TASK_ID:"
+                aws logs get-log-events \
+                    --log-group-name "/ecs/langlearn-agent" \
+                    --log-stream-name "ecs/langlearn-agent/$TASK_ID" \
+                    --region $AWS_REGION \
+                    --limit 10 | jq -r '.events[].message'
+            fi
         done
     fi
     echo "----------------------------------------"

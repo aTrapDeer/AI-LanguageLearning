@@ -24,10 +24,12 @@ app.add_middleware(
         "https://www.laingfy.com",
         "http://127.0.0.1:3000",
         "https://language-audio-clips.s3.us-east-1.amazonaws.com",
+        "https://api.laingfy.com",
     ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"]
 )
 
 logger.info("FastAPI app initialized with CORS")
@@ -49,12 +51,18 @@ async def chat(request: ChatRequest) -> ChatResponse:
     try:
         # Convert language to code
         language_code = {
-            "English": "en",  # Add English mapping
+            "English": "en",
             "German": "de",
             "Portuguese (Brazilian)": "pt-BR",
             "Chinese": "zh",
             "Norwegian": "no"
-        }.get(request.language, "en")  # Default to 'en' instead of 'de'
+        }.get(request.language)
+        
+        if not language_code:
+            logger.warning(f"Unknown language: {request.language}, defaulting to English")
+            language_code = "en"
+        
+        logger.info(f"Using language code: {language_code}")
         
         # Set the language and create/update agent if needed
         await agent_pipeline.set_language(language_code)
