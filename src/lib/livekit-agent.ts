@@ -21,7 +21,7 @@ const LANGUAGE_CONFIGS: Record<string, LanguageConfig> = {
     voice: 'alloy'
   },
   'pt-BR': {
-    instructions: `You are a Brazilian Portuguese language tutor. Help the user learn Portuguese through conversation, 
+    instructions: `You are a Brazilian Portuguese language tutor. Help the user learn Brazilian Portuguese through conversation, 
     correct their mistakes gently, and provide cultural context when relevant. 
     Engage with the user in Portuguese, starting with simple phrases and gradually increasing complexity 
     based on their responses. Provide translations when needed.`,

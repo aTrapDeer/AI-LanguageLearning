@@ -21,7 +21,7 @@ const languages = [
   {
     from: "English",
     to: "Portuguese (Brazilian)",
-    code: "pt-br",
+    code: "pt-BR",
     flag: "🇧🇷",
   },
   {
