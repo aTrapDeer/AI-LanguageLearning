@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useRef, useEffect, use } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { ApiService, ChatMessage } from '@/lib/api-service';
 import { AIInputWithLoading } from '@/components/ui/ai-input-with-loading';
 
