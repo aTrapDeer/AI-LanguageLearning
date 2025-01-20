@@ -1,4 +1,7 @@
+"use client"
+
 import { Metadata } from "next"
+import { use } from "react"
 
 const languageMap: Record<string, string> = {
   'de': 'German',
@@ -18,10 +21,11 @@ export async function generateMetadata({ params }: { params: { lang: string } })
 
 interface LayoutProps {
   children: React.ReactNode;
-  params: { lang: string };
+  params: Promise<{ lang: string }>;
 }
 
-export default function Layout({ children }: LayoutProps) {
+export default function Layout({ children, params }: LayoutProps) {
+  const resolvedParams = use(params);
   return (
     <div className="h-screen bg-background">
       {children}
