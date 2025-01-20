@@ -21,7 +21,7 @@ interface LayoutProps {
   params: { lang: string };
 }
 
-export default function Layout({ children, params }: LayoutProps) {
+export default function Layout({ children }: LayoutProps) {
   return (
     <div className="h-screen bg-background">
       {children}
