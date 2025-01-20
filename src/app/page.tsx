@@ -1,4 +1,4 @@
-import React, { JSX } from 'react';
+import React from 'react';
 import Link from 'next/link';
 import { VerticalCutReveal } from '@/components/ui/vertical-cut-reveal';
 import AnimatedGlobe from '@/components/ui/globe';

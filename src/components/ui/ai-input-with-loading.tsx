@@ -12,7 +12,6 @@ interface AIInputWithLoadingProps {
   minHeight?: number;
   maxHeight?: number;
   loadingDuration?: number;
-  thinkingDuration?: number;
   onSubmit?: (value: string) => void | Promise<void>;
   className?: string;
   autoAnimate?: boolean;
@@ -24,14 +23,12 @@ export function AIInputWithLoading({
   minHeight = 56,
   maxHeight = 200,
   loadingDuration = 3000,
-  thinkingDuration = 1000,
   onSubmit,
   className,
   autoAnimate = false
 }: AIInputWithLoadingProps) {
   const [inputValue, setInputValue] = useState("");
   const [submitted, setSubmitted] = useState(autoAnimate);
-  const [isAnimating, setIsAnimating] = useState(autoAnimate);
   
   const { textareaRef, adjustHeight } = useAutoResizeTextarea({
     minHeight,
@@ -41,21 +38,14 @@ export function AIInputWithLoading({
   useEffect(() => {
     let timeoutId: NodeJS.Timeout;
 
-    const runAnimation = () => {
-      if (!isAnimating) return;
-      setSubmitted(true);
+    if (submitted) {
       timeoutId = setTimeout(() => {
         setSubmitted(false);
-        timeoutId = setTimeout(runAnimation, thinkingDuration);
       }, loadingDuration);
-    };
-
-    if (isAnimating) {
-      runAnimation();
     }
 
     return () => clearTimeout(timeoutId);
-  }, [isAnimating, loadingDuration, thinkingDuration]);
+  }, [submitted, loadingDuration]);
 
   const handleSubmit = async () => {
     if (!inputValue.trim() || submitted) return;
@@ -64,10 +54,6 @@ export function AIInputWithLoading({
     await onSubmit?.(inputValue);
     setInputValue("");
     adjustHeight(true);
-    
-    setTimeout(() => {
-      setSubmitted(false);
-    }, loadingDuration);
   };
 
   return (

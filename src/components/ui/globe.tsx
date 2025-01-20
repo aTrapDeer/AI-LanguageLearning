@@ -10,26 +10,52 @@ const Globe = dynamic(() => import('react-globe.gl').then(mod => mod.default), {
 });
 
 export default function AnimatedGlobe() {
-  const globeRef = useRef<any>(undefined);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const globeRef = useRef<any>(null);
 
   useEffect(() => {
-    if (globeRef.current) {
-      const controls = globeRef.current.controls();
-      controls.autoRotate = true;
-      controls.autoRotateSpeed = 1;
-      controls.enableZoom = false;
-      controls.enablePan = false;
-      controls.enableDamping = true;
-      controls.dampingFactor = 0.1;
-      
-      const animate = () => {
-        if (controls) {
+    let frameId: number;
+    
+    const startRotation = () => {
+      if (globeRef.current) {
+        const controls = globeRef.current.controls();
+        controls.autoRotate = true;
+        controls.autoRotateSpeed = 0.5;
+        controls.enableZoom = false;
+        controls.enablePan = false;
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.1;
+        
+        const animate = () => {
           controls.update();
-          requestAnimationFrame(animate);
+          frameId = requestAnimationFrame(animate);
+        };
+        animate();
+      }
+    };
+
+    // Start rotation when globe is ready
+    if (globeRef.current) {
+      startRotation();
+    } else {
+      // If globe isn't ready, wait for it
+      const checkGlobe = setInterval(() => {
+        if (globeRef.current) {
+          clearInterval(checkGlobe);
+          startRotation();
         }
-      };
-      animate();
+      }, 100);
+
+      // Clean up interval if component unmounts before globe is ready
+      return () => clearInterval(checkGlobe);
     }
+
+    // Clean up animation frame when component unmounts
+    return () => {
+      if (frameId) {
+        cancelAnimationFrame(frameId);
+      }
+    };
   }, []);
 
   return (
@@ -47,7 +73,7 @@ export default function AnimatedGlobe() {
           if (globeRef.current) {
             const controls = globeRef.current.controls();
             controls.autoRotate = true;
-            controls.autoRotateSpeed = 1;
+            controls.autoRotateSpeed = 0.5;
           }
         }}
       />

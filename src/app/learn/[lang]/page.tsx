@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { use } from 'react';
 import { ApiService, ChatMessage } from '@/lib/api-service';
 import { AIInputWithLoading } from '@/components/ui/ai-input-with-loading';
@@ -29,12 +29,14 @@ interface ChatEntry {
 interface AudioPlayer {
   element: HTMLAudioElement | null;
   isPlaying: boolean;
+  currentAudioUrl: string | null;
 }
 
 export default function LanguagePage({ params }: LanguagePageProps) {
   const resolvedParams = use(params);
   const currentLanguage = languageMap[resolvedParams.lang] || 'English';
   
+  const chatContainerRef = useRef<HTMLDivElement>(null);
   const [chatHistory, setChatHistory] = useState<ChatEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -42,7 +44,8 @@ export default function LanguagePage({ params }: LanguagePageProps) {
   const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
   const [audioPlayer, setAudioPlayer] = useState<AudioPlayer>({
     element: null,
-    isPlaying: false
+    isPlaying: false,
+    currentAudioUrl: null
   });
 
   const handleSubmit = async (message: string) => {
@@ -136,6 +139,17 @@ export default function LanguagePage({ params }: LanguagePageProps) {
   };
 
   const handleAudioPlayback = (audioUrl: string) => {
+    // If there's a current audio playing and it's the same URL
+    if (audioPlayer.element && audioPlayer.currentAudioUrl === audioUrl) {
+      if (audioPlayer.isPlaying) {
+        audioPlayer.element.pause();
+      } else {
+        audioPlayer.element.play();
+      }
+      return;
+    }
+
+    // If there's a different audio playing, stop it
     if (audioPlayer.element) {
       audioPlayer.element.pause();
       audioPlayer.element.currentTime = 0;
@@ -144,23 +158,45 @@ export default function LanguagePage({ params }: LanguagePageProps) {
     const audio = new Audio(audioUrl);
     audio.onplay = () => setAudioPlayer(prev => ({ ...prev, isPlaying: true }));
     audio.onpause = () => setAudioPlayer(prev => ({ ...prev, isPlaying: false }));
-    audio.onended = () => setAudioPlayer(prev => ({ ...prev, isPlaying: false }));
+    audio.onended = () => setAudioPlayer(prev => ({ 
+      ...prev, 
+      isPlaying: false,
+      currentAudioUrl: null 
+    }));
     
-    setAudioPlayer({ element: audio, isPlaying: false });
+    setAudioPlayer({ 
+      element: audio, 
+      isPlaying: false,
+      currentAudioUrl: audioUrl 
+    });
     audio.play().catch(error => {
       console.error('Error playing audio:', error);
       setError('Failed to play audio response');
     });
   };
 
+  // Add this function to handle scrolling
+  const scrollToBottom = () => {
+    if (chatContainerRef.current) {
+      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+    }
+  };
+
+  // Update useEffect to scroll when chat history changes
+  useEffect(() => {
+    scrollToBottom();
+  }, [chatHistory]);
+
   return (
-    <div className="container mx-auto p-4 max-w-4xl">
-      <h1 className="text-2xl font-bold mb-4">
-        {currentLanguage} Language Learning
-      </h1>
+    <div className="flex flex-col h-screen">
+      <div className="flex items-center justify-between p-4 border-b">
+        <h1 className="text-2xl font-bold">
+          {currentLanguage} Language Learning
+        </h1>
+      </div>
 
       {/* Chat History */}
-      <div className="mb-4 h-[60vh] overflow-y-auto bg-gray-50 dark:bg-gray-900 rounded-lg p-4">
+      <div ref={chatContainerRef} className="flex-1 overflow-y-auto p-4">
         {chatHistory.map((entry, index) => (
           <div
             key={index}
@@ -182,7 +218,7 @@ export default function LanguagePage({ params }: LanguagePageProps) {
                     onClick={() => handleAudioPlayback(entry.audio_url!)}
                     className="px-3 py-1 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm"
                   >
-                    {audioPlayer.isPlaying ? 'Pause' : 'Play'} Audio
+                    {audioPlayer.currentAudioUrl === entry.audio_url && audioPlayer.isPlaying ? 'Pause' : 'Play'} Audio
                   </button>
                 </div>
               )}
@@ -194,55 +230,56 @@ export default function LanguagePage({ params }: LanguagePageProps) {
         ))}
       </div>
 
-      {/* Input Area */}
-      <div className="flex gap-2 items-end">
-        <div className="flex-1">
-          <AIInputWithLoading
-            onSubmit={handleSubmit}
-            placeholder="Type your message..."
-            loadingDuration={2000}
-            className="bg-white dark:bg-gray-800 rounded-lg shadow-sm"
-          />
-        </div>
-        <button
-          onClick={isRecording ? stopRecording : startRecording}
-          className={`p-4 rounded-full shadow-sm transition-all ${
-            isRecording
-              ? 'bg-red-500 hover:bg-red-600'
-              : 'bg-indigo-500 hover:bg-indigo-600'
-          } text-white`}
-          disabled={loading}
-        >
-          <svg
-            className="w-6 h-6"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            {isRecording ? (
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-              />
-            ) : (
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"
-              />
+      {/* Fixed Input Area */}
+      <div className="border-t p-4 bg-white dark:bg-gray-900">
+        <div className="max-w-5xl mx-auto flex gap-2 items-end">
+          <div className="flex-1">
+            {error && (
+              <div className="mb-2 text-sm text-red-500">
+                {error}
+              </div>
             )}
-          </svg>
-        </button>
-      </div>
-
-      {error && (
-        <div className="p-4 mt-4 bg-red-100 text-red-700 rounded-lg">
-          {error}
+            <AIInputWithLoading
+              onSubmit={handleSubmit}
+              placeholder="Type your message..."
+              loadingDuration={2000}
+              className="bg-white dark:bg-gray-800 rounded-lg shadow-sm"
+            />
+          </div>
+          <button
+            onClick={isRecording ? stopRecording : startRecording}
+            className={`p-4 rounded-full shadow-sm transition-all ${
+              isRecording
+                ? 'bg-red-500 hover:bg-red-600'
+                : 'bg-indigo-500 hover:bg-indigo-600'
+            } text-white`}
+            disabled={loading}
+          >
+            <svg
+              className="w-6 h-6"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              {isRecording ? (
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                />
+              ) : (
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"
+                />
+              )}
+            </svg>
+          </button>
         </div>
-      )}
+      </div>
     </div>
   );
 }
