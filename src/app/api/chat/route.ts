@@ -4,7 +4,7 @@ import { NextResponse } from 'next/server'
 export async function POST(req: Request) {
   try {
     const body = await req.json()
-    const apiUrl = process.env.API_URL || 'http://localhost:8000'
+    const apiUrl = process.env.API_URL || 'http://localhost:8000' || "http://0.0.0.0:8000/" 
     
     const response = await fetch(`${apiUrl}/chat`, {
       method: 'POST',

@@ -1,5 +1,7 @@
 import React, { JSX } from 'react';
 import Link from 'next/link';
+import { VerticalCutReveal } from '@/components/ui/vertical-cut-reveal';
+import AnimatedGlobe from '@/components/ui/globe';
 
 export default function Home() {
   return (
@@ -7,19 +9,61 @@ export default function Home() {
       {/* Hero Section */}
       <section className="relative py-20 overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-br from-indigo-50 to-violet-50 dark:from-indigo-950/30 dark:to-violet-950/30" />
-        <div className="container relative mx-auto px-4">
-          <div className="text-center max-w-3xl mx-auto">
-            <h1 className="text-5xl font-bold mb-6 bg-gradient-to-r from-indigo-600 to-violet-500 bg-clip-text text-transparent">
-              Learn Languages with AI
-            </h1>
-            <p className="text-xl text-gray-600 dark:text-gray-300 mb-8">
+        <AnimatedGlobe />
+        <div className="container relative mx-auto px-4 flex items-center justify-center min-h-[60vh]">
+          <div className="text-center max-w-3xl mx-auto space-y-8">
+            <div className="flex flex-col items-center justify-center space-y-4">
+              <VerticalCutReveal
+                splitBy="characters"
+                staggerDuration={0.05}
+                staggerFrom="center"
+                transition={{
+                  type: "spring",
+                  stiffness: 200,
+                  damping: 20,
+                }}
+                containerClassName="text-7xl font-extrabold tracking-wider text-center flex justify-center"
+                elementLevelClassName="bg-gradient-to-r from-indigo-600 via-purple-500 to-violet-500 bg-clip-text text-transparent hover:scale-110 transition-transform duration-200"
+              >
+                LAINGFY
+              </VerticalCutReveal>
+              <VerticalCutReveal
+                splitBy="words"
+                staggerDuration={0.1}
+                staggerFrom="first"
+                transition={{
+                  type: "spring",
+                  stiffness: 150,
+                  damping: 20,
+                  delay: 0.5,
+                }}
+                containerClassName="text-4xl font-semibold tracking-wide text-center flex justify-center"
+                elementLevelClassName="bg-gradient-to-r from-indigo-500 to-violet-400 bg-clip-text text-transparent"
+              >
+                Learn Languages with AI
+              </VerticalCutReveal>
+            </div>
+            
+            <VerticalCutReveal
+              splitBy="words"
+              staggerDuration={0.1}
+              staggerFrom="first"
+              transition={{
+                type: "spring",
+                stiffness: 150,
+                damping: 20,
+                delay: 1,
+              }}
+              containerClassName="text-xl font-medium text-gray-600 dark:text-gray-300 text-center flex justify-center"
+            >
               Experience personalized language learning powered by advanced AI. Practice speaking, writing, and understanding with instant feedback.
-            </p>
-            <div className="flex gap-4 justify-center">
-              <Link href="/register" className="px-6 py-3 bg-gradient-to-r from-indigo-600 to-violet-500 text-white rounded-lg font-medium hover:from-indigo-500 hover:to-violet-400 transition-all">
+            </VerticalCutReveal>
+
+            <div className="flex gap-4 justify-center pt-6">
+              <Link href="/register" className="px-8 py-4 bg-gradient-to-r from-indigo-600 to-violet-500 text-white rounded-lg font-bold hover:from-indigo-500 hover:to-violet-400 transition-all transform hover:scale-105">
                 Start Learning
               </Link>
-              <Link href="/learn/de" className="px-6 py-3 bg-white dark:bg-gray-800 text-gray-800 dark:text-white rounded-lg font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition-all border border-gray-200 dark:border-gray-700">
+              <Link href="/learn/de" className="px-8 py-4 bg-white dark:bg-gray-800 text-gray-800 dark:text-white rounded-lg font-bold hover:bg-gray-50 dark:hover:bg-gray-700 transition-all border border-gray-200 dark:border-gray-700 transform hover:scale-105">
                 Try Demo
               </Link>
             </div>
