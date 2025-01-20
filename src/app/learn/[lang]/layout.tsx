@@ -17,10 +17,11 @@ export async function generateMetadata({ params }: { params: { lang: string } })
 }
 
 interface LayoutProps {
-  children: React.ReactNode
+  children: React.ReactNode;
+  params: { lang: string };
 }
 
-export default function Layout({ children }: LayoutProps) {
+export default function Layout({ children, params }: LayoutProps) {
   return (
     <div className="h-screen bg-background">
       {children}
