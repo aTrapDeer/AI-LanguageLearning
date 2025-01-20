@@ -5,9 +5,7 @@ import { ApiService, ChatMessage } from '@/lib/api-service';
 import { AIInputWithLoading } from '@/components/ui/ai-input-with-loading';
 
 interface LanguagePageProps {
-  params: Promise<{
-    lang: string;
-  }>;
+  params: { lang: string };
 }
 
 const languageMap: Record<string, string> = {
@@ -32,8 +30,7 @@ interface AudioPlayer {
 }
 
 export default function LanguagePage({ params }: LanguagePageProps) {
-  const resolvedParams = use(params);
-  const currentLanguage = languageMap[resolvedParams.lang] || 'English';
+  const currentLanguage = languageMap[params.lang] || 'English';
   
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const [chatHistory, setChatHistory] = useState<ChatEntry[]>([]);
