@@ -4,6 +4,7 @@ import { useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
+import { BackgroundGradientAnimation } from '@/components/ui/background-gradient-animation';
 
 interface Language {
   code: string
@@ -121,87 +122,103 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <h1 className="text-3xl font-bold mb-8">Language Learning Dashboard</h1>
-      
-      {/* Current Progress Section */}
-      {learningLanguages.length > 0 && (
-        <div className="mb-12">
-          <h2 className="text-2xl font-semibold mb-4">Your Progress</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {learningLanguages.map((langCode) => {
-              const language = AVAILABLE_LANGUAGES.find(l => l.code === langCode)
-              const langProgress = progress.find(p => p.language === langCode)
-              if (!language) return null
+    <div className="relative min-h-screen">
+      <BackgroundGradientAnimation
+        gradientBackgroundStart="rgb(0, 17, 82)"
+        gradientBackgroundEnd="rgb(108, 0, 162)"
+        firstColor="18, 113, 255"
+        secondColor="221, 74, 255"
+        thirdColor="100, 220, 255"
+        fourthColor="200, 50, 50"
+        fifthColor="180, 180, 50"
+        pointerColor="140, 100, 255"
+        size="100%"
+        blendingValue="soft-light"
+        interactive={false}
+        containerClassName="absolute inset-0 opacity-20"
+      />
+      <div className="relative container mx-auto px-4 py-8">
+        <h1 className="text-3xl font-bold mb-8">Language Learning Dashboard</h1>
+        
+        {/* Current Progress Section */}
+        {learningLanguages.length > 0 && (
+          <div className="mb-12">
+            <h2 className="text-2xl font-semibold mb-4">Your Progress</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {learningLanguages.map((langCode) => {
+                const language = AVAILABLE_LANGUAGES.find(l => l.code === langCode)
+                const langProgress = progress.find(p => p.language === langCode)
+                if (!language) return null
 
-              return (
-                <div
-                  key={langCode}
-                  className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6"
-                >
-                  <div className="flex items-center gap-3 mb-4">
-                    <span className="text-3xl">{language.flag}</span>
-                    <div>
-                      <h3 className="font-semibold">{language.to}</h3>
-                      <p className="text-sm text-gray-500 dark:text-gray-400">
-                        Level {langProgress?.level || 1}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="mb-4">
-                    <div className="h-2 bg-gray-200 dark:bg-gray-700 rounded-full">
-                      <div
-                        className="h-2 bg-indigo-600 rounded-full transition-all duration-500"
-                        style={{ width: `${getProgressPercentage(langCode)}%` }}
-                      />
-                    </div>
-                    <div className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                      XP: {langProgress?.xp || 0} / {XP_PER_LEVEL(langProgress?.level || 1)}
-                    </div>
-                  </div>
-                  <Button
-                    onClick={() => router.push(`/learn/${langCode}`)}
-                    className="w-full"
-                    disabled={isLoading}
+                return (
+                  <div
+                    key={langCode}
+                    className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-lg shadow-md p-6"
                   >
-                    {isLoading ? "Loading..." : "Continue Learning"}
-                  </Button>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* Available Languages Section */}
-      <div>
-        <h2 className="text-2xl font-semibold mb-4">
-          {learningLanguages.length > 0 ? "Start Learning a New Language" : "Choose a Language to Learn"}
-        </h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {AVAILABLE_LANGUAGES.filter(lang => !learningLanguages.includes(lang.code)).map((language) => (
-            <div
-              key={language.code}
-              className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6"
-            >
-              <div className="flex items-center gap-3 mb-4">
-                <span className="text-3xl">{language.flag}</span>
-                <div>
-                  <h3 className="font-semibold">{language.to}</h3>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">
-                    {language.description}
-                  </p>
-                </div>
-              </div>
-              <Button
-                onClick={() => handleLanguageSelect(language)}
-                className="w-full"
-                disabled={isLoading}
-              >
-                {isLoading ? "Loading..." : "Start Learning"}
-              </Button>
+                    <div className="flex items-center gap-3 mb-4">
+                      <span className="text-3xl">{language.flag}</span>
+                      <div>
+                        <h3 className="font-semibold">{language.to}</h3>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                          Level {langProgress?.level || 1}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="mb-4">
+                      <div className="h-2 bg-gray-200 dark:bg-gray-700 rounded-full">
+                        <div
+                          className="h-2 bg-indigo-600 rounded-full transition-all duration-500"
+                          style={{ width: `${getProgressPercentage(langCode)}%` }}
+                        />
+                      </div>
+                      <div className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                        XP: {langProgress?.xp || 0} / {XP_PER_LEVEL(langProgress?.level || 1)}
+                      </div>
+                    </div>
+                    <Button
+                      onClick={() => router.push(`/learn/${langCode}`)}
+                      className="w-full"
+                      disabled={isLoading}
+                    >
+                      {isLoading ? "Loading..." : "Continue Learning"}
+                    </Button>
+                  </div>
+                )
+              })}
             </div>
-          ))}
+          </div>
+        )}
+
+        {/* Available Languages Section */}
+        <div>
+          <h2 className="text-2xl font-semibold mb-4">
+            {learningLanguages.length > 0 ? "Start Learning a New Language" : "Choose a Language to Learn"}
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {AVAILABLE_LANGUAGES.filter(lang => !learningLanguages.includes(lang.code)).map((language) => (
+              <div
+                key={language.code}
+                className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-lg shadow-md p-6"
+              >
+                <div className="flex items-center gap-3 mb-4">
+                  <span className="text-3xl">{language.flag}</span>
+                  <div>
+                    <h3 className="font-semibold">{language.to}</h3>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                      {language.description}
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  onClick={() => handleLanguageSelect(language)}
+                  className="w-full"
+                  disabled={isLoading}
+                >
+                  {isLoading ? "Loading..." : "Start Learning"}
+                </Button>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     </div>

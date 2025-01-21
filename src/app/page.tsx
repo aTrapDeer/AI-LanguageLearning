@@ -2,13 +2,26 @@ import React from 'react';
 import Link from 'next/link';
 import { VerticalCutReveal } from '@/components/ui/vertical-cut-reveal';
 import AnimatedGlobe from '@/components/ui/globe';
+import { BackgroundGradientAnimation } from '@/components/ui/background-gradient-animation';
 
 export default function Home() {
   return (
     <div className="flex flex-col min-h-screen">
       {/* Hero Section */}
       <section className="relative py-20 overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-indigo-50 to-violet-50 dark:from-indigo-950/30 dark:to-violet-950/30" />
+        <BackgroundGradientAnimation
+          gradientBackgroundStart="rgb(0, 17, 82)"
+          gradientBackgroundEnd="rgb(108, 0, 162)"
+          firstColor="18, 113, 255"
+          secondColor="221, 74, 255"
+          thirdColor="100, 220, 255"
+          fourthColor="200, 50, 50"
+          fifthColor="180, 180, 50"
+          pointerColor="140, 100, 255"
+          size="80%"
+          blendingValue="hard-light"
+          containerClassName="absolute inset-0"
+        />
         <AnimatedGlobe />
         <div className="container relative mx-auto px-4 flex items-center justify-center min-h-[60vh]">
           <div className="text-center max-w-3xl mx-auto space-y-8">
@@ -23,48 +36,26 @@ export default function Home() {
                   damping: 20,
                 }}
                 containerClassName="text-7xl font-extrabold tracking-wider text-center flex justify-center"
-                elementLevelClassName="bg-gradient-to-r from-indigo-600 via-purple-500 to-violet-500 bg-clip-text text-transparent hover:scale-110 transition-transform duration-200"
+                elementLevelClassName="text-white hover:scale-110 transition-transform duration-200"
               >
-                LAINGFY
+                LAIGNFY
               </VerticalCutReveal>
-              <VerticalCutReveal
-                splitBy="words"
-                staggerDuration={0.1}
-                staggerFrom="first"
-                transition={{
-                  type: "spring",
-                  stiffness: 150,
-                  damping: 20,
-                  delay: 0.5,
-                }}
-                containerClassName="text-4xl font-semibold tracking-wide text-center flex justify-center"
-                elementLevelClassName="bg-gradient-to-r from-indigo-500 to-violet-400 bg-clip-text text-transparent"
-              >
-                Learn Languages with AI
-              </VerticalCutReveal>
+              <p className="text-xl text-white/80">
+                Learn languages naturally with AI
+              </p>
             </div>
-            
-            <VerticalCutReveal
-              splitBy="words"
-              staggerDuration={0.1}
-              staggerFrom="first"
-              transition={{
-                type: "spring",
-                stiffness: 150,
-                damping: 20,
-                delay: 1,
-              }}
-              containerClassName="text-xl font-medium text-gray-600 dark:text-gray-300 text-center flex justify-center"
-            >
-              Experience personalized language learning powered by advanced AI. Practice speaking, writing, and understanding with instant feedback.
-            </VerticalCutReveal>
-
-            <div className="flex gap-4 justify-center pt-6">
-              <Link href="/register" className="px-8 py-4 bg-gradient-to-r from-indigo-600 to-violet-500 text-white rounded-lg font-bold hover:from-indigo-500 hover:to-violet-400 transition-all transform hover:scale-105">
-                Start Learning
+            <div className="flex justify-center gap-4">
+              <Link
+                href="/register"
+                className="px-8 py-3 bg-white text-indigo-600 rounded-lg font-semibold hover:bg-opacity-90 transition-colors"
+              >
+                Get Started
               </Link>
-              <Link href="/learn/de" className="px-8 py-4 bg-white dark:bg-gray-800 text-gray-800 dark:text-white rounded-lg font-bold hover:bg-gray-50 dark:hover:bg-gray-700 transition-all border border-gray-200 dark:border-gray-700 transform hover:scale-105">
-                Try Demo
+              <Link
+                href="/login"
+                className="px-8 py-3 bg-indigo-600 text-white rounded-lg font-semibold hover:bg-indigo-700 transition-colors"
+              >
+                Login
               </Link>
             </div>
           </div>
@@ -137,6 +128,18 @@ export default function Home() {
               <h3 className="text-xl font-semibold mb-2">Smart Reinforcement</h3>
               <p className="text-gray-600 dark:text-gray-400">
                 Master vocabulary through adaptive flashcards and intelligent review of challenging words
+              </p>
+            </div>
+
+            <div className="p-6 rounded-xl bg-white dark:bg-gray-800 shadow-sm hover:shadow-md transition-all">
+              <div className="w-12 h-12 bg-amber-100 dark:bg-amber-900/50 rounded-full flex items-center justify-center mb-4">
+                <svg className="w-6 h-6 text-amber-600 dark:text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129" />
+                </svg>
+              </div>
+              <h3 className="text-xl font-semibold mb-2">Language Variety</h3>
+              <p className="text-gray-600 dark:text-gray-400">
+                Choose from a diverse selection of languages, with more being added regularly to expand your learning horizons
               </p>
             </div>
           </div>
