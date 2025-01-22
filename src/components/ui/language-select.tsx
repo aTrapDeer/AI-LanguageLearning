@@ -9,76 +9,40 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "./dialog";
-import Link from "next/link";
-
-const languages = [
-  {
-    from: "English",
-    to: "German",
-    code: "de",
-    flag: "🇩🇪",
-  },
-  {
-    from: "English",
-    to: "Portuguese (Brazilian)",
-    code: "pt-BR",
-    flag: "🇧🇷",
-  },
-  {
-    from: "English",
-    to: "Mandarin",
-    code: "zh",
-    flag: "🇨🇳",
-  },
-  {
-    from: "English",
-    to: "Norwegian",
-    code: "no",
-    flag: "🇳🇴",
-  },
-];
+import { useLanguage, languages } from "@/contexts/language-context";
 
 export function LanguageSelect() {
+  const { selectedLanguage, setLanguage } = useLanguage();
+
   return (
     <Dialog>
       <DialogTrigger asChild>
-        <Button variant="ghost" className="hidden md:inline">
-          Choose Language
+        <Button variant="ghost" className="flex items-center gap-2">
+          <span className="text-xl">{selectedLanguage?.flag}</span>
+          <span className="text-sm font-medium">{selectedLanguage?.name}</span>
         </Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Choose Your Learning Path</DialogTitle>
+          <DialogTitle>Choose Language</DialogTitle>
           <DialogDescription>
-            Select the language you want to learn. We&apos;ll personalize your experience accordingly.
+            Select the language you want to learn
           </DialogDescription>
         </DialogHeader>
-        <div className="grid grid-cols-1 gap-4 py-4">
+        <div className="grid grid-cols-1 gap-2 py-4">
           {languages.map((lang) => (
             <Button
               key={lang.code}
-              variant="outline"
-              className="justify-start h-auto py-4"
-              asChild
+              variant={selectedLanguage?.code === lang.code ? "default" : "outline"}
+              className="w-full justify-start gap-2"
+              onClick={() => {
+                setLanguage(lang);
+              }}
             >
-              <Link href={`/learn/${lang.code}`}>
-                <div className="flex items-center w-full">
-                  <span className="text-2xl mr-4">{lang.flag}</span>
-                  <div className="flex flex-col items-start">
-                    <span className="font-medium">
-                      {lang.from} → {lang.to}
-                    </span>
-                    <span className="text-sm text-muted-foreground">
-                      Learn {lang.to} as an {lang.from} speaker
-                    </span>
-                  </div>
-                </div>
-              </Link>
+              <span className="text-xl">{lang.flag}</span>
+              <span>{lang.name}</span>
             </Button>
           ))}
-          <p className="text-sm text-muted-foreground text-center mt-2">
-            More languages coming soon!
-          </p>
         </div>
       </DialogContent>
     </Dialog>

@@ -27,42 +27,20 @@ function Header1() {
             description: "Start your language learning journey with AI-powered tools.",
             items: [
                 {
-                    title: "Interactive Lessons",
-                    href: "/lessons",
+                    title: "Chat",
+                    href: "/learn/chat",
                 },
                 {
-                    title: "Speaking Practice",
-                    href: "/speaking",
+                    title: "Flashcards",
+                    href: "/learn/flashcards",
                 },
                 {
-                    title: "Writing Exercises",
-                    href: "/writing",
+                    title: "Conversation",
+                    href: "/learn/conversation",
                 },
                 {
-                    title: "Vocabulary Builder",
-                    href: "/vocabulary",
-                },
-            ],
-        },
-        {
-            title: "Tools",
-            description: "Advanced AI tools to enhance your language learning.",
-            items: [
-                {
-                    title: "AI Conversation Partner",
-                    href: "/conversation",
-                },
-                {
-                    title: "Pronunciation Analysis",
-                    href: "/pronunciation",
-                },
-                {
-                    title: "Grammar Checker",
-                    href: "/grammar",
-                },
-                {
-                    title: "Translation Assistant",
-                    href: "/translate",
+                    title: "Visual Learning",
+                    href: "/learn/visual",
                 },
             ],
         },
@@ -99,9 +77,6 @@ function Header1() {
                                                                 {item.description}
                                                             </p>
                                                         </div>
-                                                        <Button size="sm" className="mt-10">
-                                                            Start Learning
-                                                        </Button>
                                                     </div>
                                                     <div className="flex flex-col text-sm h-full justify-end">
                                                         {item.items?.map((subItem) => (
@@ -131,7 +106,7 @@ function Header1() {
                         <span className="bg-gradient-to-r from-violet-500 to-indigo-600 bg-clip-text text-transparent hover:from-violet-400 hover:to-indigo-500 transition-all">GNFY</span>
                     </Link>
                 </div>
-                <div className="flex justify-end w-full gap-4">
+                <div className="flex justify-end w-full gap-4 items-center">
                     <LanguageSelect />
                     <div className="border-r hidden md:inline"></div>
                     {session ? (

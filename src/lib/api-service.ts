@@ -1,6 +1,6 @@
 export interface ChatMessage {
   message: string;
-  language: string;
+  language: 'English' | 'German' | 'Portuguese (Brazilian)' | 'Chinese' | 'Norwegian'; // Full language names as expected by the API
 }
 
 export interface ChatResponse {
@@ -54,20 +54,24 @@ if (process.env.NODE_ENV === 'development') {
 export const ApiService = {
   async sendMessage(message: ChatMessage): Promise<ChatResponse> {
     try {
+      console.log('Sending message to API:', message);
       const response = await fetch(`${API_BASE_URL}/chat`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Accept': 'application/json',
         },
         body: JSON.stringify(message),
       });
 
       if (!response.ok) {
         const error = await response.json().catch(() => ({ detail: 'Network error' }));
+        console.error('API error:', error);
         throw new Error(error.detail || 'Failed to send message');
       }
 
       const data = await response.json();
+      console.log('API response:', data);
       
       // If there's an audio URL, prepend the API base URL if it's a relative path
       if (data.audio_url && data.audio_url.startsWith('/')) {
@@ -96,6 +100,7 @@ export const ApiService = {
 
   async sendAudio(formData: FormData): Promise<ChatResponse> {
     try {
+      console.log('Sending audio with language:', formData.get('language'));
       const response = await fetch(`${API_BASE_URL}/chat/audio`, {
         method: 'POST',
         body: formData,
@@ -103,10 +108,12 @@ export const ApiService = {
 
       if (!response.ok) {
         const error = await response.json().catch(() => ({ detail: 'Network error' }));
+        console.error('API error:', error);
         throw new Error(error.detail || 'Failed to process audio');
       }
 
       const data = await response.json();
+      console.log('API response:', data);
       
       // If there's an audio URL, prepend the API base URL if it's a relative path
       if (data.audio_url && data.audio_url.startsWith('/')) {
