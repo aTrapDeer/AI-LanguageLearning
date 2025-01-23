@@ -231,20 +231,20 @@ export default function LanguagePage({ params }: LanguagePageProps) {
 
   return (
     <div className="flex flex-col min-h-screen max-h-screen">
-      {/* Header - Show on mobile and desktop */}
-      <div className="flex items-center justify-between p-4 border-b bg-background h-16">
-        <h1 className="text-2xl font-bold">
-          {activeLanguage} Language Learning
+      {/* Header - Smaller on mobile, regular on desktop */}
+      <div className="flex items-center justify-between p-2 md:p-4 border-b bg-background h-12 md:h-16">
+        <h1 className="text-lg md:text-2xl font-bold truncate">
+          {activeLanguage} Learning
         </h1>
         <div className="flex items-center gap-2">
           {/* Mobile menu */}
           <div className="md:hidden relative">
             <Button
               variant="ghost"
-              size="icon"
+              size="sm"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             >
-              <Menu className="h-5 w-5" />
+              <Menu className="h-4 w-4" />
             </Button>
             {mobileMenuOpen && (
               <div className="absolute right-0 mt-2 w-48 py-2 bg-white dark:bg-gray-800 rounded-md shadow-lg border z-50">
@@ -277,11 +277,14 @@ export default function LanguagePage({ params }: LanguagePageProps) {
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Chat History */}
+        {/* Chat History - Add padding top for first message */}
         <div 
           ref={chatContainerRef} 
-          className="flex-1 overflow-y-auto px-4 py-6 space-y-6"
+          className="flex-1 overflow-y-auto px-2 md:px-4 py-3 md:py-6 space-y-3 md:space-y-6"
         >
+          {/* Add a spacer div for mobile */}
+          <div className="h-2 md:h-0" aria-hidden="true" />
+          
           {chatHistory.map((entry, index) => (
             <div
               key={index}
@@ -290,7 +293,7 @@ export default function LanguagePage({ params }: LanguagePageProps) {
               }`}
             >
               <div
-                className={`inline-block p-4 rounded-2xl max-w-[80%] ${
+                className={`inline-block p-2 md:p-4 rounded-2xl max-w-[85%] md:max-w-[80%] text-sm md:text-base ${
                   entry.type === 'user'
                     ? 'bg-indigo-500 text-white'
                     : 'bg-gray-200 dark:bg-gray-800 text-black dark:text-white'
@@ -298,16 +301,16 @@ export default function LanguagePage({ params }: LanguagePageProps) {
               >
                 <pre className="whitespace-pre-wrap font-sans">{entry.message}</pre>
                 {entry.audio_url && (
-                  <div className="mt-2 flex items-center gap-2">
+                  <div className="mt-1 md:mt-2 flex items-center gap-2">
                     <button
                       onClick={() => handleAudioPlayback(entry.audio_url!)}
-                      className="px-3 py-1 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm"
+                      className="px-2 md:px-3 py-1 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-xs md:text-sm"
                     >
                       {audioPlayer.currentAudioUrl === entry.audio_url && audioPlayer.isPlaying ? 'Pause' : 'Play'} Audio
                     </button>
                   </div>
                 )}
-                <div className="text-xs mt-1 opacity-70">
+                <div className="text-[10px] md:text-xs mt-1 opacity-70">
                   {entry.timestamp.toLocaleTimeString()}
                 </div>
               </div>
@@ -315,12 +318,12 @@ export default function LanguagePage({ params }: LanguagePageProps) {
           ))}
         </div>
 
-        {/* Input Area */}
-        <div className="border-t bg-white dark:bg-gray-900 p-4 w-full">
+        {/* Input Area - More space on mobile */}
+        <div className="border-t bg-white dark:bg-gray-900 p-2 md:p-4 w-full">
           <div className="max-w-5xl mx-auto flex gap-2 items-end">
             <div className="flex-1">
               {error && (
-                <div className="mb-2 text-sm text-red-500">
+                <div className="mb-2 text-xs md:text-sm text-red-500">
                   {error}
                 </div>
               )}
@@ -328,12 +331,12 @@ export default function LanguagePage({ params }: LanguagePageProps) {
                 onSubmit={handleSubmit}
                 placeholder="Type your message..."
                 loadingDuration={2000}
-                className="bg-white dark:bg-gray-800 rounded-lg shadow-sm"
+                className="bg-white dark:bg-gray-800 rounded-lg shadow-sm min-h-[44px] md:min-h-[inherit]"
               />
             </div>
             <button
               onClick={isRecording ? stopRecording : startRecording}
-              className={`p-4 rounded-full shadow-sm transition-all ${
+              className={`p-3 md:p-4 rounded-full shadow-sm transition-all ${
                 isRecording
                   ? 'bg-red-500 hover:bg-red-600'
                   : 'bg-indigo-500 hover:bg-indigo-600'
@@ -341,7 +344,7 @@ export default function LanguagePage({ params }: LanguagePageProps) {
               disabled={loading}
             >
               <svg
-                className="w-6 h-6"
+                className="w-5 h-5 md:w-6 md:h-6"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
