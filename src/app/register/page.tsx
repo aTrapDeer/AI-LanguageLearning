@@ -3,7 +3,7 @@ import { BackgroundGradientAnimation } from '@/components/ui/background-gradient
 
 export default function RegisterPage() {
   return (
-    <div className="relative h-screen w-screen">
+    <div className="relative min-h-screen w-full">
       <BackgroundGradientAnimation
         gradientBackgroundStart="rgb(0, 17, 82)"
         gradientBackgroundEnd="rgb(108, 0, 162)"
@@ -18,8 +18,10 @@ export default function RegisterPage() {
         interactive={false}
         containerClassName="absolute inset-0 opacity-30"
       />
-      <div className="container relative flex h-screen w-screen flex-col items-center justify-center">
-        <AuthForm mode="register" />
+      <div className="relative flex min-h-screen items-center justify-center px-4">
+        <div className="w-full max-w-md">
+          <AuthForm mode="register" />
+        </div>
       </div>
     </div>
   )

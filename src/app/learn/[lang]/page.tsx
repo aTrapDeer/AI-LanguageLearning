@@ -230,9 +230,9 @@ export default function LanguagePage({ params }: LanguagePageProps) {
   }, [chatHistory]);
 
   return (
-    <div className="flex flex-col h-screen">
-      {/* Header */}
-      <div className="hidden md:flex items-center justify-between p-4 border-b bg-background">
+    <div className="flex flex-col min-h-screen max-h-screen">
+      {/* Header - Show on mobile and desktop */}
+      <div className="flex items-center justify-between p-4 border-b bg-background h-16">
         <h1 className="text-2xl font-bold">
           {activeLanguage} Language Learning
         </h1>
@@ -280,12 +280,12 @@ export default function LanguagePage({ params }: LanguagePageProps) {
         {/* Chat History */}
         <div 
           ref={chatContainerRef} 
-          className="flex-1 overflow-y-auto p-4"
+          className="flex-1 overflow-y-auto px-4 py-6 space-y-6"
         >
           {chatHistory.map((entry, index) => (
             <div
               key={index}
-              className={`mb-4 ${
+              className={`${
                 entry.type === 'user' ? 'text-right' : 'text-left'
               }`}
             >
