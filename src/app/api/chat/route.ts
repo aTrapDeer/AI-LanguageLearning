@@ -1,26 +1,40 @@
-import { NextResponse } from 'next/server'
-
-// Remove all previous backend logic and just proxy to Docker container
+// Remove unused NextResponse import
 export async function POST(req: Request) {
   try {
-    const body = await req.json()
-    const apiUrl = process.env.API_URL || 'http://localhost:8000' || "http://0.0.0.0:8000/" 
+    const body = await req.json();
+    const { message, language, languageCode } = body;
     
-    const response = await fetch(`${apiUrl}/chat`, {
+    if (!process.env.OPENAI_API_KEY) {
+      throw new Error('OPENAI_API_KEY is not set');
+    }
+
+    // Use language and languageCode in your API calls
+    const response = await fetch('http://localhost:5000/chat', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`
       },
-      body: JSON.stringify(body),
-    })
+      body: JSON.stringify({
+        message,
+        language,
+        languageCode
+      })
+    });
 
-    const data = await response.json()
-    return NextResponse.json(data)
+    if (!response.ok) {
+      throw new Error(`API request failed with status ${response.status}`);
+    }
+
+    const data = await response.json();
+    return new Response(JSON.stringify(data), {
+      headers: { 'Content-Type': 'application/json' }
+    });
   } catch (error) {
-    console.error('Error in chat route:', error)
-    return NextResponse.json(
-      { error: 'Failed to process request' },
-      { status: 500 }
-    )
+    console.error('Chat error:', error);
+    return new Response(JSON.stringify({ error: 'Failed to process chat request' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
   }
 } 

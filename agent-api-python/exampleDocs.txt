@@ -1,0 +1,770 @@
+Working with the MultimodalAgent class
+Build natural-sounding voice assistants with the MultimodalAgent class.
+
+The MultimodalAgent class is an abstraction for building AI agents using OpenAI’s Realtime API with multimodal models. These models accept audio directly, enabling them to 'hear' your voice and capture nuances like emotion, often lost in speech-to-text conversion.
+
+MultimodalAgent class
+Diagram showing MultimodalAgent
+Unlike VoicePipelineAgent, the MultimodalAgent class uses a single primary model for the conversation flow. The model is capable of processing both audio and text inputs, generating audio responses.
+
+MultimodalAgent is responsible for managing the conversation state, including buffering responses from the model and sending them to the user in realtime. It also handles interruptions, indicating to OpenAI's realtime API the point at which the model had been interrupted.
+
+Usage
+PythonNode.js
+from __future__ import annotations
+
+import logging
+
+from livekit import rtc
+from livekit.agents import (
+    AutoSubscribe,
+    JobContext,
+    WorkerOptions,
+    cli,
+    llm,
+)
+from livekit.agents.multimodal import MultimodalAgent
+from livekit.plugins import openai
+
+
+logger = logging.getLogger("myagent")
+logger.setLevel(logging.INFO)
+
+async def entrypoint(ctx: JobContext):
+    logger.info("starting entrypoint")
+
+    await ctx.connect(auto_subscribe=AutoSubscribe.AUDIO_ONLY)
+
+    participant = await ctx.wait_for_participant()
+
+    model = openai.realtime.RealtimeModel(
+        instructions="You are a helpful assistant and you love kittens",
+        voice="shimmer",
+        temperature=0.8,
+        modalities=["audio", "text"],
+    )
+    assistant = MultimodalAgent(model=model)
+    assistant.start(ctx.room)
+
+    logger.info("starting agent")
+
+    session = model.sessions[0]
+    session.conversation.item.create(
+      llm.ChatMessage(
+        role="assistant",
+        content="Please begin the interaction with the user in a manner consistent with your instructions.",
+      )
+    )
+    session.response.create()
+
+if __name__ == "__main__":
+    cli.run_app(WorkerOptions(entrypoint_fnc=entrypoint))
+Copy
+Advantages of speech-to-speech agents
+Speech-to-speech agents offer several advantages over pipeline-based agents:
+
+Natural Interactions: Callers can speak and hear responses with extremely low latency, mimicking human-to-human conversations.
+Voice and Tone: Speech-to-speech agents are able to dynamically change the intonation and tone of their responses based on the emotions of the caller, making interactions more engaging.
+Emitted events
+An agent emits the following events:
+
+PythonNode.js
+Event	Description
+user_started_speaking	User started speaking.
+user_stopped_speaking	User stopped speaking.
+agent_started_speaking	Agent started speaking.
+agent_stopped_speaking	Agent stopped speaking.
+user_speech_committed	User's speech was committed to the chat context.
+agent_speech_committed	Agent's speech was committed to the chat context.
+agent_speech_interrupted	Agent was interrupted while speaking.
+Events example
+PythonNode.js
+When user speech is committed to the chat context, save it to a queue:
+
+@agent.on("user_speech_committed")
+def on_user_speech_committed(msg: llm.ChatMessage):
+    # convert string lists to strings, drop images
+    if isinstance(msg.content, list):
+        msg.content = "\n".join(
+            "[image]" if isinstance(x, llm.ChatImage) else x for x in msg
+        )
+    log_queue.put_nowait(f"[{datetime.now()}] USER:\n{msg.content}\n\n")
+
+    Turn detection
+Build natural conversations with accurate turn detection
+
+Turn detection is crucial in AI voice applications, helping the assistant know when the user has finished speaking and when to respond. Accurate detection is key to maintaining natural conversation flow and avoiding interruptions or awkward pauses.
+
+Modifying the VAD parameters
+OpenAI's Realtime API handles detection on the server side. You can fine-tune the Voice Activity Detection (VAD) by adjusting various parameters to suit your application's needs. Here are the parameters you can adjust:
+
+threshold: Adjusts the sensitivity of the VAD. A lower threshold makes the VAD more sensitive to speech (detects quieter sounds), while a higher threshold makes it less sensitive. The default value is 0.5.
+prefix_padding_ms: Minimum duration of speech (in milliseconds) required to start a new speech chunk. This helps prevent very short sounds from triggering speech detection.
+silence_duration_ms: Minimum duration of silence (in milliseconds) at the end of speech before ending the speech segment. This ensures brief pauses do not prematurely end a speech segment.
+PythonNode.js
+assistant = multimodal.MultimodalAgent(
+    model=openai.realtime.RealtimeModel(
+        voice="alloy",
+        temperature=0.8,
+        instructions="You are a helpful assistant",
+        turn_detection=openai.realtime.ServerVadOptions(
+            threshold=0.6, prefix_padding_ms=200, silence_duration_ms=500
+        ),
+    )
+)
+assistant.start(ctx.room)
+
+Adjusting Model Parameters
+Fine-tune the assistant’s responses by tweaking model parameters such as temperature and maximum tokens
+
+The RealtimeModel class is used to create a realtime conversational AI session. Below are the key parameters that can be passed when initializing the model, with a focus on the modalities, instructions, voice, turn_detection, temperature, and max_output_tokens options.
+
+Parameters
+modalities
+Type: list[api_proto.Modality] Default: ["text", "audio"] Description: Specifies the input/output modalities supported by the model. This can be either or both of:
+
+"text": The model processes text-based input and generates text responses.
+"audio": The model processes audio input and can generate audio responses.
+Example:
+
+modalities=["text", "audio"]
+Copy
+instructions
+Type: str | None Default: None Description: Custom instructions are the 'system prompt' for the model to follow during the conversation. This can be used to guide the behavior of the model or set specific goals.
+
+Example:
+
+instructions="Please provide responses that are brief and informative."
+Copy
+voice
+Type: api_proto.Voice Default: "alloy" Description: Determines the voice used for audio responses. Some examples of voices include:
+
+"alloy"
+"echo"
+"shimmer"
+Example:
+
+voice="alloy"
+Copy
+turn_detection
+Type: api_proto.TurnDetectionType Default: {"type": "server_vad"} Description: Controls how the model detects when a speaker has finished talking, which is critical in realtime interactions.
+
+"server_vad": OpenAI uses server side Voice Activity Detection (VAD) to detect when the user has stopped speaking. This can be fine-tuned using the following parameters:
+threshold (optional): Float value to control the sensitivity of speech detection.
+prefix_padding_ms (optional): The amount of time (in milliseconds) to pad before the detected speech.
+silence_duration_ms (optional): The amount of silence (in milliseconds) required to consider the speech finished.
+Example:
+
+turn_detection={
+    "type": "server_vad",
+    "threshold": 0.6,
+    "prefix_padding_ms": 300,
+    "silence_duration_ms": 500
+}
+Copy
+temperature
+Type: float Default: 0.8 Description: Controls the randomness of the model's output. Higher values (e.g., 1.0 and above) make the model's output more diverse and creative, while lower values (e.g., 0.6) makes it more focused and deterministic.
+
+Example:
+
+temperature=0.7
+Copy
+max_output_tokens
+Type: int Default: 2048 Description: Limits the maximum number of tokens in the generated output. This helps control the length of the responses from the model, where one token roughly corresponds to one word.
+
+Example:
+
+max_output_tokens=1500
+Copy
+Example Initialization
+Here is a full example of how to initialize the RealtimeModel with these parameters:
+
+Python
+realtime_model = RealtimeModel(
+    modalities=["text", "audio"],
+    instructions="Give brief, concise answers.",
+    voice="alloy",
+    turn_detection=openai.realtime.ServerVadOptions(
+        threshold=0.6, prefix_padding_ms=200, silence_duration_ms=500,
+    ),
+    temperature=0.7,
+    max_output_tokens=1500,
+)
+
+
+async def do_something(track: rtc.RemoteAudioTrack):
+    audio_stream = rtc.AudioStream(track)
+    async for event in audio_stream:
+        # Do something here to process event.frame
+        pass
+    await audio_stream.aclose()
+
+async def entrypoint(ctx: JobContext):
+    # an rtc.Room instance from the LiveKit Python SDK
+    room = ctx.room
+
+    # set up listeners on the room before connecting
+    @room.on("track_subscribed")
+    def on_track_subscribed(track: rtc.Track, *_):
+        if track.kind == rtc.TrackKind.KIND_AUDIO:
+            asyncio.create_task(do_something(track))
+
+    # connect to room
+    await ctx.connect(auto_subscribe=AutoSubscribe.AUDIO_ONLY)
+
+    # when connected, room.local_participant represents the agent
+    await room.local_participant.publish_data("hello world")
+    # iterate through currently connected remote participants
+    for rp in room.remote_participants.values():
+        print(rp.identity)
+
+
+Module livekit.rtc.room
+Classes
+class ConnectError
+(
+message: str)
+Expand source code
+Common base class for all non-exit exceptions.
+
+Ancestors
+builtins.Exception builtins.BaseException
+class DataPacket
+(
+data: bytes,
+kind: proto_room.DataPacketKind.ValueType,
+participant: RemoteParticipant | None,
+topic: str | None = None)
+Expand source code
+DataPacket(data: 'bytes', kind: 'proto_room.DataPacketKind.ValueType', participant: 'RemoteParticipant | None', topic: 'str | None' = None)
+
+Class variables
+var data : bytes
+The payload of the data packet.
+
+var kind : int
+Type of the data packet (e.g., RELIABLE, LOSSY).
+
+var participant : RemoteParticipant | None
+Participant who sent the data. None when sent by a server SDK.
+
+var topic : str | None
+Topic associated with the data packet.
+
+class Room
+(
+loop: Optional[asyncio.AbstractEventLoop] = None)
+Expand source code
+Abstract base class for generic types.
+
+On Python 3.12 and newer, generic classes implicitly inherit from Generic when they declare a parameter list after the class's name::
+
+class Mapping[KT, VT]:
+    def __getitem__(self, key: KT) -> VT:
+        ...
+    # Etc.
+On older versions of Python, however, generic classes have to explicitly inherit from Generic.
+
+After a class has been declared to be generic, it can then be used as follows::
+
+def lookup_name[KT, VT](mapping: Mapping[KT, VT], key: KT, default: VT) -> VT:
+    try:
+        return mapping[key]
+    except KeyError:
+        return default
+Initializes a new Room instance.
+
+Parameters
+loop (Optional[asyncio.AbstractEventLoop]): The event loop to use. If not provided, the default event loop is used.
+
+Ancestors
+EventEmitter typing.Generic
+Instance variables
+prop connection_state : ConnectionState.ValueType
+Expand source code
+Gets the connection state of the room.
+
+Returns
+ConnectionState
+The connection state of the room.
+prop e2ee_manager : E2EEManager
+Expand source code
+Gets the end-to-end encryption (E2EE) manager for the room.
+
+Returns
+E2EEManager
+The E2EE manager instance.
+prop local_participant : LocalParticipant
+Expand source code
+Gets the local participant in the room.
+
+Returns
+LocalParticipant
+The local participant in the room.
+prop metadata : str
+Expand source code
+Gets the metadata associated with the room.
+
+Returns
+str
+The metadata of the room.
+prop name : str
+Expand source code
+Gets the name of the room.
+
+Returns
+str
+The name of the room.
+prop remote_participants : Mapping[str, RemoteParticipant]
+Expand source code
+Gets the remote participants in the room.
+
+Returns
+dict[str, RemoteParticipant]
+A dictionary of remote participants indexed by their
+identity.
+
+prop sid : str
+Expand source code
+Asynchronously retrieves the session ID (SID) of the room.
+
+Returns
+str
+The session ID of the room.
+Methods
+async def connect
+(
+self,
+url: str,
+token: str,
+options: RoomOptions = RoomOptions(auto_subscribe=True, dynacast=False, e2ee=None, rtc_config=None)) ‑> None
+Expand source code
+Connects to a LiveKit room using the specified URL and token.
+
+Parameters
+url (str): The WebSocket URL of the LiveKit server to connect to. token (str): The access token for authentication and authorization. options (RoomOptions, optional): Additional options for the room connection.
+
+Raises
+ConnectError
+If the connection fails.
+Example
+room = Room()
+
+# Listen for events before connecting to the room
+@room.on("participant_connected")
+def on_participant_connected(participant):
+    print(f"Participant connected: {participant.identity}")
+
+await room.connect("ws://localhost:7880", "your_token")
+async def disconnect
+(
+self) ‑> None
+Expand source code
+Disconnects from the room.
+
+def isconnected
+(
+self) ‑> bool
+Expand source code
+Checks if the room is currently connected.
+
+Returns
+bool
+True if connected, False otherwise.
+def on
+(
+self, event: EventTypes, callback: Optional[Callable] = None) ‑> Callable
+Expand source code
+Registers an event handler for a specific event type.
+
+Parameters
+event (EventTypes): The name of the event to listen for. callback (Callable): The function to call when the event occurs.
+
+Returns
+Callable
+The registered callback function.
+Available events: - "participant_connected": Called when a new participant joins the room. - Arguments: participant (RemoteParticipant) - "participant_disconnected": Called when a participant leaves the room. - Arguments: participant (RemoteParticipant) - "local_track_published": Called when a local track is published. - Arguments: publication (LocalTrackPublication), track (Track) - "local_track_unpublished": Called when a local track is unpublished. - Arguments: publication (LocalTrackPublication) - "local_track_subscribed": Called when a local track is subscribed. - Arguments: track (Track) - "track_published": Called when a remote participant publishes a track. - Arguments: publication (RemoteTrackPublication), participant (RemoteParticipant) - "track_unpublished": Called when a remote participant unpublishes a track. - Arguments: publication (RemoteTrackPublication), participant (RemoteParticipant) - "track_subscribed": Called when a track is subscribed. - Arguments: track (Track), publication (RemoteTrackPublication), participant (RemoteParticipant) - "track_unsubscribed": Called when a track is unsubscribed. - Arguments: track (Track), publication (RemoteTrackPublication), participant (RemoteParticipant) - "track_subscription_failed": Called when a track subscription fails. - Arguments: participant (RemoteParticipant), track_sid (str), error (str) - "track_muted": Called when a track is muted. - Arguments: participant (Participant), publication (TrackPublication) - "track_unmuted": Called when a track is unmuted. - Arguments: participant (Participant), publication (TrackPublication) - "active_speakers_changed": Called when the list of active speakers changes. - Arguments: speakers (list[Participant]) - "room_metadata_changed": Called when the room's metadata is updated. - Arguments: old_metadata (str), new_metadata (str) - "participant_metadata_changed": Called when a participant's metadata is updated. - Arguments: participant (Participant), old_metadata (str), new_metadata (str) - "participant_name_changed": Called when a participant's name is changed. - Arguments: participant (Participant), old_name (str), new_name (str) - "participant_attributes_changed": Called when a participant's attributes change. - Arguments: changed_attributes (dict), participant (Participant) - "connection_quality_changed": Called when a participant's connection quality changes. - Arguments: participant (Participant), quality (ConnectionQuality) - "transcription_received": Called when a transcription is received. - Arguments: segments (list[TranscriptionSegment]), participant (Participant), publication (TrackPublication) - "data_received": Called when data is received. - Arguments: data_packet (DataPacket) - "sip_dtmf_received": Called when a SIP DTMF signal is received. - Arguments: sip_dtmf (SipDTMF) - "e2ee_state_changed": Called when a participant's E2EE state changes. - Arguments: participant (Participant), state (EncryptionState) - "connection_state_changed": Called when the room's connection state changes. - Arguments: connection_state (ConnectionState) - "connected": Called when the room is successfully connected. - Arguments: None - "disconnected": Called when the room is disconnected. - Arguments: reason (DisconnectReason) - "reconnecting": Called when the room is attempting to reconnect. - Arguments: None - "reconnected": Called when the room has successfully reconnected. - Arguments: None
+
+Example
+def on_participant_connected(participant):
+    print(f"Participant connected: {participant.identity}")
+
+room.on("participant_connected", on_participant_connected)
+Inherited members
+EventEmitter: emit off once
+class RoomOptions
+(
+auto_subscribe: bool = True,
+dynacast: bool = False,
+e2ee: E2EEOptions | None = None,
+rtc_config: RtcConfiguration | None = None)
+Expand source code
+RoomOptions(auto_subscribe: 'bool' = True, dynacast: 'bool' = False, e2ee: 'E2EEOptions | None' = None, rtc_config: 'RtcConfiguration | None' = None)
+
+Class variables
+var auto_subscribe : bool
+Automatically subscribe to tracks when participants join.
+
+var dynacast : bool
+var e2ee : E2EEOptions | None
+Options for end-to-end encryption.
+
+var rtc_config : RtcConfiguration | None
+WebRTC-related configuration.
+
+class RpcMethodInvocationEvent
+(
+*args, **kwargs)
+A ProtocolMessage
+
+Ancestors
+google._upb._message.Message google.protobuf.message.Message
+Class variables
+var DESCRIPTOR
+class RtcConfiguration
+(
+ice_transport_type: proto_room.IceTransportType.ValueType = 2,
+continual_gathering_policy: proto_room.ContinualGatheringPolicy.ValueType = 1,
+ice_servers: list[proto_room.IceServer] = <factory>)
+Expand source code
+RtcConfiguration(ice_transport_type: 'proto_room.IceTransportType.ValueType' = 2, continual_gathering_policy: 'proto_room.ContinualGatheringPolicy.ValueType' = 1, ice_servers: 'list[proto_room.IceServer]' = )
+
+Class variables
+var continual_gathering_policy : int
+Policy for continual gathering of ICE candidates.
+
+var ice_servers : list[room_pb2.IceServer]
+List of ICE servers for STUN/TURN. When empty, it uses the default ICE servers provided by the SFU.
+
+var ice_transport_type : int
+Specifies the type of ICE transport to be used (e.g., all, relay, etc.).
+
+class SipDTMF
+(
+code: int, digit: str, participant: RemoteParticipant | None = None)
+Expand source code
+SipDTMF(code: 'int', digit: 'str', participant: 'RemoteParticipant | None' = None)
+
+Class variables
+var code : int
+DTMF code corresponding to the digit.
+
+var digit : str
+DTMF digit sent.
+
+var participant : RemoteParticipant | None
+Participant who sent the DTMF digit. None when sent by a server SDK.
+
+Module livekit.rtc.participant
+Classes
+class LocalParticipant
+(
+room_queue: BroadcastQueue[proto_ffi.FfiEvent],
+owned_info: proto_participant.OwnedParticipant)
+Expand source code
+Represents the local participant in a room.
+
+Ancestors
+Participant abc.ABC
+Methods
+async def perform_rpc
+(
+self,
+*,
+destination_identity: str,
+method: str,
+payload: str,
+response_timeout: Optional[float] = None) ‑> str
+Expand source code
+Initiate an RPC call to a remote participant.
+
+Args
+destination_identity : str
+The identity of the destination participant
+method : str
+The method name to call
+payload : str
+The method payload
+response_timeout : Optional[float]
+Timeout for receiving a response after initial connection
+Returns
+str
+The response payload
+Raises
+RpcError
+On failure. Details in message.
+async def publish_data
+(
+self,
+payload: Union[bytes, str],
+*,
+reliable: bool = True,
+destination_identities: List[str] = [],
+topic: str = '') ‑> None
+Expand source code
+Publish arbitrary data to the room.
+
+Args
+payload : Union[bytes, str]
+The data to publish.
+reliable : bool, optional
+Whether to send reliably or not. Defaults to True.
+destination_identities : List[str], optional
+List of participant identities to send to. Defaults to [].
+topic : str, optional
+The topic under which to publish the data. Defaults to "".
+Raises
+PublishDataError
+If there is an error in publishing data.
+async def publish_dtmf
+(
+self, *, code: int, digit: str) ‑> None
+Expand source code
+Publish SIP DTMF message.
+
+Args
+code : int
+DTMF code.
+digit : str
+DTMF digit.
+Raises
+PublishDTMFError
+If there is an error in publishing SIP DTMF message.
+async def publish_track
+(
+self,
+track: LocalTrack,
+options: TrackPublishOptions = ) ‑> LocalTrackPublication
+Expand source code
+Publish a local track to the room.
+
+Args
+track : LocalTrack
+The track to publish.
+options : TrackPublishOptions, optional
+Options for publishing the track.
+Returns
+LocalTrackPublication
+The publication of the published track.
+Raises
+PublishTrackError
+If there is an error in publishing the track.
+async def publish_transcription
+(
+self, transcription: Transcription) ‑> None
+Expand source code
+Publish transcription data to the room.
+
+Args
+transcription : Transcription
+The transcription data to publish.
+Raises
+PublishTranscriptionError
+If there is an error in publishing transcription.
+def register_rpc_method
+(
+self,
+method_name: str,
+handler: Optional[Callable[[RpcInvocationData], Union[Awaitable[str], str]]] = None) ‑> Callable | None
+Expand source code
+Establishes the participant as a receiver for calls of the specified RPC method. Can be used either as a decorator or a regular method.
+
+The handler will receive one argument of type RpcInvocationData and should return a string response which will be forwarded back to the caller.
+
+The handler may be synchronous or asynchronous.
+
+If unable to respond within response_timeout, the caller will hang up and receive an error on their side.
+
+You may raise errors of type RpcError in the handler, and they will be forwarded to the caller.
+
+Other errors raised in your handler will be caught and forwarded to the caller as "1500 Application Error".
+
+Args
+method_name : str
+The name of the indicated RPC method.
+handler : Optional[Callable]
+Handler to be invoked whenever an RPC request for this method is received. Omit this argument to use the decorator syntax.
+Returns
+None (when used as a decorator it returns the decorator function)
+
+Example
+As a decorator:
+@room.local_participant.register_rpc_method("greet") async def greet_handler(data: RpcInvocationData) -> str: print(f"Received greeting from {data.caller_identity}: {data.payload}") return f"Hello, {data.caller_identity}!"
+
+As a regular method:
+async def greet_handler(data: RpcInvocationData) -> str: print(f"Received greeting from {data.caller_identity}: {data.payload}") return f"Hello, {data.caller_identity}!"
+
+room.local_participant.register_rpc_method('greet', greet_handler)
+
+async def set_attributes
+(
+self, attributes: dict[str, str]) ‑> None
+Expand source code
+Set custom attributes for the local participant.
+
+Note: this requires canUpdateOwnMetadata permission.
+
+Args
+attributes : dict[str, str]
+A dictionary of attributes to set.
+async def set_metadata
+(
+self, metadata: str) ‑> None
+Expand source code
+Set the metadata for the local participant.
+
+Note: this requires canUpdateOwnMetadata permission.
+
+Args
+metadata : str
+The new metadata.
+async def set_name
+(
+self, name: str) ‑> None
+Expand source code
+Set the name for the local participant.
+
+Note: this requires canUpdateOwnMetadata permission.
+
+Args
+name : str
+The new name.
+async def unpublish_track
+(
+self, track_sid: str) ‑> None
+Expand source code
+Unpublish a track from the room.
+
+Args
+track_sid : str
+The SID of the track to unpublish.
+Raises
+UnpublishTrackError
+If there is an error in unpublishing the track.
+def unregister_rpc_method
+(
+self, method: str) ‑> None
+Expand source code
+Unregisters a previously registered RPC method.
+
+Args
+method : str
+The name of the RPC method to unregister
+Inherited members
+Participant: attributes disconnect_reason kind track_publications
+class Participant
+(
+owned_info: proto_participant.OwnedParticipant)
+Expand source code
+Helper class that provides a standard way to create an ABC using inheritance.
+
+Ancestors
+abc.ABC
+Subclasses
+LocalParticipant RemoteParticipant
+Instance variables
+prop attributes : dict[str, str]
+Expand source code
+Custom attributes associated with the participant.
+
+prop disconnect_reason : Optional[proto_participant.DisconnectReason.ValueType]
+Expand source code
+Reason for the participant's disconnection.
+
+Returns one of DisconnectReasons or None if the participant isn't disconnected. Common reasons are: - CLIENT_INITIATED - the client initiated the disconnect - DUPLICATE_IDENTITY - another participant with the same identity has joined the room - SERVER_SHUTDOWN - the server instance is shutting down - PARTICIPANT_REMOVED - RoomService.RemoveParticipant was called - ROOM_DELETED - RoomService.DeleteRoom was called - STATE_MISMATCH - the client is attempting to resume a session, but server is not aware of it - JOIN_FAILURE - client was unable to connect fully
+
+When dialing a participant via SIP, you may see the following reasons: - USER_UNAVAILABLE - SIP callee did not respond in time - USER_REJECTED - SIP callee rejected the call (busy) - SIP_TRUNK_FAILURE - SIP protocol failure or unexpected response
+
+prop identity : str
+Expand source code
+prop kind : proto_participant.ParticipantKind.ValueType
+Expand source code
+Participant's kind (e.g., regular participant, ingress, egress, sip, agent).
+
+prop metadata : str
+Expand source code
+prop name : str
+Expand source code
+prop sid : str
+Expand source code
+prop track_publications : Mapping[str, TrackPublication]
+Expand source code
+A dictionary of track publications associated with the participant.
+
+class PublishDTMFError
+(
+message: str)
+Expand source code
+Common base class for all non-exit exceptions.
+
+Ancestors
+builtins.Exception builtins.BaseException
+class PublishDataError
+(
+message: str)
+Expand source code
+Common base class for all non-exit exceptions.
+
+Ancestors
+builtins.Exception builtins.BaseException
+class PublishTrackError
+(
+message: str)
+Expand source code
+Common base class for all non-exit exceptions.
+
+Ancestors
+builtins.Exception builtins.BaseException
+class PublishTranscriptionError
+(
+message: str)
+Expand source code
+Common base class for all non-exit exceptions.
+
+Ancestors
+builtins.Exception builtins.BaseException
+class RemoteParticipant
+(
+owned_info: proto_participant.OwnedParticipant)
+Expand source code
+Helper class that provides a standard way to create an ABC using inheritance.
+
+Ancestors
+Participant abc.ABC
+Inherited members
+Participant: attributes disconnect_reason kind track_publications
+class RpcMethodInvocationResponseRequest
+(
+*args, **kwargs)
+A ProtocolMessage
+
+Ancestors
+google._upb._message.Message google.protobuf.message.Message
+Class variables
+var DESCRIPTOR
+class TrackPublishOptions
+(
+*args, **kwargs)
+A ProtocolMessage
+
+Ancestors
+google._upb._message.Message google.protobuf.message.Message
+Class variables
+var DESCRIPTOR
+class ProtoTranscriptionSegment
+(
+*args, **kwargs)
+A ProtocolMessage
+
+Ancestors
+google._upb._message.Message google.protobuf.message.Message
+Class variables
+var DESCRIPTOR
+class UnpublishTrackError
+(
+message: str)
+Expand source code
+Common base class for all non-exit exceptions.
+
+Ancestors
+builtins.Exception builtins.BaseException

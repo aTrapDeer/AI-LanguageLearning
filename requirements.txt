@@ -22,12 +22,7 @@ openai>=1.0.0
 requests>=2.31.0
 asyncio>=3.4.3
 aiohttp>=3.8.0
-
-# AWS SDK
-boto3>=1.28.0
-
-# Audio processing
 python-multipart>=0.0.5
-
-# Debugging tools
-debugpy>=1.8.0
+sounddevice>=0.4.6  # For audio handling
+numpy>=1.24.0  # Required for audio processing
+python-jose[cryptography]>=3.3.0  # For JWT handling 

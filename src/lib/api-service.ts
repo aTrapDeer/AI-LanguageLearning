@@ -51,39 +51,228 @@ if (process.env.NODE_ENV === 'development') {
   console.log('API Base URL:', API_BASE_URL);
 }
 
-export const ApiService = {
-  async sendMessage(message: ChatMessage): Promise<ChatResponse> {
+export class ApiService {
+  private static ws: WebSocket | null = null;
+  private static audioContext: AudioContext | null = null;
+  private static isWaitingForResponse = false;
+  private static isInitialGreetingPlayed = false;
+  private static sessionId = `frontend_${Date.now()}`;
+  private static audioWorkletNode: AudioWorkletNode | null = null;
+  private static isListening = false;
+  private static audioLevel = 0;
+  private static silenceTimeout: NodeJS.Timeout | null = null;
+  private static SILENCE_THRESHOLD = 0.01;
+  private static SILENCE_DURATION = 1000; // 1 second of silence before sending end_of_speech
+
+  static async initializeConversation(language: string): Promise<void> {
+    console.log(`[${this.sessionId}] Initializing conversation for language: ${language}`);
+    
+    // Reset all state
+    if (this.ws) {
+      console.log(`[${this.sessionId}] Closing existing WebSocket connection`);
+      this.ws.close();
+      this.ws = null;
+    }
+    
+    this.isWaitingForResponse = false;
+    this.isInitialGreetingPlayed = false;
+    this.isListening = false;
+    
+    const config = {
+      language,
+      voice: "alloy",
+      proficiency_level: "intermediate",
+      focus_areas: ["pronunciation", "grammar", "vocabulary"],
+      conversation_style: "casual",
+      instructions: `Practice ${language} conversation with focus on daily situations`
+    };
+
+    this.ws = new WebSocket(`ws://localhost:8000/rtc`);
+    
+    this.ws.onopen = () => {
+      console.log(`[${this.sessionId}] WebSocket connection established`);
+      this.ws?.send(JSON.stringify(config));
+      console.log(`[${this.sessionId}] Sent initial configuration:`, config);
+    };
+
+    this.ws.onmessage = async (event) => {
+      try {
+        if (event.data instanceof Blob) {
+          console.log(`[${this.sessionId}] Received audio blob of size: ${event.data.size} bytes`);
+          const arrayBuffer = await event.data.arrayBuffer();
+          
+          if (!this.audioContext) {
+            console.log(`[${this.sessionId}] Creating new AudioContext`);
+            this.audioContext = new AudioContext({
+              sampleRate: 24000
+            });
+          }
+          
+          console.log(`[${this.sessionId}] Processing audio data`);
+          const int16Data = new Int16Array(arrayBuffer);
+          const float32Data = new Float32Array(int16Data.length);
+          for (let i = 0; i < int16Data.length; i++) {
+            float32Data[i] = int16Data[i] / 32768.0;
+          }
+          
+          const audioBuffer = this.audioContext.createBuffer(1, float32Data.length, 24000);
+          audioBuffer.getChannelData(0).set(float32Data);
+          
+          const source = this.audioContext.createBufferSource();
+          source.buffer = audioBuffer;
+          source.connect(this.audioContext.destination);
+          
+          console.log(`[${this.sessionId}] Starting audio playback`);
+          source.start();
+          
+          source.onended = () => {
+            if (!this.isInitialGreetingPlayed) {
+              this.isInitialGreetingPlayed = true;
+              console.log(`[${this.sessionId}] Initial greeting finished, starting to listen`);
+              this.startListening();
+            } else {
+              console.log(`[${this.sessionId}] Response finished playing, ready for next input`);
+              this.isWaitingForResponse = false;
+              this.startListening();
+            }
+          };
+        }
+      } catch (err) {
+        console.error(`[${this.sessionId}] Error processing audio response:`, err);
+        this.isWaitingForResponse = false;
+      }
+    };
+
+    this.ws.onerror = (error) => {
+      console.error(`[${this.sessionId}] WebSocket error:`, error);
+    };
+
+    this.ws.onclose = (event) => {
+      console.log(`[${this.sessionId}] WebSocket connection closed:`, event.code, event.reason);
+      this.stopListening();
+    };
+  }
+
+  private static startListening(): void {
+    if (this.isListening || this.isWaitingForResponse) return;
+    
+    console.log(`[${this.sessionId}] Starting to listen for user input`);
+    this.isListening = true;
+    this.audioLevel = 0;
+    
+    // Reset silence timeout if it exists
+    if (this.silenceTimeout) {
+      clearTimeout(this.silenceTimeout);
+      this.silenceTimeout = null;
+    }
+  }
+
+  private static stopListening(): void {
+    if (!this.isListening) return;
+    
+    console.log(`[${this.sessionId}] Stopping listening`);
+    this.isListening = false;
+    if (this.silenceTimeout) {
+      clearTimeout(this.silenceTimeout);
+      this.silenceTimeout = null;
+    }
+  }
+
+  static async sendAudioData(audioData: Uint8Array): Promise<void> {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN || !this.isListening || this.isWaitingForResponse) {
+      return;
+    }
+
     try {
-      console.log('Sending message to API:', message);
+      // Calculate audio level
+      const int16Data = new Int16Array(audioData.buffer);
+      let sum = 0;
+      for (let i = 0; i < int16Data.length; i++) {
+        sum += Math.abs(int16Data[i]);
+      }
+      this.audioLevel = sum / int16Data.length / 32768.0;
+
+      // If audio level is above threshold, send data and reset silence timeout
+      if (this.audioLevel > this.SILENCE_THRESHOLD) {
+        console.log(`[${this.sessionId}] Sending audio data, level: ${this.audioLevel}`);
+        const base64Audio = Buffer.from(audioData).toString('base64');
+        const message = {
+          type: "input_audio_buffer.append",
+          audio: base64Audio
+        };
+        await this.ws.send(JSON.stringify(message));
+
+        // Reset silence timeout
+        if (this.silenceTimeout) {
+          clearTimeout(this.silenceTimeout);
+        }
+        this.silenceTimeout = setTimeout(() => {
+          this.sendEndOfSpeech();
+        }, this.SILENCE_DURATION);
+      }
+    } catch (err) {
+      console.error(`[${this.sessionId}] Error sending audio data:`, err);
+    }
+  }
+
+  static async sendEndOfSpeech(): Promise<void> {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN || !this.isListening || this.isWaitingForResponse) {
+      return;
+    }
+
+    try {
+      console.log(`[${this.sessionId}] Sending end of speech signal`);
+      const message = {
+        type: "end_of_speech"
+      };
+      await this.ws.send(JSON.stringify(message));
+      this.isWaitingForResponse = true;
+      this.stopListening();
+      console.log(`[${this.sessionId}] End of speech signal sent, waiting for response`);
+    } catch (err) {
+      console.error(`[${this.sessionId}] Error sending end of speech:`, err);
+    }
+  }
+
+  // Legacy chat methods
+  static async sendMessage(message: ChatMessage): Promise<ChatResponse> {
+    try {
       const response = await fetch(`${API_BASE_URL}/chat`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Accept': 'application/json',
         },
         body: JSON.stringify(message),
       });
 
       if (!response.ok) {
-        const error = await response.json().catch(() => ({ detail: 'Network error' }));
-        console.error('API error:', error);
-        throw new Error(error.detail || 'Failed to send message');
+        throw new Error('Failed to send message');
       }
 
-      const data = await response.json();
-      console.log('API response:', data);
-      
-      // If there's an audio URL, prepend the API base URL if it's a relative path
-      if (data.audio_url && data.audio_url.startsWith('/')) {
-        data.audio_url = `${API_BASE_URL}${data.audio_url}`;
-      }
-
-      return data;
+      return response.json();
     } catch (error) {
       console.error('Error sending message:', error);
       throw error;
     }
-  },
+  }
+
+  static async sendAudio(formData: FormData): Promise<ChatResponse> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/chat/audio`, {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to process audio');
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error('Error sending audio:', error);
+      throw error;
+    }
+  }
 
   async checkHealth(): Promise<{ status: string }> {
     try {
@@ -96,34 +285,5 @@ export const ApiService = {
       console.error('Health check error:', error);
       throw error;
     }
-  },
-
-  async sendAudio(formData: FormData): Promise<ChatResponse> {
-    try {
-      console.log('Sending audio with language:', formData.get('language'));
-      const response = await fetch(`${API_BASE_URL}/chat/audio`, {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (!response.ok) {
-        const error = await response.json().catch(() => ({ detail: 'Network error' }));
-        console.error('API error:', error);
-        throw new Error(error.detail || 'Failed to process audio');
-      }
-
-      const data = await response.json();
-      console.log('API response:', data);
-      
-      // If there's an audio URL, prepend the API base URL if it's a relative path
-      if (data.audio_url && data.audio_url.startsWith('/')) {
-        data.audio_url = `${API_BASE_URL}${data.audio_url}`;
-      }
-
-      return data;
-    } catch (error) {
-      console.error('Error sending audio:', error);
-      throw error;
-    }
   }
-}; 
+} 
