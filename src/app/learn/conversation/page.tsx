@@ -1,7 +1,6 @@
 "use client"
 
 import React, { useEffect, useState, useRef, useCallback } from "react"
-import { motion } from "framer-motion"
 import { v4 as uuidv4 } from "uuid"
 
 interface Message {
@@ -423,6 +422,12 @@ const ConversationPage = () => {
       </div>
 
       <div className="w-full bg-card text-card-foreground rounded-xl border shadow-sm p-8 space-y-6">
+        {error && (
+          <div className="w-full p-4 bg-red-50 dark:bg-red-900/10 text-red-600 dark:text-red-400 rounded-lg text-sm">
+            {error}
+          </div>
+        )}
+
         <div className="flex items-center justify-between">
           <div className="w-full max-w-xs">
             <label htmlFor="microphone" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
