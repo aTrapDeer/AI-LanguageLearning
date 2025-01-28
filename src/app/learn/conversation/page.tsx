@@ -416,106 +416,69 @@ const ConversationPage = () => {
   };
 
   return (
-    <main className="flex flex-1 justify-center items-start">
-      <motion.div 
-        className="container flex flex-col items-center justify-center mx-auto max-w-3xl my-20"
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-      >
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold">Language Learning Assistant</h1>
-          <p className="text-muted-foreground mt-2">Practice conversations and improve your language skills</p>
+    <div className="container flex flex-col items-center justify-center mx-auto max-w-5xl mt-24 mb-12">
+      <div className="text-center mb-8">
+        <h1 className="text-3xl font-bold mb-2">Language Learning Assistant</h1>
+        <p className="text-muted-foreground">Practice conversations and improve your language skills</p>
+      </div>
+
+      <div className="w-full bg-card text-card-foreground rounded-xl border shadow-sm p-8 space-y-6">
+        <div className="flex items-center justify-between">
+          <div className="w-full max-w-xs">
+            <label htmlFor="microphone" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Microphone
+            </label>
+            <select
+              id="microphone"
+              value={selectedDevice}
+              onChange={(e) => handleDeviceChange(e.target.value)}
+              className="block w-full rounded-md border border-gray-300 bg-white py-2 px-3 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 sm:text-sm"
+            >
+              {audioDevices.map((device) => (
+                <option key={device.deviceId} value={device.deviceId}>
+                  {device.label}
+                </option>
+              ))}
+            </select>
           </div>
           
-        <motion.div 
-          className="w-full max-w-md bg-card text-card-foreground rounded-xl border shadow-sm p-6 space-y-4"
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: 0.2, duration: 0.4 }}
-        >
-          <div className="flex flex-col items-center gap-4">
-            {/* Audio Device Selector */}
-            <div className="w-full max-w-xs">
-              <label htmlFor="audio-device" className="block text-sm font-medium text-gray-700 mb-1">
-                Microphone
-              </label>
-              <select
-                id="audio-device"
-                value={selectedDevice}
-                onChange={(e) => handleDeviceChange(e.target.value)}
-                className="block w-full rounded-md border border-gray-300 bg-white py-2 px-3 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 sm:text-sm"
-                disabled={isSessionActive}
-              >
-                {audioDevices.map((device) => (
-                  <option key={device.deviceId} value={device.deviceId}>
-                    {device.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <button
-              onClick={() => isSessionActive ? cleanup() : startSession()}
-              className={`relative inline-flex h-12 overflow-hidden rounded-full p-[1px] focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 focus:ring-offset-slate-50`}
-            >
-              <span className="absolute inset-[-1000%] animate-[spin_2s_linear_infinite] bg-[conic-gradient(from_90deg_at_50%_50%,#E2CBFF_0%,#393BB2_50%,#E2CBFF_100%)]" />
-              <span className={`inline-flex h-full w-full cursor-pointer items-center justify-center rounded-full bg-slate-950 px-3 py-1 text-sm font-medium text-white backdrop-blur-3xl ${
-                isSessionActive ? 'bg-red-600' : ''
-              }`}>
-                {isSessionActive ? 'Stop Session' : 'Start Session'}
-              </span>
-            </button>
-          </div>
-
           {status && (
-            <motion.div 
-              className="w-full flex flex-col gap-2"
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: "auto" }}
-              exit={{ opacity: 0, height: 0 }}
-              transition={{ duration: 0.3 }}
-            >
-              <div className="text-sm text-muted-foreground text-center">
-                {status}
+            <div className="flex items-center gap-2 px-4">
+              <div className="h-2 w-2 rounded-full bg-green-500"></div>
+              <span className="text-sm text-muted-foreground">{status}</span>
+            </div>
+          )}
         </div>
-            </motion.div>
-          )}
 
-          <div className="space-y-4 mt-4 max-h-[400px] overflow-y-auto">
-            {messages.map((msg) => (
-              <motion.div
-                key={msg.id}
-                className={`flex ${msg.role === 'assistant' ? 'justify-start' : 'justify-end'}`}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.3 }}
-              >
-                <div
-                  className={`max-w-[80%] rounded-lg px-4 py-2 ${
-                    msg.role === 'assistant'
-                      ? 'bg-primary text-primary-foreground'
-                      : 'bg-muted'
-                  }`}
-                >
-                  {msg.text || (msg.status === 'speaking' ? 'Speaking...' : 'Processing...')}
-      </div>
-              </motion.div>
-            ))}
-    </div>
+        <button
+          onClick={isSessionActive ? cleanup : startSession}
+          className={`relative inline-flex h-12 overflow-hidden rounded-full p-[1px] focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 focus:ring-offset-slate-50`}
+        >
+          <span className={`inline-flex h-full w-full cursor-pointer items-center justify-center rounded-full bg-slate-950 px-6 py-1 text-base font-medium text-white backdrop-blur-3xl ${
+            isSessionActive ? 'hover:bg-slate-800' : 'hover:bg-slate-900'
+          }`}>
+            {isSessionActive ? 'End Session' : 'Start Session'}
+          </span>
+        </button>
 
-          {error && (
-            <motion.div
-              className="text-red-500 text-sm text-center mt-2"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
+        <div className="space-y-4 mt-4 max-h-[60vh] overflow-y-auto px-2">
+          {messages.map((message) => (
+            <div
+              key={message.id}
+              className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
             >
-              {error}
-            </motion.div>
-          )}
-        </motion.div>
-      </motion.div>
-    </main>
+              <div
+                className={`${
+                  message.role === 'assistant' ? 'bg-primary text-primary-foreground' : 'bg-muted'
+                } max-w-[85%] rounded-lg px-6 py-3 text-base`}
+              >
+                {message.text}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
   );
 };
 

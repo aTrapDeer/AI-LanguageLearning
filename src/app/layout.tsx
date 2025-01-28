@@ -15,8 +15,28 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "LAIGNFY - AI-Powered Language Learning",
-  description: "Learn languages naturally with personalized AI tutoring, real-time feedback, and interactive conversations.",
+  title: "Laignfy - AI Language Learning Platform",
+  description: "Learn languages naturally with AI-powered tutoring, real-time feedback, and interactive conversations. Master new languages with personalized practice sessions.",
+  icons: {
+    icon: [
+      { url: "/favicon/favicon-16x16.png", sizes: "16x16", type: "image/png" },
+      { url: "/favicon/favicon-32x32.png", sizes: "32x32", type: "image/png" },
+    ],
+    apple: "/favicon/apple-touch-icon.png",
+    shortcut: "/favicon/favicon.ico",
+  },
+  manifest: "/site.webmanifest",
+  openGraph: {
+    title: "Laignfy - AI Language Learning Platform",
+    description: "Learn languages naturally with AI-powered tutoring and real-time feedback",
+    images: [{ url: "/favicon/LOGO1.png", width: 512, height: 512 }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Laignfy - AI Language Learning Platform",
+    description: "Learn languages naturally with AI-powered tutoring and real-time feedback",
+    images: ["/favicon/LOGO1.png"],
+  },
 };
 
 export default function RootLayout({

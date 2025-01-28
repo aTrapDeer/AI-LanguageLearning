@@ -12,15 +12,17 @@ import {
 import { Menu, MoveRight, X } from "lucide-react";
 import { useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { LanguageSelect } from "@/components/ui/language-select";
 import { useSession, signOut } from "next-auth/react";
 
 function Header1() {
     const navigationItems = [
         {
-            title: "Home",
+            title: "",
             href: "/",
             description: "",
+            isLogo: true,
         },
         {
             title: "Learn",
@@ -56,11 +58,23 @@ function Header1() {
                     <NavigationMenu className="flex justify-start items-start">
                         <NavigationMenuList className="flex justify-start gap-4 flex-row">
                             {navigationItems.map((item) => (
-                                <NavigationMenuItem key={item.title}>
+                                <NavigationMenuItem key={item.title || 'home'}>
                                     {item.href ? (
                                         <>
                                             <NavigationMenuLink>
-                                                <Button variant="ghost">{item.title}</Button>
+                                                {item.isLogo ? (
+                                                    <Link href="/" className="flex items-center">
+                                                        <Image
+                                                            src="/favicon/LOGO1.png"
+                                                            alt="Laignfy Logo"
+                                                            width={32}
+                                                            height={32}
+                                                            className="hover:opacity-90 transition-opacity"
+                                                        />
+                                                    </Link>
+                                                ) : (
+                                                    <Button variant="ghost">{item.title}</Button>
+                                                )}
                                             </NavigationMenuLink>
                                         </>
                                     ) : (
