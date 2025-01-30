@@ -1,16 +1,37 @@
 import { NextAuthOptions } from "next-auth"
-import { db } from "./db"
+import { PrismaAdapter } from "@auth/prisma-adapter"
 import { compare } from "bcryptjs"
-import { SessionManager } from "./session-manager"
+import { db } from "./db"
 import CredentialsProvider from "next-auth/providers/credentials"
+import GoogleProvider from "next-auth/providers/google"
+// import { User } from "@prisma/client"
+
+// Create a type-safe adapter configuration
+const prismaAdapter = PrismaAdapter(db)
 
 export const authOptions: NextAuthOptions = {
+  // @ts-expect-error - Type mismatch between next-auth and prisma adapter
+  adapter: prismaAdapter,
   session: {
     strategy: "jwt",
     maxAge: 24 * 60 * 60 // 24 hours
   },
-  debug: process.env.NODE_ENV === 'development',
+  pages: {
+    signIn: "/login",
+  },
   providers: [
+    GoogleProvider({
+      clientId: process.env.GOOGLE_CLIENT_ID!,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+      profile(profile) {
+        return {
+          id: profile.sub,
+          name: profile.name,
+          email: profile.email,
+          learningLanguages: [],
+        }
+      },
+    }),
     CredentialsProvider({
       credentials: {
         email: { label: "Email", type: "email" },
@@ -19,7 +40,6 @@ export const authOptions: NextAuthOptions = {
       async authorize(credentials) {
         try {
           if (!credentials?.email || !credentials?.password) {
-            console.error("Missing credentials")
             throw new Error("Missing credentials")
           }
 
@@ -36,23 +56,22 @@ export const authOptions: NextAuthOptions = {
             }
           })
 
-          if (!user) {
-            console.error("User not found:", credentials.email)
-            throw new Error("Invalid credentials")
+          if (!user?.password) {
+            throw new Error("Please sign in with Google")
           }
 
           const isPasswordValid = await compare(credentials.password, user.password)
 
           if (!isPasswordValid) {
-            console.error("Invalid password for user:", credentials.email)
             throw new Error("Invalid credentials")
           }
 
-          // Return user without password
-          // eslint-disable-next-line @typescript-eslint/no-unused-vars
-          const { password: _, ...userWithoutPassword } = user
-          console.log("User authenticated successfully:", userWithoutPassword.email)
-          return userWithoutPassword
+          return {
+            id: user.id,
+            email: user.email,
+            name: user.name,
+            learningLanguages: user.learningLanguages
+          }
         } catch (error) {
           console.error("Auth error:", error)
           throw error
@@ -61,64 +80,23 @@ export const authOptions: NextAuthOptions = {
     })
   ],
   callbacks: {
-    async jwt({ token, user }) {
-      if (user) {
-        token.id = user.id
-        token.email = user.email
-        token.name = user.name
-
-        // Try to create Redis session but don't fail if it errors
-        try {
-          const sessionManager = SessionManager.getInstance()
-          const sessionId = await sessionManager.createSession(user.id, {
-            email: user.email || undefined,
-            name: user.name || undefined
-          })
-          if (sessionId) {
-            token.sessionId = sessionId
-          }
-        } catch (error) {
-          console.warn('Failed to create Redis session:', error)
-          // Continue without Redis session
+    async jwt({ token, user, account }) {
+      if (account && user) {
+        return {
+          ...token,
+          id: user.id,
+          learningLanguages: user.learningLanguages || []
         }
       }
       return token
     },
     async session({ session, token }) {
-      if (token) {
-        session.user.id = token.id?.toString() || ''
-        session.user.email = token.email || ''
-        session.user.name = token.name || ''
-        
-        // Try to get Redis session data but don't fail if it errors
-        if (token.sessionId) {
-          try {
-            const sessionManager = SessionManager.getInstance()
-            const sessionData = await sessionManager.getSession(token.sessionId as string)
-            if (sessionData) {
-              session.user = { ...session.user, ...sessionData }
-            }
-          } catch (error) {
-            console.warn('Failed to get Redis session:', error)
-            // Continue with basic session data
-          }
-        }
-      }
-      return session
-    }
-  },
-  pages: {
-    signIn: '/login'
-  },
-  events: {
-    async signOut({ token }) {
-      // Try to delete Redis session but don't fail if it errors
-      if (token?.sessionId) {
-        try {
-          const sessionManager = SessionManager.getInstance()
-          await sessionManager.deleteSession(token.sessionId as string)
-        } catch (error) {
-          console.warn('Failed to delete Redis session:', error)
+      return {
+        ...session,
+        user: {
+          ...session.user,
+          id: token.id as string,
+          learningLanguages: token.learningLanguages as string[]
         }
       }
     }

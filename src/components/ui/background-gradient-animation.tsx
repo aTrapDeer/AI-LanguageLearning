@@ -85,16 +85,37 @@ export const BackgroundGradientAnimation = ({
   ]);
 
   useEffect(() => {
+    let animationFrameId: number;
+
     function move() {
       if (!interactiveRef.current) {
         return;
       }
-      setCurX(prevX => prevX + (tgX - prevX) / 20);
-      setCurY(prevY => prevY + (tgY - prevY) / 20);
-      interactiveRef.current.style.transform = `translate(${Math.round(curX)}px, ${Math.round(curY)}px)`;
+      
+      setCurX(prevX => {
+        const newX = prevX + (tgX - prevX) / 20;
+        return newX;
+      });
+      
+      setCurY(prevY => {
+        const newY = prevY + (tgY - prevY) / 20;
+        return newY;
+      });
+
+      if (interactiveRef.current) {
+        interactiveRef.current.style.transform = `translate(${Math.round(curX)}px, ${Math.round(curY)}px)`;
+      }
+
+      animationFrameId = requestAnimationFrame(move);
     }
 
-    move();
+    animationFrameId = requestAnimationFrame(move);
+
+    return () => {
+      if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
+      }
+    };
   }, [tgX, tgY, curX, curY]);
 
   const handleMouseMove = (event: React.MouseEvent<HTMLDivElement>) => {

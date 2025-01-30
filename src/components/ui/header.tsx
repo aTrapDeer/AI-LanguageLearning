@@ -60,23 +60,25 @@ function Header1() {
                             {navigationItems.map((item) => (
                                 <NavigationMenuItem key={item.title || 'home'}>
                                     {item.href ? (
-                                        <>
-                                            <NavigationMenuLink>
-                                                {item.isLogo ? (
-                                                    <Link href="/" className="flex items-center">
-                                                        <Image
-                                                            src="/favicon/LOGO1.png"
-                                                            alt="Laignfy Logo"
-                                                            width={32}
-                                                            height={32}
-                                                            className="hover:opacity-90 transition-opacity"
-                                                        />
-                                                    </Link>
-                                                ) : (
+                                        item.isLogo ? (
+                                            <Link href="/" legacyBehavior passHref>
+                                                <NavigationMenuLink className="flex items-center">
+                                                    <Image
+                                                        src="/favicon/LOGO1.png"
+                                                        alt="Laignfy Logo"
+                                                        width={32}
+                                                        height={32}
+                                                        className="hover:opacity-90 transition-opacity"
+                                                    />
+                                                </NavigationMenuLink>
+                                            </Link>
+                                        ) : (
+                                            <Link href={item.href} legacyBehavior passHref>
+                                                <NavigationMenuLink>
                                                     <Button variant="ghost">{item.title}</Button>
-                                                )}
-                                            </NavigationMenuLink>
-                                        </>
+                                                </NavigationMenuLink>
+                                            </Link>
+                                        )
                                     ) : (
                                         <>
                                             <NavigationMenuTrigger className="font-medium text-sm">
