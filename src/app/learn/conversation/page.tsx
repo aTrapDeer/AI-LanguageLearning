@@ -273,7 +273,7 @@ const ConversationPage = () => {
         try {
           const errorData = JSON.parse(errorText);
           throw new Error(errorData.error || "Failed to establish WebRTC connection");
-        } catch (e) {
+        } catch {
           throw new Error(`Failed to establish WebRTC connection: ${errorText}`);
         }
       }
