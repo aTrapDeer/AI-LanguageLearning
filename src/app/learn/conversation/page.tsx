@@ -159,18 +159,29 @@ const ConversationPage = () => {
       cleanup();
       setStatus("Initializing...");
 
-      // Get session from OpenAI first
+      // Get session from OpenAI through our secure backend
       const sessionResponse = await fetch("/api/openai-session", {
-        method: "POST"
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        }
       });
-      const sessionData = await sessionResponse.json();
-      if (!sessionResponse.ok) throw new Error(sessionData.error || "Failed to create session");
+      
+      if (!sessionResponse.ok) {
+        const errorData = await sessionResponse.json();
+        throw new Error(errorData.error || "Failed to create session");
+      }
 
+      const sessionData = await sessionResponse.json();
       console.log("Session data:", sessionData);
 
-      // Create WebRTC peer connection
+      if (!sessionData.session_id) {
+        throw new Error("No session ID received from server");
+      }
+
+      // Create WebRTC peer connection using the ice servers from the session
       const pc = new RTCPeerConnection({
-        iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
+        iceServers: sessionData.ice_servers || [{ urls: "stun:stun.l.google.com:19302" }]
       });
       peerConnectionRef.current = pc;
 
@@ -248,25 +259,27 @@ const ConversationPage = () => {
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
 
-      // Send SDP offer to OpenAI Realtime
-      const baseUrl = "https://api.openai.com/v1/realtime";
-      const model = "gpt-4o-realtime-preview-2024-12-17";
-      const response = await fetch(`${baseUrl}?model=${model}&voice=alloy`, {
+      // Send SDP offer through our secure backend
+      const sdpResponse = await fetch(`/api/openai-session/sdp?session_id=${sessionData.session_id}`, {
         method: "POST",
-        body: offer.sdp,
         headers: {
-          Authorization: `Bearer ${sessionData.api_key}`,
-          "Content-Type": "application/sdp",
+          "Content-Type": "application/sdp"
         },
+        body: offer.sdp
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error?.message || "Failed to establish WebRTC connection");
+      if (!sdpResponse.ok) {
+        const errorText = await sdpResponse.text();
+        try {
+          const errorData = JSON.parse(errorText);
+          throw new Error(errorData.error || "Failed to establish WebRTC connection");
+        } catch (e) {
+          throw new Error(`Failed to establish WebRTC connection: ${errorText}`);
+        }
       }
 
       // Set remote description
-      const answerSdp = await response.text();
+      const answerSdp = await sdpResponse.text();
       await pc.setRemoteDescription({ type: "answer", sdp: answerSdp });
 
       setStatus("Connected");
