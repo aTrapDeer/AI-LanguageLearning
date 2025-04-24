@@ -92,6 +92,16 @@ export async function getProgress(userId: string, language: string) {
   return data;
 }
 
+export async function getAllUserProgress(userId: string) {
+  const { data, error } = await supabase
+    .from('progress')
+    .select('*')
+    .eq('userId', userId);
+  
+  if (error) throw error;
+  return data;
+}
+
 export async function updateProgress(id: string, progressData: Partial<Progress>) {
   // Use admin client for updating progress to bypass RLS
   const { data, error } = await adminClient

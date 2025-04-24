@@ -19,8 +19,7 @@ export async function POST(req: Request) {
 
     // Check if user already has this language
     const existingUser = await db.user.findUnique({
-      where: { id: session.user.id },
-      select: { learningLanguages: true }
+      where: { id: session.user.id }
     })
 
     if (existingUser?.learningLanguages?.includes(language)) {
@@ -31,9 +30,9 @@ export async function POST(req: Request) {
     const user = await db.user.update({
       where: { id: session.user.id },
       data: {
-        learningLanguages: {
-          push: language
-        }
+        learningLanguages: existingUser?.learningLanguages ? 
+          [...existingUser.learningLanguages, language] : 
+          [language]
       }
     })
 

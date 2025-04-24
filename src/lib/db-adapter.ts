@@ -38,6 +38,9 @@ export const prismaAdapter = {
     },
     create: async ({ data }: { data: Omit<Progress, 'id' | 'createdAt' | 'updatedAt'> }) => {
       return supabaseDb.createProgress(data);
+    },
+    getAllForUser: async (userId: string) => {
+      return supabaseDb.getAllUserProgress(userId);
     }
   },
 

@@ -11,16 +11,7 @@ export async function GET() {
     }
 
     // Fetch user's progress for all languages
-    const progress = await db.progress.findMany({
-      where: {
-        userId: session.user.id
-      },
-      select: {
-        language: true,
-        level: true,
-        xp: true
-      }
-    })
+    const progress = await db.progress.getAllForUser(session.user.id);
 
     return NextResponse.json(progress)
   } catch (error) {
