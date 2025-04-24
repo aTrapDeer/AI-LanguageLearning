@@ -1,17 +1,14 @@
 import { NextAuthOptions } from "next-auth"
-import { PrismaAdapter } from "@auth/prisma-adapter"
 import { compare } from "bcryptjs"
 import { db } from "./db"
+import { supabase } from "./supabase"
 import CredentialsProvider from "next-auth/providers/credentials"
 import GoogleProvider from "next-auth/providers/google"
+import { SupabaseAdapter } from "./supabase-auth-adapter"
 // import { User } from "@prisma/client"
 
-// Create a type-safe adapter configuration
-const prismaAdapter = PrismaAdapter(db)
-
 export const authOptions: NextAuthOptions = {
-  // @ts-expect-error - Type mismatch between next-auth and prisma adapter
-  adapter: prismaAdapter,
+  adapter: SupabaseAdapter(),
   session: {
     strategy: "jwt",
     maxAge: 24 * 60 * 60 // 24 hours
@@ -43,18 +40,17 @@ export const authOptions: NextAuthOptions = {
             throw new Error("Missing credentials")
           }
 
-          const user = await db.user.findUnique({
-            where: {
-              email: credentials.email
-            },
-            select: {
-              id: true,
-              email: true,
-              name: true,
-              password: true,
-              learningLanguages: true
-            }
-          })
+          // Using supabase directly for credentials login
+          const { data: user, error } = await supabase
+            .from('users')
+            .select('id, email, name, password, learning_languages')
+            .eq('email', credentials.email)
+            .single();
+
+          if (error) {
+            console.error("Database error:", error);
+            throw new Error("Error finding user");
+          }
 
           if (!user?.password) {
             throw new Error("Please sign in with Google")
@@ -70,7 +66,7 @@ export const authOptions: NextAuthOptions = {
             id: user.id,
             email: user.email,
             name: user.name,
-            learningLanguages: user.learningLanguages
+            learningLanguages: user.learning_languages || []
           }
         } catch (error) {
           console.error("Auth error:", error)

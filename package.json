@@ -12,7 +12,11 @@
     "agent": "cross-env NODE_ENV=development node --loader ts-node/esm --experimental-specifier-resolution=node src/scripts/run-livekit-agent.ts dev",
     "agent:prod": "cross-env NODE_ENV=production node --loader ts-node/esm --experimental-specifier-resolution=node src/scripts/run-livekit-agent.ts start",
     "dev:all": "cross-env NODE_ENV=development node --loader ts-node/esm --experimental-specifier-resolution=node src/scripts/start-all.ts",
-    "start:all": "cross-env NODE_ENV=production node --loader ts-node/esm --experimental-specifier-resolution=node src/scripts/start-all.ts"
+    "start:all": "cross-env NODE_ENV=production node --loader ts-node/esm --experimental-specifier-resolution=node src/scripts/start-all.ts",
+    "migrate:supabase": "cross-env NODE_ENV=development node --loader ts-node/esm --experimental-specifier-resolution=node src/scripts/migrate-to-supabase.ts",
+    "test:supabase": "cross-env NODE_ENV=development node --loader ts-node/esm --experimental-specifier-resolution=node src/scripts/test-supabase.ts",
+    "test:supabase:direct": "cross-env NODE_ENV=development node --loader ts-node/esm --experimental-specifier-resolution=node src/scripts/test-supabase-direct.ts",
+    "test:user-creation": "cross-env NODE_ENV=development node --loader ts-node/esm --experimental-specifier-resolution=node src/scripts/test-user-creation.ts"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.7.4",
@@ -31,6 +35,7 @@
     "@radix-ui/react-navigation-menu": "^1.2.3",
     "@radix-ui/react-slot": "^1.1.1",
     "@socket.io/component-emitter": "^3.1.2",
+    "@supabase/supabase-js": "^2.49.4",
     "@types/uuid": "^10.0.0",
     "@upstash/redis": "^1.34.3",
     "bcryptjs": "^2.4.3",
