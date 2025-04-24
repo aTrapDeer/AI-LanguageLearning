@@ -1,11 +1,14 @@
-import { NextResponse } from 'next/server';
-import OpenAI from 'openai';
-import { createChatMessage } from '@/lib/supabase-db';
-import S3 from 'aws-sdk/clients/s3';
+import { NextResponse } from "next/server";
+import OpenAI from "openai";
+import { createChatMessage } from "@/lib/supabase-db";
+import S3 from "aws-sdk/clients/s3";
 
-// Language configurations
-const LANGUAGE_CONFIGS: Record<string, { instructions: string, voice: string }> = {
-  'en': {
+// Define OpenAI voice types
+type OpenAIVoice = 'alloy' | 'echo' | 'fable' | 'onyx' | 'nova' | 'shimmer';
+
+// Language configurations (same as in chat/route.ts)
+const LANGUAGE_CONFIGS: Record<string, { instructions: string; voice: string }> = {
+  en: {
     instructions: `You are a friendly and engaging English language conversation partner. Your primary goal is to maintain a natural conversation while helping users improve their English. Follow these guidelines:
 1. Always respond conversationally first, keeping the dialogue flowing
 2. Then provide gentle corrections if needed, marked with 💡
@@ -18,9 +21,9 @@ Example format:
 [Conversational response continuing the dialogue]
 💡 Corrections (if needed): [specific corrections]
 ❓ [Follow-up question to keep the conversation going]`,
-    voice: 'shimmer'
+    voice: "shimmer",
   },
-  'de': {
+  de: {
     instructions: `You are a friendly and engaging German language conversation partner. Your primary goal is to maintain a natural conversation while helping users improve their German. Follow these guidelines:
 1. Always respond in German first, followed by an English translation
 2. Keep the conversation flowing naturally while providing gentle corrections
@@ -32,9 +35,9 @@ Example format:
 🇺🇸 [English translation]
 💡 Corrections (if needed): [specific corrections]
 ❓ [Follow-up question in German with translation]`,
-    voice: 'shimmer'
+    voice: "shimmer",
   },
-  'zh': {
+  zh: {
     instructions: `You are a friendly and engaging Mandarin Chinese conversation partner. Your primary goal is to maintain a natural conversation while helping users improve their Mandarin. Follow these guidelines:
 1. Always respond in Chinese characters first, followed by pinyin and English translation
 2. Keep the conversation flowing naturally while providing gentle corrections
@@ -48,9 +51,9 @@ Example format:
 🇺🇸 [English translation]
 💡 Corrections (if needed): [specific corrections]
 ❓ [Follow-up question in Chinese with pinyin and translation]`,
-    voice: 'shimmer'
+    voice: "shimmer",
   },
-  'no': {
+  no: {
     instructions: `You are a friendly and engaging Norwegian language conversation partner. Your primary goal is to maintain a natural conversation while helping users improve their Norwegian. Follow these guidelines:
 1. Always respond in Norwegian first, followed by an English translation
 2. Keep the conversation flowing naturally while providing gentle corrections
@@ -62,9 +65,9 @@ Example format:
 🇺🇸 [English translation]
 💡 Corrections (if needed): [specific corrections]
 ❓ [Follow-up question in Norwegian with translation]`,
-    voice: 'shimmer'
+    voice: "shimmer",
   },
-  'pt-BR': {
+  "pt-BR": {
     instructions: `You are a friendly and engaging Brazilian Portuguese language conversation partner. Your primary goal is to maintain a natural conversation while helping users improve their Brazilian Portuguese. Follow these guidelines:
 1. Always respond in Brazilian Portuguese first, followed by an English translation
 2. Keep the conversation flowing naturally while providing gentle corrections
@@ -76,17 +79,9 @@ Example format:
 🇺🇸 [English translation]
 💡 Corrections (if needed): [specific corrections]
 ❓ [Follow-up question in Portuguese with translation]`,
-    voice: 'shimmer'
+    voice: "shimmer",
   },
 };
-
-// Define language mapping type for better type checking
-type LanguageCodeMapping = {
-  [key: string]: string;
-}
-
-// Define OpenAI voice types
-type OpenAIVoice = 'alloy' | 'echo' | 'fable' | 'onyx' | 'nova' | 'shimmer';
 
 // Helper to extract language-specific text for TTS
 function extractLanguageText(text: string, languageCode: string): string {
@@ -187,7 +182,7 @@ function extractLanguageText(text: string, languageCode: string): string {
 const s3 = new S3({
   accessKeyId: process.env.AWS_ACCESS_KEY_ID,
   secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
-  region: process.env.AWS_REGION || 'us-east-1',
+  region: process.env.AWS_REGION || "us-east-1",
 });
 
 // Initialize OpenAI client
@@ -197,43 +192,63 @@ const openai = new OpenAI({
 
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
-    const { message, language, userId } = body;
-    
+    // Get form data from the request
+    const formData = await req.formData();
+    const audio = formData.get("audio") as File;
+    const language = formData.get("language") as string;
+    const userId = formData.get("userId") as string;
+
+    if (!audio) {
+      return NextResponse.json({ error: "Audio file is required" }, { status: 400 });
+    }
+
     if (!process.env.OPENAI_API_KEY) {
-      throw new Error('OPENAI_API_KEY is not set');
+      throw new Error("OPENAI_API_KEY is not set");
     }
 
     // Convert language to code
-    const languageMapping: LanguageCodeMapping = {
+    const languageMapping: Record<string, string> = {
       "English": "en",
       "German": "de",
       "Portuguese (Brazilian)": "pt-BR",
       "Chinese": "zh",
-      "Norwegian": "no"
+      "Norwegian": "no",
     };
-    
+
     const languageCode = languageMapping[language] || "en";
-    
+
+    // Transcribe audio using OpenAI
+    const audioArrayBuffer = await audio.arrayBuffer();
+    const audioBuffer = Buffer.from(audioArrayBuffer);
+
+    const transcription = await openai.audio.transcriptions.create({
+      file: new File([audioBuffer], "audio.mp3", { type: audio.type }),
+      model: "whisper-1",
+      language: languageCode,
+    });
+
+    // Get user's message from transcription
+    const userMessage = transcription.text;
+
     // Get language configuration
     const config = LANGUAGE_CONFIGS[languageCode] || LANGUAGE_CONFIGS.en;
-    
+
     // Generate text response using GPT-4
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
         { role: "system", content: config.instructions },
-        { role: "user", content: message }
+        { role: "user", content: userMessage },
       ],
       temperature: 0.7,
-      max_tokens: 700
+      max_tokens: 700,
     });
-    
+
     const textResponse = completion.choices[0].message.content || "Sorry, I couldn't generate a response.";
-    
+
     // Extract language-specific text for TTS
     const ttsText = extractLanguageText(textResponse, languageCode);
-    
+
     // Generate audio using OpenAI
     let audioUrl = null;
     try {
@@ -244,57 +259,61 @@ export async function POST(req: Request) {
         'no': 'echo',     // Female voice for Norwegian
         'pt-BR': 'alloy'  // Neural voice for Portuguese
       };
-      
+
       const voice = voiceMapping[languageCode] || 'shimmer';
-      
+
       const mp3 = await openai.audio.speech.create({
         model: "tts-1",
         voice: voice,
         input: ttsText,
       });
-      
+
       const buffer = Buffer.from(await mp3.arrayBuffer());
-      
+
       // Generate unique filename
       const timestamp = Date.now();
       const randomString = Math.random().toString(36).substring(2, 8);
       const audioFilename = `audio_${timestamp}_${randomString}.mp3`;
-      
+
       // Upload to S3
       const result = await s3.upload({
-        Bucket: process.env.AWS_S3_BUCKET_AUDIO || '',
+        Bucket: process.env.AWS_S3_BUCKET_AUDIO || "",
         Key: `audio/${audioFilename}`,
         Body: buffer,
-        ContentType: 'audio/mpeg',
-        CacheControl: 'max-age=3600',
+        ContentType: "audio/mpeg",
+        CacheControl: "max-age=3600",
         Metadata: {
           language: languageCode,
-          timestamp: timestamp.toString()
-        }
+          timestamp: timestamp.toString(),
+        },
       }).promise();
-      
+
       audioUrl = result.Location;
-      
+
       // Store chat history in database if userId is provided
       if (userId) {
         await createChatMessage({
           userId,
           language,
-          message,         // Changed from messageText to match schema
-          response: textResponse, // Changed from responseText to match schema
-          audioUrl
+          message: userMessage,
+          response: textResponse,
+          audioUrl,
         });
       }
     } catch (error) {
-      console.error('Error generating audio:', error);
+      console.error("Error generating audio:", error);
     }
-    
+
     return NextResponse.json({
+      transcribed_text: userMessage,
       response: textResponse,
-      audio_url: audioUrl
+      audio_url: audioUrl,
     });
   } catch (error) {
-    console.error('Chat error:', error);
-    return NextResponse.json({ error: 'Failed to process chat request' }, { status: 500 });
+    console.error("Audio chat error:", error);
+    return NextResponse.json(
+      { error: "Failed to process audio chat request" },
+      { status: 500 }
+    );
   }
 } 

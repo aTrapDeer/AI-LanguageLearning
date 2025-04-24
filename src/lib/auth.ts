@@ -1,6 +1,6 @@
 import { NextAuthOptions } from "next-auth"
 import { compare } from "bcryptjs"
-import { db } from "./db"
+// import { db } from "./db"
 import { supabase } from "./supabase"
 import CredentialsProvider from "next-auth/providers/credentials"
 import GoogleProvider from "next-auth/providers/google"
