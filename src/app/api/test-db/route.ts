@@ -71,7 +71,10 @@ export async function GET(req: Request) {
     // Test database connection
     let dbResult
     try {
-      await db.$queryRaw`SELECT 1`
+      // Test DB connection with a simple user query
+      await db.user.findUnique({
+        where: { id: 'test-connection' }
+      })
       dbResult = { success: true }
     } catch (error) {
       dbResult = { 
