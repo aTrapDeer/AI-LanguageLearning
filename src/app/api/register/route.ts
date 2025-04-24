@@ -48,45 +48,41 @@ export async function POST(req: Request) {
     // Hash password with high cost factor for security
     const hashedPassword = await hash(password, 12)
 
-    // Create user with transaction to ensure all related records are created
-    const user = await db.$transaction(async (prisma) => {
-      // Create the user
-      const newUser = await prisma.user.create({
-        data: {
-          name,
-          email,
-          password: hashedPassword,
-          nativeLanguage,
-          learningLanguages,
-        },
-      })
-
-      // Create initial progress records for each learning language
-      if (learningLanguages && learningLanguages.length > 0) {
-        await Promise.all(
-          learningLanguages.map((language: string) =>
-            prisma.progress.create({
-              data: {
-                userId: newUser.id,
-                language,
-                level: 1,
-                xp: 0,
-              },
-            })
-          )
-        )
-      }
-
-      return newUser
+    // Create the user first, then handle related records
+    // Note: Without transactions, this is not atomic, but we'll handle it sequentially
+    const newUser = await db.user.create({
+      data: {
+        name,
+        email,
+        password: hashedPassword,
+        nativeLanguage,
+        learningLanguages,
+      },
     })
+
+    // Create initial progress records for each learning language
+    if (learningLanguages && learningLanguages.length > 0) {
+      await Promise.all(
+        learningLanguages.map((language: string) =>
+          db.progress.create({
+            data: {
+              userId: newUser.id,
+              language,
+              level: 1,
+              xp: 0,
+            },
+          })
+        )
+      )
+    }
 
     return NextResponse.json({
       user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        nativeLanguage: user.nativeLanguage,
-        learningLanguages: user.learningLanguages,
+        id: newUser.id,
+        name: newUser.name,
+        email: newUser.email,
+        nativeLanguage: newUser.nativeLanguage,
+        learningLanguages: newUser.learningLanguages,
       },
     })
   } catch (error) {
