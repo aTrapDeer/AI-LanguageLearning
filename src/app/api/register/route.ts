@@ -48,6 +48,9 @@ export async function POST(req: Request) {
     // Hash password with high cost factor for security
     const hashedPassword = await hash(password, 12)
 
+    // Determine active language (first learning language or native language)
+    const activeLanguage = learningLanguages?.length > 0 ? learningLanguages[0] : nativeLanguage
+
     // Create the user first, then handle related records
     // Note: Without transactions, this is not atomic, but we'll handle it sequentially
     const newUser = await db.user.create({
@@ -57,6 +60,7 @@ export async function POST(req: Request) {
         password: hashedPassword,
         nativeLanguage,
         learningLanguages,
+        activeLanguage,
       },
     })
 
