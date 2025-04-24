@@ -116,12 +116,12 @@ export default function LanguagePage({ params }: LanguagePageProps) {
       };
 
       try {
-        const result = await ApiService.sendMessage(chatMessage);
-        
-        const assistantEntry: ChatEntry = {
-          type: 'assistant',
-          message: result.response,
-          audio_url: result.audio_url,
+      const result = await ApiService.sendMessage(chatMessage);
+      
+      const assistantEntry: ChatEntry = {
+        type: 'assistant',
+        message: result.response,
+        audio_url: result.audio_url,
           timestamp: new Date(),
           isTranslationHidden: true,
           isCorrectionsHidden: true
@@ -147,8 +147,8 @@ export default function LanguagePage({ params }: LanguagePageProps) {
         const fallbackEntry: ChatEntry = {
           type: 'assistant',
           message: "I'm sorry, I'm having trouble connecting to the language service right now. Please try again in a moment or refresh the page.",
-          timestamp: new Date()
-        };
+        timestamp: new Date()
+      };
         setChatHistory(prev => [...prev, fallbackEntry]);
         
         // Show a more detailed error message to the user
@@ -202,12 +202,12 @@ export default function LanguagePage({ params }: LanguagePageProps) {
       formData.append('language', activeLanguage); // Use the active language from database
 
       try {
-        const result = await ApiService.sendAudio(formData);
-        
-        const assistantEntry: ChatEntry = {
-          type: 'assistant',
-          message: result.response,
-          audio_url: result.audio_url,
+      const result = await ApiService.sendAudio(formData);
+      
+      const assistantEntry: ChatEntry = {
+        type: 'assistant',
+        message: result.response,
+        audio_url: result.audio_url,
           timestamp: new Date(),
           isTranslationHidden: true,
           isCorrectionsHidden: true
@@ -233,8 +233,8 @@ export default function LanguagePage({ params }: LanguagePageProps) {
         const fallbackEntry: ChatEntry = {
           type: 'assistant',
           message: "I'm sorry, I'm having trouble connecting to the language service right now. Please try again in a moment or refresh the page.",
-          timestamp: new Date()
-        };
+        timestamp: new Date()
+      };
         setChatHistory(prev => [...prev, fallbackEntry]);
         
         // Show a more detailed error message to the user
@@ -513,17 +513,17 @@ export default function LanguagePage({ params }: LanguagePageProps) {
               };
               
               return (
-                <div
-                  key={index}
+            <div
+              key={index}
                   className={`text-left ${entry.isFollowUp ? 'mt-1' : 'mt-3 md:mt-6'}`}
-                >
-                  <div
-                    className={`inline-block p-2 md:p-4 rounded-2xl max-w-[85%] md:max-w-[80%] text-sm md:text-base ${
+            >
+              <div
+                className={`inline-block p-2 md:p-4 rounded-2xl max-w-[85%] md:max-w-[80%] text-sm md:text-base ${
                       entry.isFollowUp
                         ? 'bg-gray-100 dark:bg-gray-700 text-black dark:text-white border-l-4 border-indigo-500'
-                        : 'bg-gray-200 dark:bg-gray-800 text-black dark:text-white'
-                    }`}
-                  >
+                    : 'bg-gray-200 dark:bg-gray-800 text-black dark:text-white'
+                }`}
+              >
                     <div className="whitespace-pre-wrap font-sans">
                       {/* Main content */}
                       <div>{messageParts.mainContent}</div>
@@ -566,12 +566,12 @@ export default function LanguagePage({ params }: LanguagePageProps) {
                     {entry.audio_url && !entry.isFollowUp && (
                       <div className="mt-1 md:mt-2 flex flex-col gap-2">
                         <div className="flex items-center gap-2">
-                          <button
+                    <button
                             onClick={() => handleAudioPlayback(entry.audio_url!, languageCode)}
-                            className="px-2 md:px-3 py-1 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-xs md:text-sm"
-                          >
-                            {audioPlayer.currentAudioUrl === entry.audio_url && audioPlayer.isPlaying ? 'Pause' : 'Play'} Audio
-                          </button>
+                      className="px-2 md:px-3 py-1 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-xs md:text-sm"
+                    >
+                      {audioPlayer.currentAudioUrl === entry.audio_url && audioPlayer.isPlaying ? 'Pause' : 'Play'} Audio
+                    </button>
                           {audioPlayer.currentAudioUrl === entry.audio_url && (
                             <div className="flex items-center gap-2">
                               <span className="text-xs">Speed:</span>
@@ -589,14 +589,14 @@ export default function LanguagePage({ params }: LanguagePageProps) {
                             </div>
                           )}
                         </div>
-                      </div>
-                    )}
-                    
-                    <div className="text-[10px] md:text-xs mt-1 opacity-70">
-                      {entry.timestamp.toLocaleTimeString()}
-                    </div>
                   </div>
+                )}
+                    
+                <div className="text-[10px] md:text-xs mt-1 opacity-70">
+                  {entry.timestamp.toLocaleTimeString()}
                 </div>
+              </div>
+            </div>
               );
             }
           })}
