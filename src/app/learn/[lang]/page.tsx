@@ -12,17 +12,19 @@ interface LanguagePageProps {
   params: Promise<{ lang: string }>;
 }
 
-const validLanguageCodes = ['en', 'de', 'pt-BR', 'zh', 'no'] as const;
+const validLanguageCodes = ['en', 'de', 'pt-BR', 'zh', 'no', 'ko', 'ar'] as const;
 type LanguageCode = typeof validLanguageCodes[number];
 
-type SupportedLanguage = 'English' | 'German' | 'Portuguese (Brazilian)' | 'Chinese' | 'Norwegian';
+type SupportedLanguage = 'English' | 'German' | 'Portuguese (Brazilian)' | 'Chinese' | 'Norwegian' | 'Korean' | 'Arabic';
 
 const languageMap: Record<LanguageCode, SupportedLanguage> = {
   'en': 'English',
   'de': 'German',
   'pt-BR': 'Portuguese (Brazilian)',
   'zh': 'Chinese',
-  'no': 'Norwegian'
+  'no': 'Norwegian',
+  'ko': 'Korean',
+  'ar': 'Arabic'
 } as const;
 
 function isValidLanguageCode(code: string): code is LanguageCode {
@@ -34,12 +36,16 @@ interface ChatEntry {
   message: string;
   audio_url?: string;
   timestamp: Date;
+  isFollowUp?: boolean;
+  isTranslationHidden?: boolean;
+  isCorrectionsHidden?: boolean;
 }
 
 interface AudioPlayer {
   element: HTMLAudioElement | null;
   isPlaying: boolean;
   currentAudioUrl: string | null;
+  playbackRate: number;
 }
 
 export default function LanguagePage({ params }: LanguagePageProps) {
@@ -58,7 +64,8 @@ export default function LanguagePage({ params }: LanguagePageProps) {
   const [audioPlayer, setAudioPlayer] = useState<AudioPlayer>({
     element: null,
     isPlaying: false,
-    currentAudioUrl: null
+    currentAudioUrl: null,
+    playbackRate: 1.0
   });
 
   // Fetch active language from the database
@@ -108,15 +115,45 @@ export default function LanguagePage({ params }: LanguagePageProps) {
         language: activeLanguage // Use the active language from database
       };
 
-      const result = await ApiService.sendMessage(chatMessage);
-      
-      const assistantEntry: ChatEntry = {
-        type: 'assistant',
-        message: result.response,
-        audio_url: result.audio_url,
-        timestamp: new Date()
-      };
-      setChatHistory(prev => [...prev, assistantEntry]);
+      try {
+        const result = await ApiService.sendMessage(chatMessage);
+        
+        const assistantEntry: ChatEntry = {
+          type: 'assistant',
+          message: result.response,
+          audio_url: result.audio_url,
+          timestamp: new Date(),
+          isTranslationHidden: true,
+          isCorrectionsHidden: true
+        };
+        setChatHistory(prev => [...prev, assistantEntry]);
+
+        // If there's a follow-up question, add it as a separate message
+        if (result.follow_up_question) {
+          const followUpEntry: ChatEntry = {
+            type: 'assistant',
+            message: result.follow_up_question,
+            timestamp: new Date(Date.now() + 500), // Slightly later timestamp
+            isFollowUp: true,
+            isTranslationHidden: true,
+            isCorrectionsHidden: true
+          };
+          setChatHistory(prev => [...prev, followUpEntry]);
+        }
+      } catch (apiError) {
+        console.error('API Service error:', apiError);
+        
+        // Add a fallback response when the API fails
+        const fallbackEntry: ChatEntry = {
+          type: 'assistant',
+          message: "I'm sorry, I'm having trouble connecting to the language service right now. Please try again in a moment or refresh the page.",
+          timestamp: new Date()
+        };
+        setChatHistory(prev => [...prev, fallbackEntry]);
+        
+        // Show a more detailed error message to the user
+        setError('Connection error: Unable to reach the language service. Please check your internet connection and try again.');
+      }
     } catch (err) {
       console.error('Chat error:', err);
       setError(err instanceof Error ? err.message : 'Failed to send message');
@@ -164,15 +201,45 @@ export default function LanguagePage({ params }: LanguagePageProps) {
       formData.append('audio', audioBlob);
       formData.append('language', activeLanguage); // Use the active language from database
 
-      const result = await ApiService.sendAudio(formData);
-      
-      const assistantEntry: ChatEntry = {
-        type: 'assistant',
-        message: result.response,
-        audio_url: result.audio_url,
-        timestamp: new Date()
-      };
-      setChatHistory(prev => [...prev, assistantEntry]);
+      try {
+        const result = await ApiService.sendAudio(formData);
+        
+        const assistantEntry: ChatEntry = {
+          type: 'assistant',
+          message: result.response,
+          audio_url: result.audio_url,
+          timestamp: new Date(),
+          isTranslationHidden: true,
+          isCorrectionsHidden: true
+        };
+        setChatHistory(prev => [...prev, assistantEntry]);
+
+        // If there's a follow-up question, add it as a separate message
+        if (result.follow_up_question) {
+          const followUpEntry: ChatEntry = {
+            type: 'assistant',
+            message: result.follow_up_question,
+            timestamp: new Date(Date.now() + 500), // Slightly later timestamp
+            isFollowUp: true,
+            isTranslationHidden: true,
+            isCorrectionsHidden: true
+          };
+          setChatHistory(prev => [...prev, followUpEntry]);
+        }
+      } catch (apiError) {
+        console.error('API Service error:', apiError);
+        
+        // Add a fallback response when the API fails
+        const fallbackEntry: ChatEntry = {
+          type: 'assistant',
+          message: "I'm sorry, I'm having trouble connecting to the language service right now. Please try again in a moment or refresh the page.",
+          timestamp: new Date()
+        };
+        setChatHistory(prev => [...prev, fallbackEntry]);
+        
+        // Show a more detailed error message to the user
+        setError('Connection error: Unable to reach the language service. Please check your internet connection and try again.');
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to process audio');
     } finally {
@@ -180,7 +247,15 @@ export default function LanguagePage({ params }: LanguagePageProps) {
     }
   };
 
-  const handleAudioPlayback = (audioUrl: string) => {
+  // Add a helper function to change playback rate
+  const changePlaybackRate = (rate: number) => {
+    if (audioPlayer.element) {
+      audioPlayer.element.playbackRate = rate;
+      setAudioPlayer(prev => ({ ...prev, playbackRate: rate }));
+    }
+  };
+
+  const handleAudioPlayback = (audioUrl: string, languageCode?: string) => {
     // If there's a current audio playing and it's the same URL
     if (audioPlayer.element && audioPlayer.currentAudioUrl === audioUrl) {
       if (audioPlayer.isPlaying) {
@@ -198,6 +273,15 @@ export default function LanguagePage({ params }: LanguagePageProps) {
     }
 
     const audio = new Audio(audioUrl);
+    
+    // Set default playback rate based on language
+    let defaultRate = 1.0;
+    if (languageCode === 'zh' || languageCode === 'ko' || languageCode === 'ar') {
+      defaultRate = 0.85; // 85% of normal speed for more complex languages
+    }
+    
+    audio.playbackRate = audioPlayer.playbackRate || defaultRate;
+    
     audio.onplay = () => setAudioPlayer(prev => ({ ...prev, isPlaying: true }));
     audio.onpause = () => setAudioPlayer(prev => ({ ...prev, isPlaying: false }));
     audio.onended = () => setAudioPlayer(prev => ({ 
@@ -209,7 +293,8 @@ export default function LanguagePage({ params }: LanguagePageProps) {
     setAudioPlayer({ 
       element: audio, 
       isPlaying: false,
-      currentAudioUrl: audioUrl 
+      currentAudioUrl: audioUrl,
+      playbackRate: audioPlayer.playbackRate || defaultRate
     });
     audio.play().catch(error => {
       console.error('Error playing audio:', error);
@@ -285,37 +370,236 @@ export default function LanguagePage({ params }: LanguagePageProps) {
           {/* Add a spacer div for mobile */}
           <div className="h-2 md:h-0" aria-hidden="true" />
           
-          {chatHistory.map((entry, index) => (
-            <div
-              key={index}
-              className={`${
-                entry.type === 'user' ? 'text-right' : 'text-left'
-              }`}
-            >
-              <div
-                className={`inline-block p-2 md:p-4 rounded-2xl max-w-[85%] md:max-w-[80%] text-sm md:text-base ${
-                  entry.type === 'user'
-                    ? 'bg-indigo-500 text-white'
-                    : 'bg-gray-200 dark:bg-gray-800 text-black dark:text-white'
-                }`}
-              >
-                <pre className="whitespace-pre-wrap font-sans">{entry.message}</pre>
-                {entry.audio_url && (
-                  <div className="mt-1 md:mt-2 flex items-center gap-2">
-                    <button
-                      onClick={() => handleAudioPlayback(entry.audio_url!)}
-                      className="px-2 md:px-3 py-1 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-xs md:text-sm"
-                    >
-                      {audioPlayer.currentAudioUrl === entry.audio_url && audioPlayer.isPlaying ? 'Pause' : 'Play'} Audio
-                    </button>
+          {chatHistory.map((entry, index) => {
+            if (entry.type === 'user') {
+              // User message
+              return (
+                <div key={index} className="text-right mt-3 md:mt-6">
+                  <div className="inline-block p-2 md:p-4 rounded-2xl max-w-[85%] md:max-w-[80%] text-sm md:text-base bg-indigo-500 text-white">
+                    <div className="whitespace-pre-wrap font-sans">{entry.message}</div>
+                    <div className="text-[10px] md:text-xs mt-1 opacity-70">
+                      {entry.timestamp.toLocaleTimeString()}
+                    </div>
                   </div>
-                )}
-                <div className="text-[10px] md:text-xs mt-1 opacity-70">
-                  {entry.timestamp.toLocaleTimeString()}
                 </div>
-              </div>
-            </div>
-          ))}
+              );
+            } else {
+              // Assistant message - more complex with translation and correction handling
+              const messageParts = {
+                mainContent: '',
+                translation: null as string | null,
+                corrections: null as string | null,
+              };
+              
+              const lines = entry.message.split('\n');
+              let currentSection = 'main';
+              
+              // Parse message into sections
+              for (const line of lines) {
+                // Handle follow-up questions specially
+                if (entry.isFollowUp) {
+                  // Log for debugging
+                  console.log('Parsing follow-up message:', line);
+                  
+                  // Special handling for the format with parenthesized romanization and hyphen
+                  // Example: "요즘 뭐 하고 지내세요? (yojeum mwo hago jinaeseyo?) - What have you been up to these days?"
+                  if (line.match(/.*\([^)]+\)\s+-\s+.+/)) {
+                    console.log('Found Korean-style format with romanization');
+                    // Extract the main content (with romanization) and translation
+                    const hyphenParts = line.split(' - ');
+                    
+                    if (hyphenParts.length > 1) {
+                      // Main content includes the text with romanization in parentheses
+                      messageParts.mainContent = hyphenParts[0].trim();
+                      messageParts.translation = hyphenParts[1].trim();
+                      console.log('Parsed Korean format. Main with romanization:', messageParts.mainContent, 'Translation:', messageParts.translation);
+                    } else {
+                      messageParts.mainContent = line;
+                    }
+                  }
+                  // If the message contains a hyphen with spaces around it
+                  else if (line.includes(' - ')) {
+                    const parts = line.split(' - ');
+                    messageParts.mainContent = parts[0].trim();
+                    if (parts.length > 1) {
+                      messageParts.translation = parts[1].trim();
+                      console.log('Found hyphen translation format. Main:', messageParts.mainContent, 'Translation:', messageParts.translation);
+                    }
+                  }
+                  // If the message contains romanization in parentheses followed by hyphen
+                  else if (line.includes(') - ')) {
+                    const parts = line.split(' - ');
+                    messageParts.mainContent = parts[0].trim(); // Includes the romanization
+                    if (parts.length > 1) {
+                      messageParts.translation = parts[1].trim();
+                      console.log('Found parentheses-hyphen format. Main:', messageParts.mainContent, 'Translation:', messageParts.translation);
+                    }
+                  }
+                  // If the message contains slashes with spaces around them
+                  else if (line.includes(' / ')) {
+                    const parts = line.split(' / ');
+                    messageParts.mainContent = parts[0].trim();
+                    if (parts.length > 2) {
+                      messageParts.translation = parts[2].trim();
+                      console.log('Found spaced slash format. Main:', messageParts.mainContent, 'Translation:', messageParts.translation);
+                    } else if (parts.length > 1) {
+                      messageParts.translation = parts[1].trim();
+                      console.log('Found spaced slash format. Main:', messageParts.mainContent, 'Translation:', messageParts.translation);
+                    }
+                  }
+                  // Simple slash format
+                  else if (line.includes('/')) {
+                    const parts = line.split('/');
+                    messageParts.mainContent = parts[0].trim();
+                    if (parts.length > 1) {
+                      messageParts.translation = parts[1].trim();
+                      console.log('Found simple slash format. Main:', messageParts.mainContent, 'Translation:', messageParts.translation);
+                    }
+                  }
+                  // No translation separator found
+                  else {
+                    messageParts.mainContent = line;
+                    console.log('No translation separator found.');
+                  }
+                  break; // Only process the first line for follow-ups
+                }
+                
+                // Check for translation markers based on language
+                if (line.includes('🇺🇸') || line.includes('English translation:')) {
+                  currentSection = 'translation';
+                  messageParts.translation = line;
+                  continue;
+                }
+                
+                // Check for corrections
+                if (line.includes('💡')) {
+                  currentSection = 'corrections';
+                  messageParts.corrections = line;
+                  continue;
+                }
+                
+                // Add line to current section
+                if (currentSection === 'main') {
+                  messageParts.mainContent += (messageParts.mainContent ? '\n' : '') + line;
+                } else if (currentSection === 'translation') {
+                  messageParts.translation = (messageParts.translation || '') + '\n' + line;
+                } else if (currentSection === 'corrections') {
+                  messageParts.corrections = (messageParts.corrections || '') + '\n' + line;
+                }
+              }
+              
+              // Handle toggling translation visibility
+              const handleToggleTranslation = () => {
+                setChatHistory(prev => {
+                  const updated = [...prev];
+                  updated[index] = {
+                    ...updated[index],
+                    isTranslationHidden: !updated[index].isTranslationHidden
+                  };
+                  return updated;
+                });
+              };
+              
+              // Handle toggling corrections visibility
+              const handleToggleCorrections = () => {
+                setChatHistory(prev => {
+                  const updated = [...prev];
+                  updated[index] = {
+                    ...updated[index],
+                    isCorrectionsHidden: !updated[index].isCorrectionsHidden
+                  };
+                  return updated;
+                });
+              };
+              
+              return (
+                <div
+                  key={index}
+                  className={`text-left ${entry.isFollowUp ? 'mt-1' : 'mt-3 md:mt-6'}`}
+                >
+                  <div
+                    className={`inline-block p-2 md:p-4 rounded-2xl max-w-[85%] md:max-w-[80%] text-sm md:text-base ${
+                      entry.isFollowUp
+                        ? 'bg-gray-100 dark:bg-gray-700 text-black dark:text-white border-l-4 border-indigo-500'
+                        : 'bg-gray-200 dark:bg-gray-800 text-black dark:text-white'
+                    }`}
+                  >
+                    <div className="whitespace-pre-wrap font-sans">
+                      {/* Main content */}
+                      <div>{messageParts.mainContent}</div>
+                      
+                      {/* Translation section */}
+                      {messageParts.translation && !entry.isTranslationHidden && (
+                        <div className="mt-2 pt-2 border-t border-gray-300 dark:border-gray-600">
+                          {messageParts.translation}
+                        </div>
+                      )}
+                      
+                      {/* Corrections section */}
+                      {messageParts.corrections && !entry.isCorrectionsHidden && (
+                        <div className="mt-2 pt-2 border-t border-gray-300 dark:border-gray-600 text-amber-600 dark:text-amber-400">
+                          {messageParts.corrections}
+                        </div>
+                      )}
+                      
+                      {/* Translation toggle */}
+                      {messageParts.translation && (
+                        <button 
+                          onClick={handleToggleTranslation}
+                          className="mt-2 text-xs text-indigo-600 dark:text-indigo-400 hover:underline block"
+                        >
+                          {entry.isTranslationHidden ? 'Show English translation' : 'Hide translation'}
+                        </button>
+                      )}
+                      
+                      {/* Corrections toggle */}
+                      {messageParts.corrections && (
+                        <button 
+                          onClick={handleToggleCorrections}
+                          className="mt-2 text-xs text-amber-600 dark:text-amber-400 hover:underline block"
+                        >
+                          {entry.isCorrectionsHidden ? 'Show corrections' : 'Hide corrections'}
+                        </button>
+                      )}
+                    </div>
+                    
+                    {entry.audio_url && !entry.isFollowUp && (
+                      <div className="mt-1 md:mt-2 flex flex-col gap-2">
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => handleAudioPlayback(entry.audio_url!, languageCode)}
+                            className="px-2 md:px-3 py-1 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-xs md:text-sm"
+                          >
+                            {audioPlayer.currentAudioUrl === entry.audio_url && audioPlayer.isPlaying ? 'Pause' : 'Play'} Audio
+                          </button>
+                          {audioPlayer.currentAudioUrl === entry.audio_url && (
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs">Speed:</span>
+                              <select 
+                                className="text-xs bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded px-1 py-1"
+                                value={audioPlayer.playbackRate}
+                                onChange={(e) => changePlaybackRate(parseFloat(e.target.value))}
+                              >
+                                <option value="0.5">0.5x</option>
+                                <option value="0.75">0.75x</option>
+                                <option value="1">1x</option>
+                                <option value="1.25">1.25x</option>
+                                <option value="1.5">1.5x</option>
+                              </select>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    
+                    <div className="text-[10px] md:text-xs mt-1 opacity-70">
+                      {entry.timestamp.toLocaleTimeString()}
+                    </div>
+                  </div>
+                </div>
+              );
+            }
+          })}
         </div>
 
         {/* Input Area - More space on mobile */}

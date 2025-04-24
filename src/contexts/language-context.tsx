@@ -22,6 +22,8 @@ export const languages: Language[] = [
   { code: 'pt-BR', name: 'Portuguese (Brazilian)', flag: '🇧🇷' },
   { code: 'zh', name: 'Chinese', flag: '🇨🇳' },
   { code: 'no', name: 'Norwegian', flag: '🇳🇴' },
+  { code: 'ko', name: 'Korean', flag: '🇰🇷' },
+  { code: 'ar', name: 'Arabic', flag: '🇸🇦' },
 ];
 
 export function LanguageProvider({ children }: { children: React.ReactNode }) {

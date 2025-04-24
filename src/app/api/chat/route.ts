@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import { createChatMessage } from '@/lib/supabase-db';
 import S3 from 'aws-sdk/clients/s3';
+import { extractFollowUpQuestion, extractLanguageText, OpenAIVoice, LanguageCodeMapping } from './chat-utils';
 
 // Language configurations
 const LANGUAGE_CONFIGS: Record<string, { instructions: string, voice: string }> = {
@@ -78,110 +79,39 @@ Example format:
 ❓ [Follow-up question in Portuguese with translation]`,
     voice: 'shimmer'
   },
-};
+  'ko': {
+    instructions: `You are a friendly and engaging Korean language conversation partner. Your primary goal is to maintain a natural conversation while helping users improve their Korean. Follow these guidelines:
+1. Always respond in Korean first using Hangul, followed by romanized pronunciation guide and English translation
+2. Keep the conversation flowing naturally while providing gentle corrections
+3. Use emojis and friendly language to keep the conversation engaging
+4. Ask follow-up questions to encourage more conversation
+5. Provide cultural context about Korean-speaking regions when relevant
 
-// Define language mapping type for better type checking
-type LanguageCodeMapping = {
-  [key: string]: string;
-}
+Example format:
+🇰🇷 [Korean response in Hangul continuing the dialogue]
+📝 발음: [romanized pronunciation guide]
+🇺🇸 [English translation]
+💡 Corrections (if needed): [specific corrections]
+❓ [Follow-up question in Korean with romanization and translation]`,
+    voice: 'nova'
+  },
+  'ar': {
+    instructions: `You are a friendly and engaging Arabic language conversation partner. Your primary goal is to maintain a natural conversation while helping users improve their Arabic. Follow these guidelines:
+1. Always respond in Arabic script first, followed by romanized pronunciation guide and English translation
+2. Keep the conversation flowing naturally while providing gentle corrections
+3. Use emojis and friendly language to keep the conversation engaging
+4. Ask follow-up questions to encourage more conversation
+5. Provide cultural context about Arabic-speaking regions when relevant
 
-// Define OpenAI voice types
-type OpenAIVoice = 'alloy' | 'echo' | 'fable' | 'onyx' | 'nova' | 'shimmer';
-
-// Helper to extract language-specific text for TTS
-function extractLanguageText(text: string, languageCode: string): string {
-  const lines = text.split('\n');
-  const ttsText = [];
-  
-  // For English, use the conversational response part (before any corrections)
-  if (languageCode === 'en') {
-    // Take text until we hit a line with an emoji
-    for (const line of lines) {
-      if (/[💡❓🌍]/.test(line)) {
-        break;
-      }
-      if (line.trim()) {
-        ttsText.push(line.trim());
-      }
-    }
-  } else if (languageCode === 'de') {
-    for (const line of lines) {
-      if (line.startsWith('🇩🇪')) {
-        // Get text between 🇩🇪 and 🇺🇸 if present
-        let germanText = line.split('🇩🇪')[1];
-        if (germanText.includes('🇺🇸')) {
-          germanText = germanText.split('🇺🇸')[0];
-        }
-        ttsText.push(germanText.trim());
-      } else if (line.startsWith('❓')) {
-        // For questions, get the German part before any translation
-        let question = line.replace('❓', '').trim();
-        if (question.includes('/')) {
-          question = question.split('/')[0];
-        }
-        ttsText.push(question.trim());
-      }
-    }
-  } else if (languageCode === 'zh') {
-    for (const line of lines) {
-      if (line.startsWith('🇨🇳')) {
-        // Get text between 🇨🇳 and 📝 (before pinyin)
-        let chineseText = line.split('🇨🇳')[1];
-        if (chineseText.includes('📝')) {
-          chineseText = chineseText.split('📝')[0];
-        }
-        ttsText.push(chineseText.trim());
-      } else if (line.startsWith('❓')) {
-        // For questions, get the Chinese part before pinyin
-        let question = line.replace('❓', '').trim();
-        if (question.includes('📝')) {
-          question = question.split('📝')[0];
-        }
-        ttsText.push(question.trim());
-      }
-    }
-  } else if (languageCode === 'no') {
-    for (const line of lines) {
-      if (line.startsWith('🇳🇴')) {
-        // Get text between 🇳🇴 and 🇺🇸
-        let norwegianText = line.split('🇳🇴')[1];
-        if (norwegianText.includes('🇺🇸')) {
-          norwegianText = norwegianText.split('🇺🇸')[0];
-        }
-        ttsText.push(norwegianText.trim());
-      } else if (line.startsWith('❓')) {
-        // For questions, get the Norwegian part before translation
-        let question = line.replace('❓', '').trim();
-        if (question.includes('/')) {
-          question = question.split('/')[0];
-        }
-        ttsText.push(question.trim());
-      }
-    }
-  } else if (languageCode === 'pt-BR') {
-    for (const line of lines) {
-      if (line.startsWith('🇧🇷')) {
-        // Get text between 🇧🇷 and 🇺🇸
-        let portugueseText = line.split('🇧🇷')[1];
-        if (portugueseText.includes('🇺🇸')) {
-          portugueseText = portugueseText.split('🇺🇸')[0];
-        }
-        ttsText.push(portugueseText.trim());
-      } else if (line.startsWith('❓')) {
-        // For questions, get the Portuguese part before translation
-        let question = line.replace('❓', '').trim();
-        if (question.includes('/')) {
-          question = question.split('/')[0];
-        }
-        ttsText.push(question.trim());
-      }
-    }
+Example format:
+🇸🇦 [Arabic response continuing the dialogue]
+📝 النطق: [romanized pronunciation guide]
+🇺🇸 [English translation]
+💡 Corrections (if needed): [specific corrections]
+❓ [Follow-up question in Arabic with romanization and translation]`,
+    voice: 'onyx'
   }
-  
-  // Join all extracted text with proper spacing
-  const combinedText = ttsText.join(' ').trim();
-  return combinedText || text;
-}
+};
 
 // Configure S3
 const s3 = new S3({
@@ -210,7 +140,9 @@ export async function POST(req: Request) {
       "German": "de",
       "Portuguese (Brazilian)": "pt-BR",
       "Chinese": "zh",
-      "Norwegian": "no"
+      "Norwegian": "no",
+      "Korean": "ko",
+      "Arabic": "ar"
     };
     
     const languageCode = languageMapping[language] || "en";
@@ -231,8 +163,11 @@ export async function POST(req: Request) {
     
     const textResponse = completion.choices[0].message.content || "Sorry, I couldn't generate a response.";
     
-    // Extract language-specific text for TTS
-    const ttsText = extractLanguageText(textResponse, languageCode);
+    // Extract the main response and follow-up question
+    const { mainResponse, followUpQuestion } = extractFollowUpQuestion(textResponse);
+    
+    // Extract language-specific text for TTS (based on the main response only)
+    const ttsText = extractLanguageText(mainResponse, languageCode);
     
     // Generate audio using OpenAI
     let audioUrl = null;
@@ -242,7 +177,9 @@ export async function POST(req: Request) {
         'de': 'onyx',     // Male voice for German
         'zh': 'nova',     // Female voice for Chinese
         'no': 'echo',     // Female voice for Norwegian
-        'pt-BR': 'alloy'  // Neural voice for Portuguese
+        'pt-BR': 'alloy', // Neural voice for Portuguese
+        'ko': 'nova',     // Female voice for Korean
+        'ar': 'onyx'      // Male voice for Arabic
       };
       
       const voice = voiceMapping[languageCode] || 'shimmer';
@@ -281,7 +218,7 @@ export async function POST(req: Request) {
           userId,
           language,
           message,         // Changed from messageText to match schema
-          response: textResponse, // Changed from responseText to match schema
+          response: textResponse, // Store the complete response in the database
           audioUrl
         });
       }
@@ -290,7 +227,8 @@ export async function POST(req: Request) {
     }
     
     return NextResponse.json({
-      response: textResponse,
+      response: mainResponse,
+      follow_up_question: followUpQuestion,
       audio_url: audioUrl
     });
   } catch (error) {

@@ -1,54 +1,80 @@
 export interface ChatMessage {
   message: string;
-  language: 'English' | 'German' | 'Portuguese (Brazilian)' | 'Chinese' | 'Norwegian'; // Full language names as expected by the API
+  language: 'English' | 'German' | 'Portuguese (Brazilian)' | 'Chinese' | 'Norwegian' | 'Korean' | 'Arabic'; // Full language names as expected by the API
 }
+
+// Define SupportedLanguage type using the same values from ChatMessage.language
+export type SupportedLanguage = 'English' | 'German' | 'Portuguese (Brazilian)' | 'Chinese' | 'Norwegian' | 'Korean' | 'Arabic';
 
 export interface ChatResponse {
   response: string;
   audio_url?: string;
+  follow_up_question?: string;
 }
 
-// Convert WebSocket URL to HTTP URL if needed
-function getHttpUrl(url: string | undefined): string {
-  if (!url) return 'http://localhost:8000';
-  
-  // Remove /ws path if present for HTTP requests
-  const cleanUrl = url.replace('/ws/', '/').replace('/ws', '');
-  
-  // In production with custom domain (api.laingfy.com)
-  if (process.env.NODE_ENV === 'production') {
-    if (cleanUrl.includes('api.laingfy.com')) {
-      // Already using the correct domain, just ensure HTTPS
-      return cleanUrl.replace(/^(ws|http|wss):\/\//, 'https://');
-    }
-    
-    // For ELB domain, remove port and use HTTPS unless HTTP is explicitly allowed
-    const allowHttp = process.env.NEXT_PUBLIC_ALLOW_HTTP === 'true';
-    if (!allowHttp) {
-      const urlWithoutPort = cleanUrl.replace(':8000', '');
-      return urlWithoutPort.replace(/^(ws|http|wss):\/\//, 'https://');
-    }
+// Mock API responses for development
+const mockResponses: Record<SupportedLanguage, ChatResponse> = {
+  'English': {
+    response: `That's an interesting question! I think the weather has been quite unpredictable lately.
+💡 Correction: None needed, your English is excellent!
+❓ Have you noticed any changes in the weather patterns where you live?`,
+    follow_up_question: 'Have you noticed any changes in the weather patterns where you live?'
+  },
+  'German': {
+    response: `🇩🇪 Das ist eine interessante Frage! Ich denke, das Wetter ist in letzter Zeit ziemlich unvorhersehbar gewesen.
+🇺🇸 That's an interesting question! I think the weather has been quite unpredictable lately.
+💡 Correction: None needed, your German is coming along well!`,
+    follow_up_question: 'Haben Sie Änderungen in den Wettermustern bemerkt, wo Sie wohnen? / Have you noticed any changes in the weather patterns where you live?'
+  },
+  'Chinese': {
+    response: `🇨🇳 这是个有趣的问题！我认为最近天气变化无常。
+📝 Pinyin: Zhè shì gè yǒuqù de wèntí! Wǒ rènwéi zuìjìn tiānqì biànhuà wúcháng.
+🇺🇸 That's an interesting question! I think the weather has been quite unpredictable lately.
+💡 Correction: None needed, your Chinese is very good!`,
+    follow_up_question: '你注意到你住的地方的天气模式有什么变化吗？ / Nǐ zhùyì dào nǐ zhù de dìfāng de tiānqì móshì yǒu shénme biànhuà ma? / Have you noticed any changes in the weather patterns where you live?'
+  },
+  'Norwegian': {
+    response: `🇳🇴 Det er et interessant spørsmål! Jeg tror været har vært ganske uforutsigbart i det siste.
+🇺🇸 That's an interesting question! I think the weather has been quite unpredictable lately.
+💡 Correction: None needed, your Norwegian sounds natural!`,
+    follow_up_question: 'Har du lagt merke til endringer i værmønstrene der du bor? / Have you noticed any changes in the weather patterns where you live?'
+  },
+  'Portuguese (Brazilian)': {
+    response: `🇧🇷 Essa é uma pergunta interessante! Eu acho que o clima tem sido bastante imprevisível ultimamente.
+🇺🇸 That's an interesting question! I think the weather has been quite unpredictable lately.
+💡 Correction: None needed, your Portuguese is excellent!`,
+    follow_up_question: 'Você notou alguma mudança nos padrões climáticos onde você mora? / Have you noticed any changes in the weather patterns where you live?'
+  },
+  'Korean': {
+    response: `🇰🇷 흥미로운 질문이네요! 저는 최근에 날씨가 꽤 예측할 수 없게 변했다고 생각해요.
+📝 발음: heung-mi-ro-un jil-mun-i-ne-yo! jeo-neun choe-geun-e nal-ssi-ga kkwae ye-cheuk-hal su eop-ge byeon-haess-da-go saeng-gak-hae-yo.
+🇺🇸 That's an interesting question! I think the weather has been quite unpredictable lately.
+💡 Correction: None needed, your Korean is coming along well!`,
+    follow_up_question: '당신이 사는 곳의 날씨 패턴에 변화가 있었나요? / dangsin-i sa-neun gos-ui nal-ssi pae-teon-e byeon-hwa-ga iss-eoss-na-yo? / Have you noticed any changes in the weather patterns where you live?'
+  },
+  'Arabic': {
+    response: `🇸🇦 هذا سؤال مثير للاهتمام! أعتقد أن الطقس كان غير متوقع تمامًا في الآونة الأخيرة.
+📝 النطق: hādhā su'āl muthīr lil-ihtimām! a'taqid anna al-ṭaqs kāna ghayr mutawaqqa' tamāman fī al-āwina al-akhīra.
+🇺🇸 That's an interesting question! I think the weather has been quite unpredictable lately.
+💡 Correction: None needed, your Arabic is very good!`,
+    follow_up_question: 'هل لاحظت أي تغييرات في أنماط الطقس حيث تعيش؟ / hal lāḥaẓta ayy taghyīrāt fī anmāṭ al-ṭaqs ḥaythu ta\'īsh? / Have you noticed any changes in the weather patterns where you live?'
   }
-  
-  // In development or when HTTP is allowed
-  if (cleanUrl.startsWith('ws://')) {
-    return cleanUrl.replace('ws://', 'http://');
-  }
-  if (cleanUrl.startsWith('wss://')) {
-    return cleanUrl.replace('wss://', 'https://');
-  }
-  
-  return cleanUrl;
-}
+};
+
+// Check if we should use mock responses (for development)
+const USE_MOCK_API = process.env.NEXT_PUBLIC_USE_MOCK_API === 'true';
 
 // Determine the API base URL based on environment
 const API_BASE_URL = process.env.NODE_ENV === 'production'
-  ? 'https://api.laingfy.com'
-  : getHttpUrl(process.env.NEXT_PUBLIC_API_URL);
+  ? '/api' // Use relative path in production
+  : '/api'; // Use relative path in development too
 
 // Log the API URL in development for debugging
 if (process.env.NODE_ENV === 'development') {
   console.log('API Base URL:', API_BASE_URL);
+  if (USE_MOCK_API) {
+    console.log('Using mock API responses for development');
+  }
 }
 
 export class ApiService {
@@ -237,6 +263,14 @@ export class ApiService {
   // Legacy chat methods
   static async sendMessage(message: ChatMessage): Promise<ChatResponse> {
     try {
+      // Use mock responses if enabled (for development/testing)
+      if (USE_MOCK_API) {
+        console.log('Using mock response for language:', message.language);
+        // Simulate network delay
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        return mockResponses[message.language];
+      }
+
       const response = await fetch(`${API_BASE_URL}/chat`, {
         method: 'POST',
         headers: {
@@ -250,14 +284,31 @@ export class ApiService {
       }
 
       return response.json();
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Error sending message:', error);
+      
+      // If in development mode, fall back to mock responses on connection errors
+      if (process.env.NODE_ENV === 'development' && 
+          (error instanceof TypeError || (error instanceof Error && error.message.includes('Failed to fetch')))) {
+        console.log('API connection failed. Falling back to mock response for development.');
+        return mockResponses[message.language];
+      }
+      
       throw error;
     }
   }
 
   static async sendAudio(formData: FormData): Promise<ChatResponse> {
     try {
+      // Use mock responses if enabled (for development/testing)
+      if (USE_MOCK_API) {
+        const language = formData.get('language') as SupportedLanguage;
+        console.log('Using mock response for audio in language:', language);
+        // Simulate network delay
+        await new Promise(resolve => setTimeout(resolve, 1500));
+        return mockResponses[language];
+      }
+
       const response = await fetch(`${API_BASE_URL}/chat/audio`, {
         method: 'POST',
         body: formData,
@@ -268,8 +319,16 @@ export class ApiService {
       }
 
       return response.json();
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Error sending audio:', error);
+      
+      // If in development mode, fall back to mock responses on connection errors
+      if (process.env.NODE_ENV === 'development') {
+        const language = formData.get('language') as SupportedLanguage;
+        console.log('API connection failed. Falling back to mock response for development.');
+        return mockResponses[language];
+      }
+      
       throw error;
     }
   }

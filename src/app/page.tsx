@@ -150,7 +150,7 @@ export default function Home() {
       <section className="py-20 bg-gradient-to-br from-indigo-50 to-violet-50 dark:from-indigo-950/30 dark:to-violet-950/30">
         <div className="container mx-auto px-4">
           <h2 className="text-3xl font-bold text-center mb-12">Available Languages</h2>
-          <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-6 max-w-4xl mx-auto">
+          <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6 max-w-5xl mx-auto">
             <Link href="/learn/de" className="p-6 rounded-xl bg-white dark:bg-gray-800 shadow-sm hover:shadow-md transition-all text-center group">
               <span className="text-4xl mb-3 block">🇩🇪</span>
               <h3 className="font-medium text-gray-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">German</h3>
@@ -166,6 +166,14 @@ export default function Home() {
             <Link href="/learn/no" className="p-6 rounded-xl bg-white dark:bg-gray-800 shadow-sm hover:shadow-md transition-all text-center group">
               <span className="text-4xl mb-3 block">🇳🇴</span>
               <h3 className="font-medium text-gray-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">Norwegian</h3>
+            </Link>
+            <Link href="/learn/ko" className="p-6 rounded-xl bg-white dark:bg-gray-800 shadow-sm hover:shadow-md transition-all text-center group">
+              <span className="text-4xl mb-3 block">🇰🇷</span>
+              <h3 className="font-medium text-gray-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">Korean</h3>
+            </Link>
+            <Link href="/learn/ar" className="p-6 rounded-xl bg-white dark:bg-gray-800 shadow-sm hover:shadow-md transition-all text-center group">
+              <span className="text-4xl mb-3 block">🇸🇦</span>
+              <h3 className="font-medium text-gray-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">Arabic</h3>
             </Link>
           </div>
           <p className="text-center text-gray-600 dark:text-gray-400 mt-8">More languages coming soon!</p>
