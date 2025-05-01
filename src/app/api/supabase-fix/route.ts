@@ -80,11 +80,12 @@ export async function GET() {
       success: true,
       message: "Supabase setup fixed for account_setup field"
     });
-  } catch (error: any) {
-    console.error("🔴 Fix endpoint error:", error);
-    return NextResponse.json({ 
-      error: "General error fixing Supabase setup", 
-      details: error.message || String(error)
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error("🔴 Fix endpoint error:", errorMessage);
+    return NextResponse.json({
+      error: "General error fixing Supabase setup",
+      details: errorMessage
     }, { status: 500 });
   }
 } 

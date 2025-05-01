@@ -82,11 +82,12 @@ export async function GET(req: Request) {
       accountSetupUpdate: { ...updateResult, password: '[REDACTED]' },
       languagesUpdate: { ...langUpdateResult, password: '[REDACTED]' }
     });
-  } catch (error: any) {
-    console.error("🔴 Test endpoint error:", error);
-    return NextResponse.json({ 
-      error: "General error testing Supabase connection", 
-      details: error.message || String(error)
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error("🔴 Test endpoint error:", errorMessage);
+    return NextResponse.json({
+      error: "General error testing Supabase connection",
+      details: errorMessage
     }, { status: 500 });
   }
 } 
