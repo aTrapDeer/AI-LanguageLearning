@@ -18,7 +18,8 @@ export function SupabaseAdapter(): Adapter {
             password: '', // OAuth users won't have a password
             native_language: 'English', // Default
             active_language: 'en',
-            learning_languages: []
+            learning_languages: [],
+            account_setup: false // Add accountSetup field
           }
         ])
         .select()
@@ -31,7 +32,8 @@ export function SupabaseAdapter(): Adapter {
         email: data.email,
         emailVerified: data.email_verified ? new Date(data.email_verified) : null,
         image: data.image,
-        learningLanguages: data.learning_languages || []
+        learningLanguages: data.learning_languages || [],
+        accountSetup: data.account_setup
       };
     },
 
@@ -55,7 +57,8 @@ export function SupabaseAdapter(): Adapter {
         email: data.email,
         emailVerified: data.email_verified ? new Date(data.email_verified) : null,
         image: data.image,
-        learningLanguages: data.learning_languages || []
+        learningLanguages: data.learning_languages || [],
+        accountSetup: data.account_setup
       };
     },
 
@@ -79,7 +82,8 @@ export function SupabaseAdapter(): Adapter {
         email: data.email,
         emailVerified: data.email_verified ? new Date(data.email_verified) : null,
         image: data.image,
-        learningLanguages: data.learning_languages || []
+        learningLanguages: data.learning_languages || [],
+        accountSetup: data.account_setup
       };
     },
 
@@ -119,7 +123,8 @@ export function SupabaseAdapter(): Adapter {
         email: userData.email,
         emailVerified: userData.email_verified ? new Date(userData.email_verified) : null,
         image: userData.image,
-        learningLanguages: userData.learning_languages || []
+        learningLanguages: userData.learning_languages || [],
+        accountSetup: userData.account_setup
       };
     },
 
@@ -144,7 +149,8 @@ export function SupabaseAdapter(): Adapter {
         email: data.email,
         emailVerified: data.email_verified ? new Date(data.email_verified) : null,
         image: data.image,
-        learningLanguages: data.learning_languages || []
+        learningLanguages: data.learning_languages || [],
+        accountSetup: data.account_setup
       };
     },
 
@@ -222,7 +228,8 @@ export function SupabaseAdapter(): Adapter {
         email: userData.email,
         emailVerified: userData.email_verified ? new Date(userData.email_verified) : null,
         image: userData.image,
-        learningLanguages: userData.learning_languages || []
+        learningLanguages: userData.learning_languages || [],
+        accountSetup: userData.account_setup
       };
 
       const session: AdapterSession = {

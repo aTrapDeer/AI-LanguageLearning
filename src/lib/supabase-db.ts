@@ -31,10 +31,29 @@ export async function getUserByEmail(email: string) {
 }
 
 export async function createUser(userData: Omit<User, 'id' | 'createdAt' | 'updatedAt'>) {
+  // Extract fields for clarity
+  const { 
+    name, 
+    email, 
+    password, 
+    nativeLanguage, 
+    activeLanguage, 
+    learningLanguages,
+    accountSetup 
+  } = userData;
+
   // Use admin client for creating users to bypass RLS
   const { data, error } = await adminClient
     .from('users')
-    .insert([userData])
+    .insert([{
+      name,
+      email,
+      password,
+      native_language: nativeLanguage,
+      active_language: activeLanguage,
+      learning_languages: learningLanguages,
+      account_setup: accountSetup
+    }])
     .select()
     .single();
   
