@@ -40,6 +40,8 @@ CREATE TABLE IF NOT EXISTS users (
   native_language TEXT NOT NULL DEFAULT 'English',
   active_language TEXT NOT NULL DEFAULT 'en',
   learning_languages TEXT[] DEFAULT '{}',
+  account_setup BOOLEAN NOT NULL DEFAULT FALSE,
+  proficiency_level INTEGER NOT NULL DEFAULT 1,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );

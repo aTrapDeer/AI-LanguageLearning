@@ -41,6 +41,7 @@ model User {
   nativeLanguage    String           @default("English")
   activeLanguage    String           @default("en")
   learningLanguages String[]         @default([])
+  accountSetup      Boolean          @default(false)
   createdAt         DateTime         @default(now())
   updatedAt         DateTime         @updatedAt
   accounts          Account[]
