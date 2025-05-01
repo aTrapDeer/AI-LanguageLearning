@@ -1,44 +1,55 @@
-import { NextResponse } from "next/server";
+import { cookies } from 'next/headers';
+import { NextResponse } from 'next/server';
 
 /**
- * API endpoint to clear all authentication-related cookies
+ * API Route to clear all authentication cookies
+ * This helps resolve auth conflicts between NextAuth and Supabase
  */
 export async function GET() {
-  try {
-    // NextAuth specific cookies
-    const authCookies = [
-      'next-auth.session-token',
-      'next-auth.callback-url',
-      'next-auth.csrf-token',
-      '__Secure-next-auth.callback-url',
-      '__Secure-next-auth.session-token',
-      '__Secure-next-auth.csrf-token',
-      '__Host-next-auth.csrf-token',
-      'supabase-auth-token' // For Supabase
-    ];
-
-    // Create a response with headers that will clear each cookie
-    const response = NextResponse.json({ 
-      success: true, 
-      message: "Authentication cookies cleared" 
-    });
-
-    // Delete each auth cookie by setting an expired value
-    for (const cookieName of authCookies) {
-      response.cookies.set({
-        name: cookieName,
-        value: '',
-        expires: new Date(0),
-        path: '/'
-      });
+  const cookieStore = cookies();
+  
+  // Clear all NextAuth cookies
+  const nextAuthCookies = [
+    'next-auth.session-token',
+    'next-auth.csrf-token',
+    'next-auth.callback-url',
+    '__Secure-next-auth.session-token',
+    '__Secure-next-auth.callback-url',
+    '__Host-next-auth.csrf-token',
+  ];
+  
+  // Clear all Supabase cookies
+  const supabaseCookies = [
+    'sb-access-token',
+    'sb-refresh-token',
+    'supabase-auth-token',
+  ];
+  
+  // Get all cookies and clear any that might be related to authentication
+  const allCookies = cookieStore.getAll();
+  for (const cookie of allCookies) {
+    const name = cookie.name;
+    
+    // Delete specific auth cookies
+    if (nextAuthCookies.includes(name) || 
+        supabaseCookies.includes(name) || 
+        name.includes('auth') || 
+        name.includes('token')) {
+      
+      cookieStore.delete(name);
     }
-
-    return response;
-  } catch (error) {
-    console.error("Error clearing auth cookies:", error);
-    return NextResponse.json(
-      { success: false, error: "Failed to clear cookies" },
-      { status: 500 }
-    );
   }
+
+  return NextResponse.json({ 
+    success: true, 
+    message: 'All authentication cookies cleared' 
+  });
+}
+
+/**
+ * POST handler for programmatic clearing
+ */
+export async function POST() {
+  // Reuse the same cookie clearing logic
+  return GET();
 } 

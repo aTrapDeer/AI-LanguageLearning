@@ -4,13 +4,37 @@ import type { Adapter, AdapterAccount, AdapterSession, AdapterUser, Verification
 // Use admin client when available, otherwise fallback to regular client
 const adminClient = supabaseAdmin || supabase;
 
+/**
+ * Enhanced Supabase adapter with improved error handling and session management
+ */
 export function SupabaseAdapter(): Adapter {
   return {
     async createUser(user: Omit<AdapterUser, "id">): Promise<AdapterUser> {
-      const { data, error } = await adminClient
-        .from('users')
-        .insert([
-          {
+      try {
+        // Check if user already exists to prevent duplicate creation
+        const existingUser = await adminClient
+          .from('users')
+          .select('*')
+          .eq('email', user.email)
+          .maybeSingle();
+
+        if (existingUser.data) {
+          console.log("User already exists, returning existing user");
+          return {
+            id: existingUser.data.id,
+            name: existingUser.data.name,
+            email: existingUser.data.email,
+            emailVerified: existingUser.data.email_verified ? new Date(existingUser.data.email_verified) : null,
+            image: existingUser.data.image,
+            learningLanguages: existingUser.data.learning_languages || [],
+            accountSetup: existingUser.data.account_setup
+          };
+        }
+        
+        // Otherwise create new user
+        const { data, error } = await adminClient
+          .from('users')
+          .insert([{
             name: user.name,
             email: user.email,
             email_verified: user.emailVerified?.toISOString() || null,
@@ -20,21 +44,28 @@ export function SupabaseAdapter(): Adapter {
             active_language: 'en',
             learning_languages: [],
             account_setup: false // Add accountSetup field
-          }
-        ])
-        .select()
-        .single();
+          }])
+          .select()
+          .single();
 
-      if (error) throw error;
-      return {
-        id: data.id,
-        name: data.name,
-        email: data.email,
-        emailVerified: data.email_verified ? new Date(data.email_verified) : null,
-        image: data.image,
-        learningLanguages: data.learning_languages || [],
-        accountSetup: data.account_setup
-      };
+        if (error) {
+          console.error("Error creating user:", error);
+          throw error;
+        }
+        
+        return {
+          id: data.id,
+          name: data.name,
+          email: data.email,
+          emailVerified: data.email_verified ? new Date(data.email_verified) : null,
+          image: data.image,
+          learningLanguages: data.learning_languages || [],
+          accountSetup: data.account_setup
+        };
+      } catch (err) {
+        console.error("Error in createUser:", err);
+        throw err;
+      }
     },
 
     async getUser(id: string): Promise<AdapterUser | null> {
@@ -155,11 +186,25 @@ export function SupabaseAdapter(): Adapter {
     },
 
     async linkAccount(account: AdapterAccount): Promise<AdapterAccount> {
-      // Store the account in Supabase
-      const { error } = await adminClient
-        .from('accounts')
-        .insert([
-          {
+      try {
+        // Check for existing accounts first
+        const { data: existingAccount } = await adminClient
+          .from('accounts')
+          .select('*')
+          .eq('provider', account.provider)
+          .eq('provider_account_id', account.providerAccountId)
+          .maybeSingle();
+          
+        // If account exists, don't try to create it again
+        if (existingAccount) {
+          console.log("Account already exists, skipping creation");
+          return account;
+        }
+        
+        // Store the account in Supabase
+        const { error } = await adminClient
+          .from('accounts')
+          .insert([{
             user_id: account.userId,
             type: account.type,
             provider: account.provider,
@@ -171,11 +216,17 @@ export function SupabaseAdapter(): Adapter {
             scope: account.scope,
             id_token: account.id_token,
             session_state: account.session_state
-          }
-        ]);
+          }]);
 
-      if (error) throw error;
-      return account;
+        if (error) {
+          console.error("Error linking account:", error);
+          throw error;
+        }
+        return account;
+      } catch (err) {
+        console.error("Error in linkAccount:", err);
+        throw err;
+      }
     },
 
     async createSession(session: { sessionToken: string; userId: string; expires: Date }): Promise<AdapterSession> {
