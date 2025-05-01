@@ -11,6 +11,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible"
 import { ChevronDownIcon } from "@radix-ui/react-icons"
+import ClearAuthButton from "./ClearAuthButton"
 
 const passwordSchema = z.string()
   .min(8, "Password must be at least 8 characters")
@@ -239,6 +240,9 @@ export function AuthForm({ mode }: AuthFormProps) {
           <div className="text-sm text-red-700 dark:text-red-200">{error}</div>
         </div>
       )}
+
+      {/* Add the clear auth button that only appears when there's a callback error in URL */}
+      <ClearAuthButton />
 
       <p className="text-center text-sm text-muted-foreground">
         {mode === "login" ? (
