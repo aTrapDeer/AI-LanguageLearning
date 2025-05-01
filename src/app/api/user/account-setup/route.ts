@@ -317,6 +317,7 @@ export async function POST(req: Request) {
       const fallbackUserId = requestBody.userId || (fallbackSession?.user?.id);
       const fallbackActiveLanguage = requestBody.activeLanguage;
       const fallbackProficiencyLevels = requestBody.proficiencyLevels;
+      const fallbackLearningLanguages = requestBody.learningLanguages || [];
       
       if (!fallbackUserId) {
         throw new Error("No user ID available for fallback");
@@ -330,7 +331,7 @@ export async function POST(req: Request) {
       console.log("🔵 Minimal account setup complete");
       
       // Create minimal progress records
-      for (const language of learningLanguages) {
+      for (const language of fallbackLearningLanguages) {
         if (fallbackActiveLanguage && fallbackProficiencyLevels && fallbackProficiencyLevels[language]) {
           await supabase
             .from('progress')
