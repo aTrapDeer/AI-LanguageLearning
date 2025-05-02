@@ -6,7 +6,7 @@ import { NextResponse } from 'next/server';
  * This helps resolve auth conflicts between NextAuth and Supabase
  */
 export async function GET() {
-  const cookieStore = cookies();
+  const cookieStore = await cookies();
   
   // Clear all NextAuth cookies
   const nextAuthCookies = [
@@ -26,7 +26,7 @@ export async function GET() {
   ];
   
   // Get all cookies and clear any that might be related to authentication
-  const allCookies = cookieStore.getAll();
+  const allCookies = await cookieStore.getAll();
   for (const cookie of allCookies) {
     const name = cookie.name;
     
