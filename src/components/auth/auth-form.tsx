@@ -32,27 +32,26 @@ export function AuthForm({ mode }: AuthFormProps) {
     try {
       setLoading(true)
       setError(null)
+      
+      console.log("Starting Google sign in process...")
+      
+      // Clear any existing cookies first to prevent conflicts
+      try {
+        await fetch('/api/auth/clear-cookies');
+        console.log("Cleared existing cookies");
+      } catch (e) {
+        console.warn("Failed to clear cookies via API:", e);
+      }
+      
+      // Try to sign in with Google with explicit options
       const result = await signIn("google", { 
-        callbackUrl: "/dashboard",
-        redirect: false
+        callbackUrl: window.location.origin + "/dashboard",
+        redirect: true,
+        prompt: "select_account"
       })
       
-      if (result?.error) {
-        if (result.error === "OAuthAccountNotLinked" || result.error === "Callback") {
-          console.error("OAuth account linking error:", result.error)
-          setError("This email is already associated with a different sign-in method. If you're having trouble, try clearing your browser cookies.")
-          
-          try {
-            await fetch('/api/auth/clear-cookies')
-          } catch (e) {
-            console.error("Failed to clear cookies:", e)
-          }
-        } else {
-          setError(`Sign in failed: ${result.error}`)
-        }
-      } else if (result?.url) {
-        window.location.href = result.url
-      }
+      console.log("Sign in result:", result);
+      
     } catch (err) {
       console.error("Google sign in error:", err)
       setError("Failed to sign in with Google. Please try again.")

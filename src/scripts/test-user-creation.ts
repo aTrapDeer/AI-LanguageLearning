@@ -30,6 +30,7 @@ async function createTestUser() {
       nativeLanguage: 'English',
       activeLanguage: 'en',
       learningLanguages: ['fr', 'es'],
+      accountSetup: false,
     };
     
     // Create user using the adapter

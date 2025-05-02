@@ -45,7 +45,9 @@ export const authOptions: NextAuthOptions = {
   // Add better cookie configuration to prevent conflicts
   cookies: {
     sessionToken: {
-      name: `__Secure-next-auth.session-token`,
+      name: process.env.NODE_ENV === "production" 
+        ? `__Secure-next-auth.session-token` 
+        : `next-auth.session-token`,
       options: {
         httpOnly: true,
         sameSite: 'lax',
@@ -55,7 +57,9 @@ export const authOptions: NextAuthOptions = {
       }
     },
     callbackUrl: {
-      name: `__Secure-next-auth.callback-url`,
+      name: process.env.NODE_ENV === "production"
+        ? `__Secure-next-auth.callback-url`
+        : `next-auth.callback-url`,
       options: {
         sameSite: 'lax',
         path: '/',
@@ -63,7 +67,9 @@ export const authOptions: NextAuthOptions = {
       }
     },
     csrfToken: {
-      name: `__Host-next-auth.csrf-token`,
+      name: process.env.NODE_ENV === "production"
+        ? `__Host-next-auth.csrf-token`
+        : `next-auth.csrf-token`,
       options: {
         httpOnly: true,
         sameSite: 'lax',
@@ -79,7 +85,7 @@ export const authOptions: NextAuthOptions = {
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
       allowDangerousEmailAccountLinking: true,
       profile(profile) {
-        console.log("Google profile:", profile);
+        console.log("Google profile received:", JSON.stringify(profile, null, 2));
         return {
           id: profile.sub,
           name: profile.name,
@@ -142,8 +148,9 @@ export const authOptions: NextAuthOptions = {
   ],
   callbacks: {
     async jwt({ token, user, account }) {
-      console.log("JWT callback - User:", user ? { ...user, password: undefined } : null);
-      console.log("JWT callback - Token before:", token);
+      console.log("JWT callback - Token before:", JSON.stringify(token, null, 2));
+      console.log("JWT callback - User:", user ? JSON.stringify({ ...user, password: undefined }, null, 2) : null);
+      console.log("JWT callback - Account:", account ? JSON.stringify(account, null, 2) : null);
       
       if (account && user) {
         const updatedToken = {
@@ -152,7 +159,7 @@ export const authOptions: NextAuthOptions = {
           learningLanguages: user.learningLanguages || [],
           accountSetup: user.accountSetup
         };
-        console.log("JWT callback - Token after:", updatedToken);
+        console.log("JWT callback - Token after:", JSON.stringify(updatedToken, null, 2));
         return updatedToken;
       }
       
@@ -160,20 +167,24 @@ export const authOptions: NextAuthOptions = {
       return token
     },
     async session({ session, token }) {
-      console.log("Session callback - Token:", token);
-      console.log("Session callback - Session before:", session);
+      console.log("Session callback - Token:", JSON.stringify(token, null, 2));
+      console.log("Session callback - Session before:", JSON.stringify(session, null, 2));
+      
+      if (!token || !token.id) {
+        console.warn("Session callback - Token missing ID!");
+      }
       
       const updatedSession = {
         ...session,
         user: {
           ...session.user,
           id: token.id as string,
-          learningLanguages: token.learningLanguages as string[],
+          learningLanguages: token.learningLanguages as string[] || [],
           accountSetup: token.accountSetup
         }
       };
       
-      console.log("Session callback - Session after:", updatedSession);
+      console.log("Session callback - Session after:", JSON.stringify(updatedSession, null, 2));
       return updatedSession;
     }
   }

@@ -46,12 +46,14 @@ export default function ClearAuthButton() {
     
     const url = new URL(window.location.href);
     const error = url.searchParams.get('error');
+    const callbackUrl = url.searchParams.get('callbackUrl');
     
-    if (error) {
+    // Check for error OR if we're at login page with a callbackUrl (which suggests a failed login)
+    if (error || (window.location.pathname === '/login' && callbackUrl)) {
       setHasError(true);
       
-      // Automatically clear auth state if this is a Callback error
-      if (error === 'Callback') {
+      // Automatically clear auth state if this is a Callback error or if we're stuck at login
+      if (error === 'Callback' || (window.location.pathname === '/login' && callbackUrl)) {
         handleClearAuth();
       }
     }
