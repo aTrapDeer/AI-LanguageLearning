@@ -79,7 +79,7 @@ export async function getLearningItems(userId: string, language: string) {
   const { data, error } = await supabase
     .from('learning')
     .select('*')
-    .eq('userId', userId)
+    .eq('user_id', userId)
     .eq('language', language);
   
   if (error) throw error;
@@ -103,7 +103,7 @@ export async function getProgress(userId: string, language: string) {
   const { data, error } = await supabase
     .from('progress')
     .select('*')
-    .eq('userId', userId)
+    .eq('user_id', userId)
     .eq('language', language)
     .single();
   
@@ -115,7 +115,7 @@ export async function getAllUserProgress(userId: string) {
   const { data, error } = await supabase
     .from('progress')
     .select('*')
-    .eq('userId', userId);
+    .eq('user_id', userId);
   
   if (error) throw error;
   return data;
@@ -156,7 +156,7 @@ export async function getChatHistory(userId: string, language: string) {
   const { data, error } = await supabase
     .from('chats')
     .select('*')
-    .eq('userId', userId)
+    .eq('user_id', userId)
     .eq('language', language)
     .order('createdAt', { ascending: false });
   

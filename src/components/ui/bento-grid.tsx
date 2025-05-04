@@ -15,7 +15,7 @@ const BentoGrid = ({
   return (
     <div
       className={cn(
-        "grid w-full grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 auto-rows-[180px] md:auto-rows-[200px]",
+        "grid w-full grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 auto-rows-[160px] md:auto-rows-[180px]",
         className,
       )}
     >
@@ -56,12 +56,14 @@ const BentoCard = ({
   >
     <div className="absolute inset-0 z-0">{background}</div>
     <div className="relative z-10 flex h-full flex-col">
-      <Icon className="h-8 w-8 text-neutral-700 dark:text-neutral-300" />
-      <div className="flex-grow">
-        <h3 className="mt-4 text-lg font-medium text-neutral-700 dark:text-neutral-300">
+      <div className="flex items-center">
+        <Icon className="h-8 w-8 text-neutral-700 dark:text-neutral-300" />
+        <h3 className="ml-3 text-lg font-medium text-neutral-700 dark:text-neutral-300">
           {name}
         </h3>
-        <p className="mt-2 text-sm text-neutral-500 dark:text-neutral-400 line-clamp-2">
+      </div>
+      <div className="flex-grow mt-2">
+        <p className="text-sm text-neutral-500 dark:text-neutral-400 line-clamp-2">
           {description}
         </p>
       </div>
@@ -69,7 +71,7 @@ const BentoCard = ({
         variant="ghost"
         asChild
         size="sm"
-        className="mt-4 w-fit opacity-0 group-hover:opacity-100 transition-opacity"
+        className="mt-2 w-fit opacity-0 group-hover:opacity-100 transition-opacity"
       >
         <a href={href}>
           {cta}

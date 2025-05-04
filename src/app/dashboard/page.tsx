@@ -11,6 +11,7 @@ import {
   CardStackIcon,
   SpeakerLoudIcon,
   ImageIcon,
+  LayersIcon,
 } from "@radix-ui/react-icons";
 
 export default function DashboardPage() {
@@ -20,13 +21,22 @@ export default function DashboardPage() {
 
   const features = [
     {
+      Icon: LayersIcon,
+      name: "Journey Mode",
+      description: "Follow a structured path tailored to your level with matching, missing word, and spelling exercises.",
+      href: `/learn/journey?lang=${selectedLanguage?.code || 'en'}`,
+      cta: "Start Journey",
+      background: <div className="absolute inset-0 bg-gradient-to-br from-purple-100 to-transparent dark:from-purple-900/30" />,
+      className: "md:col-span-2 lg:col-span-3 h-[140px]",
+    },
+    {
       Icon: ChatBubbleIcon,
       name: "AI Chat Assistant",
       description: "Practice conversations with our AI language tutor that adapts to your level and provides instant feedback.",
       href: `/learn/chat?lang=${selectedLanguage?.code || 'en'}`,
       cta: "Start Chatting",
       background: <div className="absolute inset-0 bg-gradient-to-br from-indigo-100 to-transparent dark:from-indigo-900/30" />,
-      className: "md:col-span-2 md:row-span-2",
+      className: "md:col-span-2",
     },
     {
       Icon: ImageIcon,
@@ -91,7 +101,7 @@ export default function DashboardPage() {
         interactive={false}
         containerClassName="fixed inset-0 opacity-20"
       />
-      <div className="relative container mx-auto px-4 py-8 mt-20">
+      <div className="relative container mx-auto px-4 py-6 mt-16">
         <BentoGrid>
           {features.map((feature) => (
             <BentoCard key={feature.name} {...feature} />

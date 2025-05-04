@@ -1,0 +1,86 @@
+{
+  "language": "de",
+  "level": 1,
+  "rounds": [
+    {
+      "type": "matching",
+      "englishSentence": "Hello, how are you?",
+      "translatedSentence": "Hallo, wie geht es dir?",
+      "words": ["Hallo,", "wie", "geht", "es", "dir?"]
+    },
+    {
+      "type": "missing_word",
+      "sentence": "Ich trinke gerne Kaffee am Morgen",
+      "missingWordIndex": 2,
+      "correctWord": "gerne",
+      "options": ["gerne", "Schlüssel", "Fenster", "rot"]
+    },
+    {
+      "type": "spelling",
+      "englishWord": "book",
+      "correctSpelling": "Buch"
+    },
+    {
+      "type": "matching",
+      "englishSentence": "I would like a coffee, please.",
+      "translatedSentence": "Ich möchte einen Kaffee, bitte.",
+      "words": ["Ich", "möchte", "einen", "Kaffee,", "bitte."]
+    },
+    {
+      "type": "missing_word",
+      "sentence": "Heute ist das Wetter sehr schön",
+      "missingWordIndex": 4,
+      "correctWord": "schön",
+      "options": ["schön", "Stuhl", "Apfel", "schwarz"]
+    },
+    {
+      "type": "spelling",
+      "englishWord": "water",
+      "correctSpelling": "Wasser"
+    },
+    {
+      "type": "matching",
+      "englishSentence": "My name is John.",
+      "translatedSentence": "Ich heiße John.",
+      "words": ["Ich", "heiße", "John."]
+    },
+    {
+      "type": "missing_word",
+      "sentence": "Ich komme aus Deutschland",
+      "missingWordIndex": 2,
+      "correctWord": "aus",
+      "options": ["aus", "Hund", "Tisch", "blau"]
+    },
+    {
+      "type": "spelling",
+      "englishWord": "house",
+      "correctSpelling": "Haus"
+    },
+    {
+      "type": "matching",
+      "englishSentence": "What time is it?",
+      "translatedSentence": "Wie spät ist es?",
+      "words": ["Wie", "spät", "ist", "es?"]
+    }
+  ],
+  "summaryTest": [
+    {
+      "type": "matching",
+      "englishSentence": "Thank you very much",
+      "translatedSentence": "Vielen Dank",
+      "words": ["Vielen", "Dank"]
+    },
+    {
+      "type": "missing_word",
+      "sentence": "Ich spreche ein bisschen Deutsch",
+      "missingWordIndex": 3,
+      "correctWord": "bisschen",
+      "options": ["bisschen", "Katze", "Haus", "gelb"]
+    },
+    {
+      "type": "spelling",
+      "englishWord": "goodbye",
+      "correctSpelling": "Auf Wiedersehen"
+    }
+  ]
+} 
