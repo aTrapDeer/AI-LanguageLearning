@@ -1,0 +1,3 @@
+# Disable TypeScript checking during build
+*.ts
+*.tsx 

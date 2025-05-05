@@ -5,6 +5,7 @@ export const dynamic = 'force-dynamic';
 import { useEffect, useState, Suspense } from "react"
 import { useSession } from "next-auth/react"
 import { useRouter, useSearchParams } from "next/navigation"
+import Image from "next/image"
 import { BackgroundGradientAnimation } from '@/components/ui/background-gradient-animation'
 import { getProgress, createProgress } from "@/lib/supabase-db"
 import { Button } from "@/components/ui/button"
@@ -64,6 +65,16 @@ type UserProgress = {
   updated_at: string
 }
 
+// Create sentence with blanks
+type SentenceItem = 
+  | { isBlank: true; index: number; word: string | null }
+  | { isBlank: false; word: string };
+
+// Fix for Vercel deployment - create a type guard for checking blank items
+function isBlankItem(item: SentenceItem): item is { isBlank: true; index: number; word: string | null } {
+  return item.isBlank === true;
+}
+
 function JourneyPageContent() {
   const router = useRouter()
   const { data: session, status } = useSession()
@@ -89,6 +100,15 @@ function JourneyPageContent() {
   const [filledWords, setFilledWords] = useState<(string | null)[]>([])
   const [availableWords, setAvailableWords] = useState<string[]>([])
   const [isDragging, setIsDragging] = useState<string | null>(null)
+  
+  // Image state
+  const [sentenceImageUrl, setSentenceImageUrl] = useState<string | null>(null)
+  const [isLoadingImage, setIsLoadingImage] = useState(false)
+  const [useDefaultImage, setUseDefaultImage] = useState(false)
+  const [preloadedImages, setPreloadedImages] = useState<Record<number, string>>({})
+  const [isPreloadingImages, setIsPreloadingImages] = useState(false)
+  
+  const DEFAULT_FALLBACK_IMAGE = 'https://placehold.co/400x200/EAEAEA/CCCCCC?text=Example+Image'
 
   // We intentionally omit generateJourney from deps to prevent refetching on every render
   // as this would cause infinite loops and unnecessary API calls
@@ -328,6 +348,8 @@ function JourneyPageContent() {
 
   // Handle word selection for matching rounds
   const handleWordClick = (word: string) => {
+    if (showFeedback) return; // Don't allow changes after feedback is shown
+    
     if (selectedWords.includes(word)) {
       // Remove word if already selected
       setSelectedWords(selectedWords.filter(w => w !== word))
@@ -335,6 +357,18 @@ function JourneyPageContent() {
       // Add word to selected words
       setSelectedWords([...selectedWords, word])
     }
+  }
+  
+  // Dedicated function to remove a word from the translation area
+  const handleRemoveTranslationWord = (wordIndex: number) => {
+    if (showFeedback) return; // Don't allow changes after feedback is shown
+    
+    // Remove word at specific index from the selectedWords array
+    const wordToRemove = selectedWords[wordIndex];
+    const updatedWords = [...selectedWords];
+    updatedWords.splice(wordIndex, 1);
+    setSelectedWords(updatedWords);
+    console.log(`Removed word "${wordToRemove}" at index ${wordIndex}`);
   }
 
   // Handle option selection for missing word rounds
@@ -517,6 +551,9 @@ function JourneyPageContent() {
     setFilledWords([])
     setAvailableWords([])
     setIsDragging(null)
+    setSentenceImageUrl(null)
+    setIsLoadingImage(false)
+    setUseDefaultImage(false)
     
     const maxRounds = isTestMode 
       ? journey!.summaryTest.length
@@ -557,6 +594,246 @@ function JourneyPageContent() {
       : journey.rounds[currentRound]
   }
 
+  // Enhanced function to generate and optionally store images
+  const generateSentenceImage = async (sentence: string, options?: { storeForRound?: number }) => {
+    if (!sentence) return null;
+    
+    const storeForRound = options?.storeForRound;
+    const isPreloading = storeForRound !== undefined;
+    
+    if (!isPreloading) {
+      setIsLoadingImage(true);
+      setSentenceImageUrl(null); // Reset any previous image
+      setUseDefaultImage(false);
+    }
+    
+    try {
+      // Create a more visual-focused prompt that avoids showing text
+      // Extract the key objects/concepts from the sentence
+      const words = sentence.split(' ');
+      // Filter out common articles, prepositions, etc. across multiple languages
+      const stopWords = ['er', 'hat', 'auf', 'der', 'die', 'das', 'ein', 'eine', 'gelegt', 'und', 
+                         'ist', 'sind', 'in', 'im', 'an', 'am', 'zu', 'zum', 'zur', 'mit',
+                         'a', 'the', 'in', 'on', 'at', 'is', 'are', 'and', 'to', 'from', 'with', 'by',
+                         'el', 'la', 'los', 'las', 'un', 'una', 'y', 'en', 'es', 'son', 'con',
+                         'le', 'la', 'les', 'il', 'elle', 'et', 'est', 'sont', 'dans', 'sur', 'avec',
+                         'o', 'os', 'as', 'um', 'uma', 'e', 'é', 'são', 'em', 'no', 'na', 'com'];
+      
+      // Clean keywords by removing punctuation and filtering stopwords
+      const keyWords = words
+        .map(word => word.replace(/[.,!?;:]$/g, '').trim()) // Remove trailing punctuation
+        .filter(word => 
+          word.length > 0 && 
+          !stopWords.includes(word.toLowerCase())
+        );
+      
+      // Create a visual-focused prompt
+      const visualPrompt = `A simple, clean illustration showing: a person with ${keyWords.join(' and ')}. Do NOT include any text or words in the image. Create a visual scene only.`;
+      
+      const response = await fetch('/api/generate-image', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          prompt: visualPrompt, 
+          model: "gpt-image-1",
+          size: "1024x1024",
+          quality: "auto",
+          output_format: "png"
+        }),
+      });
+      
+      const data = await response.json();
+      
+      let resultUrl = null;
+      
+      if (!response.ok) {
+        console.error('Failed to generate image:', data.error);
+        // Use fallback if provided
+        if (data.fallbackUrl) {
+          console.log('Using fallback image URL');
+          resultUrl = data.fallbackUrl;
+        } else {
+          console.log('Using default fallback image');
+          resultUrl = DEFAULT_FALLBACK_IMAGE;
+          if (!isPreloading) {
+            setUseDefaultImage(true);
+          }
+        }
+      } else if (data.url) {
+        console.log(`Received image ${data.isBase64 ? 'as base64 data' : 'URL'}`);
+        resultUrl = data.url;
+      } else if (data.fallbackUrl) {
+        console.log('No URL returned, using fallback image');
+        resultUrl = data.fallbackUrl;
+      } else {
+        console.log('Using default fallback image');
+        resultUrl = DEFAULT_FALLBACK_IMAGE;
+        if (!isPreloading) {
+          setUseDefaultImage(true);
+        }
+      }
+      
+      // Store the result
+      if (isPreloading && storeForRound !== undefined && resultUrl) {
+        console.log(`Storing preloaded image for round ${storeForRound}`);
+        setPreloadedImages(prev => ({...prev, [storeForRound]: resultUrl}));
+      } else if (resultUrl) {
+        setSentenceImageUrl(resultUrl);
+      }
+      
+      return resultUrl;
+    } catch (error) {
+      console.error('Error generating image:', error);
+      const fallbackUrl = DEFAULT_FALLBACK_IMAGE;
+      
+      if (isPreloading && storeForRound !== undefined) {
+        setPreloadedImages(prev => ({...prev, [storeForRound]: fallbackUrl}));
+      } else {
+        setSentenceImageUrl(fallbackUrl);
+        setUseDefaultImage(true);
+      }
+      
+      return fallbackUrl;
+    } finally {
+      if (!isPreloading) {
+        setIsLoadingImage(false);
+      }
+    }
+  };
+  
+  // Function to preload all images for better UX
+  const preloadAllImages = async () => {
+    if (!journey || isPreloadingImages) return;
+    
+    console.log("Starting to preload images for all rounds...");
+    setIsPreloadingImages(true);
+    
+    try {
+      // Identify all rounds that need images
+      const imageGenerationTasks: { sentence: string, roundIndex: number }[] = [];
+      
+      // Regular rounds
+      journey.rounds.forEach((round, index) => {
+        if (round.type === 'missing_word') {
+          let completeSentence = '';
+          
+          if ('missingWordIndices' in round && round.missingWordIndices && round.correctWords) {
+            // Multi-word format
+            const words = round.sentence.split(' ');
+            const completeWords = [...words];
+            
+            // Deduplicate correct words
+            const correctWordsDeduped: string[] = [];
+            round.correctWords.forEach(word => {
+              const alreadyUsedCount = correctWordsDeduped.filter(w => w === word).length;
+              const totalNeededCount = round.correctWords.filter(w => w === word).length;
+              
+              if (alreadyUsedCount < totalNeededCount) {
+                correctWordsDeduped.push(word);
+              }
+            });
+            
+            // Create complete sentence
+            round.missingWordIndices.forEach((wordIndex, i) => {
+              if (i < correctWordsDeduped.length) {
+                completeWords[wordIndex] = correctWordsDeduped[i];
+              }
+            });
+            
+            completeSentence = completeWords.join(' ');
+          } else if ('missingWordIndex' in round && typeof round.missingWordIndex === 'number' && round.correctWord) {
+            // Legacy single-word format
+            const words = round.sentence.split(' ');
+            const completeWords = [...words];
+            completeWords[round.missingWordIndex] = round.correctWord;
+            completeSentence = completeWords.join(' ');
+          }
+          
+          if (completeSentence) {
+            imageGenerationTasks.push({ sentence: completeSentence, roundIndex: index });
+          }
+        }
+      });
+      
+      // Test rounds (with offset to avoid collisions)
+      journey.summaryTest.forEach((round, index) => {
+        if (round.type === 'missing_word') {
+          let completeSentence = '';
+          
+          if ('missingWordIndices' in round && round.missingWordIndices && round.correctWords) {
+            // Multi-word format
+            const words = round.sentence.split(' ');
+            const completeWords = [...words];
+            
+            // Deduplicate correct words
+            const correctWordsDeduped: string[] = [];
+            round.correctWords.forEach(word => {
+              const alreadyUsedCount = correctWordsDeduped.filter(w => w === word).length;
+              const totalNeededCount = round.correctWords.filter(w => w === word).length;
+              
+              if (alreadyUsedCount < totalNeededCount) {
+                correctWordsDeduped.push(word);
+              }
+            });
+            
+            // Create complete sentence
+            round.missingWordIndices.forEach((wordIndex, i) => {
+              if (i < correctWordsDeduped.length) {
+                completeWords[wordIndex] = correctWordsDeduped[i];
+              }
+            });
+            
+            completeSentence = completeWords.join(' ');
+          } else if ('missingWordIndex' in round && typeof round.missingWordIndex === 'number' && round.correctWord) {
+            // Legacy single-word format
+            const words = round.sentence.split(' ');
+            const completeWords = [...words];
+            completeWords[round.missingWordIndex] = round.correctWord;
+            completeSentence = completeWords.join(' ');
+          }
+          
+          if (completeSentence) {
+            // Use an offset of 1000 for test rounds to avoid conflict with regular rounds
+            imageGenerationTasks.push({ sentence: completeSentence, roundIndex: 1000 + index });
+          }
+        }
+      });
+      
+      console.log(`Found ${imageGenerationTasks.length} rounds requiring images`);
+      
+      // Process in small batches to avoid rate limiting
+      const BATCH_SIZE = 3;
+      for (let i = 0; i < imageGenerationTasks.length; i += BATCH_SIZE) {
+        const batch = imageGenerationTasks.slice(i, i + BATCH_SIZE);
+        await Promise.all(
+          batch.map(task => 
+            generateSentenceImage(task.sentence, { storeForRound: task.roundIndex })
+          )
+        );
+        
+        // Add a small delay between batches
+        if (i + BATCH_SIZE < imageGenerationTasks.length) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+      }
+      
+      console.log(`Successfully preloaded ${Object.keys(preloadedImages).length} images`);
+    } catch (error) {
+      console.error("Error during image preloading:", error);
+    } finally {
+      setIsPreloadingImages(false);
+    }
+  };
+  
+  // Preload images when journey is loaded
+  useEffect(() => {
+    if (journey && !loading && !isPreloadingImages) {
+      preloadAllImages();
+    }
+  }, [journey, loading]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // We intentionally omit getRoundData and initializeMultiWordExercise from deps
   // to prevent re-initializing exercises on every render
   useEffect(() => {
@@ -568,15 +845,82 @@ function JourneyPageContent() {
     }
   }, [currentRound, isTestMode, journey, loading]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Start preloading images once journey is loaded
+  useEffect(() => {
+    if (journey && !loading) {
+      preloadAllImages();
+    }
+  }, [journey, loading]); // eslint-disable-line react-hooks/exhaustive-deps
+  
   // Initialize the multi-word exercise state
   const initializeMultiWordExercise = (round: MissingWordRound) => {
     if (!round.missingWordIndices || !round.correctWords) return
     
-    // Create a copy of the options array and shuffle it
-    const shuffledOptions = [...round.options]
-    shuffleArray(shuffledOptions)
-    setFilledWords(Array(round.missingWordIndices.length).fill(null))
-    setAvailableWords(shuffledOptions)
+    // Create a copy of the options array
+    let options = [...round.options];
+    
+    // Remove duplicates from options
+    options = Array.from(new Set(options));
+    
+    // Make sure the options don't contain duplicates by filtering out 
+    // any words that appear in the sentence but are not meant to be removed
+    const words = round.sentence.split(' ');
+    const wordsToRemove = round.missingWordIndices.map(index => words[index]);
+    
+    // Deduplicate correct words while maintaining order
+    // This ensures we don't have duplicated words in blanks
+    const correctWordsDeduped: string[] = [];
+    round.correctWords.forEach(word => {
+      // Only add if it's not already in the array or if it's needed for a duplicate position
+      const alreadyUsedCount = correctWordsDeduped.filter(w => w === word).length;
+      const totalNeededCount = round.correctWords.filter(w => w === word).length;
+      
+      if (alreadyUsedCount < totalNeededCount) {
+        correctWordsDeduped.push(word);
+      }
+    });
+    
+    // Ensure each correct word appears exactly once in the options
+    const uniqueCorrectWords = Array.from(new Set([...correctWordsDeduped]));
+    
+    // Add other options that aren't already in the sentence or are meant to be removed
+    const distractors = options.filter(word => 
+      !words.includes(word) || wordsToRemove.includes(word)
+    );
+    
+    // Remove any duplicates that might still exist
+    const uniqueDistractors = distractors.filter(word => !uniqueCorrectWords.includes(word));
+    
+    // Combine and shuffle
+    const finalOptions = [...uniqueCorrectWords, ...uniqueDistractors];
+    
+    // Ensure we don't have more options than needed
+    const limitedOptions = finalOptions.slice(0, Math.max(6, uniqueCorrectWords.length + 3));
+    
+    shuffleArray(limitedOptions);
+    
+    setFilledWords(Array(round.missingWordIndices.length).fill(null));
+    setAvailableWords(limitedOptions);
+    
+    // Check if we have a preloaded image for this round
+    const roundIndex = isTestMode ? 1000 + currentRound : currentRound;
+    if (preloadedImages[roundIndex]) {
+      console.log(`Using preloaded image for round ${roundIndex}`);
+      setSentenceImageUrl(preloadedImages[roundIndex]);
+      setIsLoadingImage(false);
+    } else {
+      // Generate image for the complete sentence if preloaded image not available
+      // Reconstruct the complete sentence by replacing the blanks with the correct words
+      const completeWords = [...words];
+      round.missingWordIndices.forEach((index, i) => {
+        if (i < correctWordsDeduped.length) {
+          completeWords[index] = correctWordsDeduped[i];
+        }
+      });
+      const completeSentence = completeWords.join(' ');
+      console.log("Generating image for complete sentence:", completeSentence);
+      generateSentenceImage(completeSentence);
+    }
   }
 
   // Render loading state
@@ -677,11 +1021,36 @@ function JourneyPageContent() {
             <p className="text-lg mb-2">Translation:</p>
             <div className="flex flex-wrap gap-2 p-4 min-h-16 bg-gray-100 dark:bg-zinc-800 rounded-lg border-2 border-dashed border-gray-300 dark:border-zinc-700">
               {selectedWords.map((word, i) => (
-                <div key={i} className="px-3 py-1 bg-blue-100 dark:bg-blue-900 rounded-md shadow-sm animate-bounce-in">
+                <div 
+                  key={i} 
+                  className="px-3 py-1 bg-blue-100 dark:bg-blue-900 rounded-md shadow-sm animate-bounce-in cursor-pointer hover:bg-blue-200 dark:hover:bg-blue-800 relative group transition-transform active:scale-95" 
+                  onClick={() => handleRemoveTranslationWord(i)}
+                  title="Click to remove this word"
+                >
                   {word}
+                  {!showFeedback && (
+                    <span className="absolute -top-1 -right-1 opacity-0 group-hover:opacity-100 transition-opacity bg-red-500 text-white rounded-full w-4 h-4 flex items-center justify-center text-xs">
+                      ×
+                    </span>
+                  )}
                 </div>
               ))}
             </div>
+            {selectedWords.length === 0 && (
+              <div className="text-center text-sm text-gray-500 dark:text-gray-400 mt-2">
+                Select words below to build your translation
+              </div>
+            )}
+            {!showFeedback && selectedWords.length > 0 && (
+              <div className="text-center text-sm text-gray-500 dark:text-gray-400 mt-2">
+                <span className="inline-flex items-center gap-1">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                  </svg>
+                  Click on a word to remove it
+                </span>
+              </div>
+            )}
             {showFeedback && !isCorrect && (
               <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
                 Correct translation: {translatedSentence}
@@ -746,10 +1115,14 @@ function JourneyPageContent() {
       
       // Create sentence with blanks
       const words = sentence.split(' ');
-      const sentenceWithBlanks = words.map((word, i) => {
+      const sentenceWithBlanks: SentenceItem[] = words.map((word, i) => {
         if (missingWordIndices.includes(i)) {
           const blankIndex = missingWordIndices.indexOf(i);
-          return { isBlank: true, index: blankIndex, word: filledWords[blankIndex] || null };
+          return {
+            isBlank: true,
+            index: blankIndex,
+            word: filledWords[blankIndex] || null
+          };
         }
         return { isBlank: false, word };
       });
@@ -778,6 +1151,43 @@ function JourneyPageContent() {
             
             <h2 className="text-2xl font-bold mb-6">Fill in the Missing Words</h2>
             
+            {sentenceImageUrl && (
+              <div className="mb-6 flex justify-center">
+                <div className="relative">
+                  <Image 
+                    src={sentenceImageUrl} 
+                    alt="Visual representation of the sentence" 
+                    width={400}
+                    height={200}
+                    style={{ objectFit: 'contain', maxHeight: '12rem' }}
+                    className={`rounded-lg shadow-md ${useDefaultImage ? 'opacity-70' : ''}`}
+                    unoptimized={true}
+                    onError={(e) => {
+                      console.error("Image failed to load");
+                      // Use a fallback image
+                      const imgElement = e.currentTarget as HTMLImageElement;
+                      imgElement.src = DEFAULT_FALLBACK_IMAGE;
+                      setUseDefaultImage(true);
+                    }}
+                  />
+                  {useDefaultImage && (
+                    <div className="absolute inset-0 flex items-center justify-center text-xs text-gray-500 pointer-events-none">
+                      Example image not available
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+            
+            {isLoadingImage && (
+              <div className="mb-6 flex justify-center items-center h-48 bg-gray-100 dark:bg-zinc-800 rounded-lg">
+                <div className="flex flex-col items-center gap-2">
+                  <div className="w-8 h-8 border-t-2 border-b-2 border-blue-500 rounded-full animate-spin"></div>
+                  <p>Generating image...</p>
+                </div>
+              </div>
+            )}
+            
             <div className="mb-4 text-center text-sm text-gray-500 dark:text-gray-400">
               Drag the words to the correct positions in the sentence
             </div>
@@ -785,30 +1195,26 @@ function JourneyPageContent() {
             <div className="mb-8">
               <div className="flex flex-wrap gap-2 p-4 mb-6 text-center text-lg">
                 {sentenceWithBlanks.map((item, i) => (
-                  item.isBlank ? (
+                  isBlankItem(item) ? (
                     <div 
                       key={i}
                       onClick={() => {
-                        if (item.word && item.index !== undefined) {
+                        if (item.word) {
                           handleRemoveWord(item.index);
                         }
                       }}
                       onDragOver={(e) => { e.preventDefault(); }}
-                      onDrop={() => {
-                        if (item.index !== undefined) {
-                          handleDrop(item.index);
-                        }
-                      }}
-                      className={`inline-flex items-center justify-center min-w-20 h-10 px-2 border-2 ${
+                      onDrop={() => handleDrop(item.index)}
+                      className={`inline-flex items-center justify-center min-w-20 h-10 px-3 border-2 ${
                         item.word 
                           ? 'bg-blue-100 dark:bg-blue-900 border-blue-300 dark:border-blue-700 cursor-pointer' 
                           : 'border-dashed border-gray-400 dark:border-gray-600'
-                      } rounded-md`}
+                      } rounded-md mx-1`}
                     >
-                      {item.word || '______'}
+                      {item.word || '___________'}
                     </div>
                   ) : (
-                    <div key={i} className="inline-flex items-center">
+                    <div key={i} className="inline-flex items-center mx-1">
                       {item.word}
                     </div>
                   )
