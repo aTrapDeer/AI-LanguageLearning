@@ -1,3 +1,1 @@
-# Disable TypeScript checking during build
-*.ts
-*.tsx 
+# Vercel deployment configuration 
