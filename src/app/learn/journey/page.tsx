@@ -788,9 +788,17 @@ function JourneyPageContent() {
                   item.isBlank ? (
                     <div 
                       key={i}
-                      onClick={() => item.word && handleRemoveWord(item.index)}
+                      onClick={() => {
+                        if (item.word && item.index !== undefined) {
+                          handleRemoveWord(item.index);
+                        }
+                      }}
                       onDragOver={(e) => { e.preventDefault(); }}
-                      onDrop={() => handleDrop(item.index)}
+                      onDrop={() => {
+                        if (item.index !== undefined) {
+                          handleDrop(item.index);
+                        }
+                      }}
                       className={`inline-flex items-center justify-center min-w-20 h-10 px-2 border-2 ${
                         item.word 
                           ? 'bg-blue-100 dark:bg-blue-900 border-blue-300 dark:border-blue-700 cursor-pointer' 
