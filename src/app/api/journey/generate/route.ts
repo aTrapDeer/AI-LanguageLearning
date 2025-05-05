@@ -11,13 +11,24 @@ type MatchingRound = {
   words: string[];
 };
 
+// New multi-word missing word format
 type MissingWordRound = {
+  type: 'missing_word';
+  sentence: string;
+  missingWordIndices: number[];
+  correctWords: string[];
+  options: string[];
+  isSingleWord?: boolean;
+};
+
+// Legacy single-word format
+interface LegacyMissingWordRound {
   type: 'missing_word';
   sentence: string;
   missingWordIndex: number;
   correctWord: string;
   options: string[];
-};
+}
 
 type SpellingRound = {
   type: 'spelling';
@@ -25,7 +36,8 @@ type SpellingRound = {
   correctSpelling: string;
 };
 
-type Round = MatchingRound | MissingWordRound | SpellingRound;
+// Support both new and legacy formats
+type Round = MatchingRound | MissingWordRound | SpellingRound | LegacyMissingWordRound;
 
 type JourneyData = {
   language: string;
@@ -162,23 +174,19 @@ export async function POST(req: Request) {
       const prompt = `
 Create an educational language learning journey for a ${levelDescription} student learning ${languageName}. The journey should have 10 regular rounds plus a 3-round summary test.
 
-IMPORTANT: Carefully adjust the difficulty of ALL content to match the student's level (${userLevel}/10):
+IMPORTANT - DIFFICULTY SCALING: Users have reported that the difficulty progression is too gradual. Make each level SIGNIFICANTLY more challenging than the previous.
+
+Carefully adjust the difficulty of ALL content to match the student's level (${userLevel}/10) using these guidelines:
 - Level 1-2: Very simple words and phrases (greetings, numbers, colors)
 - Level 3-4: Basic everyday vocabulary and simple sentences
 - Level 5-6: Intermediate vocabulary, longer sentences, some grammar complexity
-- Level 7-8: Advanced vocabulary, complex sentences, idioms
-- Level 9-10: Native-level content, sophisticated vocabulary, cultural nuances
+- Level 7-8: Advanced vocabulary, complex sentences, idioms, with some multi-word challenges
+- Level 9-10: Native-level content, sophisticated vocabulary, cultural nuances, with frequent multi-word challenges
 
 The journey should include these round types:
 1. Matching rounds: User matches English words/phrases with their ${languageName} translations
-2. Missing word rounds: User selects the correct missing word in a ${languageName} sentence
-3. Spelling rounds: User types the ${languageName} spelling for an English word
-
-Create a good mix of these types across the 10 rounds and 3 test rounds. For each round:
-
-- Make content STRICTLY appropriate for a level ${userLevel}/10 student
-- Ensure translations and spellings are accurate
-- Provide all necessary data for the round format
+2. Missing word rounds: User fills in one or more missing words in a ${languageName} sentence (multiple words for levels 5+)
+3. Spelling rounds: User types the ${languageName} spelling for an English word or phrase (more complex for higher levels)
 
 For matching rounds, include:
 - "type": "matching"
@@ -188,52 +196,47 @@ For matching rounds, include:
 
 For missing word rounds, include:
 - "type": "missing_word"
-- "sentence": A sentence in ${languageName} (e.g. "Ich trinke gerne Kaffee am Morgen")
-- "missingWordIndex": The zero-based index of the word to hide (e.g. 2 for "gerne" in the example)
-- "correctWord": The word that will be hidden (e.g. "gerne")
-- "options": An array of EXACTLY 4 words total:
-  * The correct word (only one correct answer)
-  * 3 obviously incorrect options that don't fit grammatically or semantically in the sentence
-  * For example: ["gerne", "Apfel", "schlafen", "Berg"] where "gerne" is correct and the others are clearly wrong
+- For levels 1-4 (single missing word):
+  - "sentence": A sentence in ${languageName} (e.g. "Ich trinke gerne Kaffee am Morgen")
+  - "missingWordIndices": Array with a single index of the word to hide (e.g. [2] for "gerne" in the example)
+  - "correctWords": Array with the single word that will be hidden (e.g. ["gerne"])
+  - "options": Array of EXACTLY 4 words: the correct word plus 3 obviously incorrect options they can not be related or interchangable (small and large can be interchangable in theory)
+  - "isSingleWord": true
+- For levels 5-10 (multiple missing words):
+  - "sentence": A sentence in ${languageName} (e.g. "Ich trinke gerne Kaffee am Morgen")
+  - "missingWordIndices": Array with the indices of the words to hide (e.g. [2, 4] for "gerne" and "Morgen")
+  - "correctWords": Array with the words in their correct order (e.g. ["gerne", "Morgen"])
+  - "options": Array of 6-8 words, including all correct words plus distractors they can not be related or interchangable (small and large can be interchangable in theory)
+  - "isSingleWord": false
 
 For spelling rounds, include:
 - "type": "spelling"
-- "englishWord": A word in English (e.g. "book")
+- "englishWord": A word in English (levels 1-5) or phrase (levels 6-10) (e.g. "book")
 - "correctSpelling": The correct spelling in ${languageName} (e.g. "Buch")
 
-DIFFICULTY CALIBRATION EXAMPLES:
-- Level 1: Very simple words like "hello", "thank you", colors, numbers 1-10
-- Level 3: Simple sentences like "I like coffee", basic verbs, common nouns
-- Level 5: Everyday conversations, past tense, multiple clauses
-- Level 7: Complex topics, subjunctive mood, specialized vocabulary
-- Level 10: Literature-level language, cultural references, idioms, nuanced expressions
+LEVEL-SPECIFIC DIFFICULTY EXAMPLES (apply these principles across all round types):
+- Level 1: 2-3 word sentences, elementary vocabulary (hello, yes, no, thanks, numbers 1-10)
+- Level 2: 3-4 word sentences, basic nouns (cat, dog, house), colors, simple verbs in present tense
+- Level 3: 4-5 word simple sentences, common verbs with present tense conjugation, everyday nouns
+- Level 4: 5-6 word sentences, basic adjectives, simple questions, common phrases
+- Level 5: 6-8 word sentences, past tense, multiple-word matching, pronouns, possessives, 2 missing words
+- Level 6: 8+ word sentences, future tense, conditional statements, basic idioms, 2-3 missing words
+- Level 7: Complex sentences with subclauses, modal verbs, idiomatic expressions, 2-3 missing words
+- Level 8: Complex verb tenses, passive voice, technical vocabulary, cultural references, 3-4 missing words
+- Level 9: Literary language, slang, business terminology, longer texts with multiple clauses, 3-4 missing words
+- Level 10: Native-level content, academic/specialized vocabulary, nuanced expressions, complex grammar, 4+ missing words
 
-Here's an example of a complete matching round:
-{
-  "type": "matching",
-  "englishSentence": "Hello, how are you?",
-  "translatedSentence": "Hallo, wie geht es dir?",
-  "words": ["Hallo,", "wie", "geht", "es", "dir?"]
-}
-
-Here's an example of a complete missing word round:
-{
-  "type": "missing_word",
-  "sentence": "Ich trinke gerne Kaffee am Morgen",
-  "missingWordIndex": 2,
-  "correctWord": "gerne",
-  "options": ["gerne", "Schlüssel", "Fenster", "blau"]
-}
+CHALLENGE REQUIREMENT: Each level should feel like a challenging stretch for the student. Don't make it too easy - push them to expand their knowledge.
 
 Format your response as a single JSON object with this structure:
 {
   "language": "${language}",
   "level": ${userLevel},
   "rounds": [
-    // 10 rounds with a mix of types
+    // 10 rounds with a mix of types, difficulty appropriate to level ${userLevel}
   ],
   "summaryTest": [
-    // 3 test rounds with a mix of types
+    // 3 test rounds with a mix of types, difficulty appropriate to level ${userLevel}
   ]
 }
 `;
@@ -286,10 +289,20 @@ Format your response as a single JSON object with this structure:
             case 'matching':
               return !!round.englishSentence && !!round.translatedSentence && Array.isArray(round.words);
             case 'missing_word':
-              return !!round.sentence && 
-                     (typeof round.missingWordIndex === 'number') && 
-                     !!round.correctWord && 
-                     Array.isArray(round.options);
+              // Support both new multi-word format and legacy single-word format
+              if ('missingWordIndices' in round && Array.isArray(round.missingWordIndices)) {
+                return !!round.sentence && 
+                       Array.isArray(round.missingWordIndices) && 
+                       Array.isArray((round as MissingWordRound).correctWords) && 
+                       Array.isArray(round.options);
+              } else if ('missingWordIndex' in round && 'correctWord' in round) {
+                // Handle legacy format
+                return !!round.sentence && 
+                       typeof (round as LegacyMissingWordRound).missingWordIndex === 'number' && 
+                       !!(round as LegacyMissingWordRound).correctWord && 
+                       Array.isArray(round.options);
+              }
+              return false;
             case 'spelling':
               return !!round.englishWord && !!round.correctSpelling;
             default:

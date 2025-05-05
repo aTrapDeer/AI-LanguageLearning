@@ -1,6 +1,8 @@
 "use client"
 
-import { useEffect, useState } from "react"
+export const dynamic = 'force-dynamic';
+
+import { useEffect, useState, Suspense } from "react"
 import { useSession } from "next-auth/react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { BackgroundGradientAnimation } from '@/components/ui/background-gradient-animation'
@@ -15,7 +17,18 @@ type MatchingRound = {
   words: string[]
 }
 
+// New multiple missing words format
 type MissingWordRound = {
+  type: 'missing_word'
+  sentence: string
+  missingWordIndices: number[]
+  correctWords: string[]
+  options: string[]
+  isSingleWord?: boolean
+}
+
+// Legacy single missing word format
+interface LegacyMissingWordRound {
   type: 'missing_word'
   sentence: string
   missingWordIndex: number
@@ -29,7 +42,8 @@ type SpellingRound = {
   correctSpelling: string
 }
 
-type Round = MatchingRound | MissingWordRound | SpellingRound
+// Support both formats
+type Round = MatchingRound | MissingWordRound | SpellingRound | LegacyMissingWordRound
 
 // The complete journey structure
 type Journey = {
@@ -50,7 +64,7 @@ type UserProgress = {
   updated_at: string
 }
 
-export default function JourneyPage() {
+function JourneyPageContent() {
   const router = useRouter()
   const { data: session, status } = useSession()
   const searchParams = useSearchParams()
@@ -70,8 +84,14 @@ export default function JourneyPage() {
   const [isCorrect, setIsCorrect] = useState(false)
   const [showCorrectAnswer, setShowCorrectAnswer] = useState(false)
   const [journeyComplete, setJourneyComplete] = useState(false)
+  
+  // New state for multi-word exercises
+  const [filledWords, setFilledWords] = useState<(string | null)[]>([])
+  const [availableWords, setAvailableWords] = useState<string[]>([])
+  const [isDragging, setIsDragging] = useState<string | null>(null)
 
-  // Get user's language level on component mount
+  // We intentionally omit generateJourney from deps to prevent refetching on every render
+  // as this would cause infinite loops and unnecessary API calls
   useEffect(() => {
     if (status === "unauthenticated") {
       router.push("/login")
@@ -132,7 +152,7 @@ export default function JourneyPage() {
 
       fetchUserProgress()
     }
-  }, [status, session, lang, router])
+  }, [status, session, lang, router]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Generate the journey content based on user's level
   const generateJourney = async (language: string, level: number) => {
@@ -199,7 +219,7 @@ export default function JourneyPage() {
           missingWordIndex: 2,
           correctWord: 'missing',
           options: ['missing', 'table', 'chair', 'blue'] // Exactly 4 options
-        },
+        } as LegacyMissingWordRound,
         {
           type: 'spelling',
           englishWord: 'book',
@@ -224,7 +244,7 @@ export default function JourneyPage() {
       matchingRound.words = ['Hallo,', 'wie', 'geht', 'es', 'dir?'];
       
       // Update missing word round
-      const missingWordRound = fallback.rounds[1] as MissingWordRound;
+      const missingWordRound = fallback.rounds[1] as LegacyMissingWordRound;
       missingWordRound.sentence = 'Ich trinke gerne Kaffee am Morgen';
       missingWordRound.missingWordIndex = 2;
       missingWordRound.correctWord = 'gerne';
@@ -245,7 +265,7 @@ export default function JourneyPage() {
       matchingRound.words = ['¡Hola!', '¿Cómo', 'estás?'];
       
       // Update missing word round
-      const missingWordRound = fallback.rounds[1] as MissingWordRound;
+      const missingWordRound = fallback.rounds[1] as LegacyMissingWordRound;
       missingWordRound.sentence = 'Me gusta tomar café por la mañana';
       missingWordRound.missingWordIndex = 2;
       missingWordRound.correctWord = 'tomar';
@@ -266,7 +286,7 @@ export default function JourneyPage() {
       matchingRound.words = ['Bonjour,', 'comment', 'ça', 'va?'];
       
       // Update missing word round
-      const missingWordRound = fallback.rounds[1] as MissingWordRound;
+      const missingWordRound = fallback.rounds[1] as LegacyMissingWordRound;
       missingWordRound.sentence = "J'aime boire du café le matin";
       missingWordRound.missingWordIndex = 2;
       missingWordRound.correctWord = 'boire';
@@ -322,6 +342,40 @@ export default function JourneyPage() {
     setSelectedOption(option)
   }
 
+  // Handle word drag start for multi-word exercises
+  const handleDragStart = (word: string) => {
+    setIsDragging(word)
+  }
+
+  // Handle word drop for multi-word exercises
+  const handleDrop = (blankIndex: number) => {
+    if (!isDragging) return
+    
+    // Update filledWords array
+    const newFilledWords = [...filledWords]
+    newFilledWords[blankIndex] = isDragging
+    setFilledWords(newFilledWords)
+    
+    // Remove word from available options
+    setAvailableWords(availableWords.filter(word => word !== isDragging))
+    
+    // Reset dragging state
+    setIsDragging(null)
+  }
+
+  // Handle removing a word from a blank
+  const handleRemoveWord = (blankIndex: number) => {
+    if (!filledWords[blankIndex]) return
+    
+    // Add word back to available options
+    setAvailableWords([...availableWords, filledWords[blankIndex]!])
+    
+    // Remove word from filled words
+    const newFilledWords = [...filledWords]
+    newFilledWords[blankIndex] = null
+    setFilledWords(newFilledWords)
+  }
+
   // Handle spelling input
   const handleSpellingChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSpellingInput(e.target.value)
@@ -331,49 +385,76 @@ export default function JourneyPage() {
   const handleSubmit = () => {
     if (!journey) return
 
-    const currentRoundData = isTestMode 
-      ? journey.summaryTest[currentRound]
-      : journey.rounds[currentRound]
+    const currentRoundData = getRoundData()
+    if (!currentRoundData) return
 
     let correct = false
 
     switch (currentRoundData.type) {
       case 'matching': {
         // Check if selected words match the correct order
-        if (!currentRoundData.translatedSentence) {
+        const matchingRound = currentRoundData as MatchingRound
+        if (!matchingRound.translatedSentence) {
           console.error("Missing translatedSentence in matching round data")
           setIsCorrect(false)
           setShowFeedback(true)
           return
         }
-        const correctWords = currentRoundData.translatedSentence.split(' ')
+        const correctWords = matchingRound.translatedSentence.split(' ')
         correct = selectedWords.length === correctWords.length && 
           selectedWords.every((word, i) => word === correctWords[i])
         break
       }
       case 'missing_word': {
-        // Check if selected option is correct
-        if (!currentRoundData.correctWord) {
-          console.error("Missing correctWord in missing word round data")
+        // Handle both multi-word and legacy single-word formats
+        if ('missingWordIndices' in currentRoundData) {
+          // Multi-word format
+          const multiWordRound = currentRoundData as MissingWordRound
+          if (!multiWordRound.correctWords || !Array.isArray(multiWordRound.correctWords)) {
+            console.error("Missing correctWords in missing word round data")
+            setIsCorrect(false)
+            setShowFeedback(true)
+            return
+          }
+          
+          // Check if all blanks are filled
+          if (filledWords.some(word => word === null)) {
+            correct = false
+          } else {
+            // Check if all words match their expected positions
+            correct = filledWords.every((word, i) => word === multiWordRound.correctWords[i])
+          }
+        } else if ('missingWordIndex' in currentRoundData) {
+          // Legacy single-word format
+          const legacyRound = currentRoundData as LegacyMissingWordRound
+          if (!legacyRound.correctWord) {
+            console.error("Missing correctWord in missing word round data")
+            setIsCorrect(false)
+            setShowFeedback(true)
+            return
+          }
+          correct = selectedOption === legacyRound.correctWord
+        } else {
+          console.error("Invalid missing word round data structure")
           setIsCorrect(false)
           setShowFeedback(true)
           return
         }
-        correct = selectedOption === currentRoundData.correctWord
         break
       }
       case 'spelling': {
         // Allow for some flexibility in spelling (case insensitive, trim whitespace)
-        if (!currentRoundData.correctSpelling) {
+        const spellingRound = currentRoundData as SpellingRound
+        if (!spellingRound.correctSpelling) {
           console.error("Missing correctSpelling in spelling round data")
           setIsCorrect(false)
           setShowFeedback(true)
           return
         }
         const userInput = spellingInput.trim().toLowerCase()
-        const correctAnswer = currentRoundData.correctSpelling.trim().toLowerCase()
+        const correctAnswer = spellingRound.correctSpelling.trim().toLowerCase()
         
-        // Check for exact match or close match (implement your own "close match" logic here)
+        // Check for exact match or close match
         if (userInput === correctAnswer) {
           correct = true
         } else if (userInput.length > 0 && calculateSimilarity(userInput, correctAnswer) > 0.8) {
@@ -433,6 +514,9 @@ export default function JourneyPage() {
     setSelectedWords([])
     setSelectedOption(null)
     setSpellingInput('')
+    setFilledWords([])
+    setAvailableWords([])
+    setIsDragging(null)
     
     const maxRounds = isTestMode 
       ? journey!.summaryTest.length
@@ -457,6 +541,42 @@ export default function JourneyPage() {
     setSelectedOption(null)
     setSpellingInput('')
     setShowCorrectAnswer(false)
+    
+    // Reset multi-word exercise state if needed
+    const currentRoundData = getRoundData();
+    if (currentRoundData?.type === 'missing_word' && 'missingWordIndices' in currentRoundData) {
+      initializeMultiWordExercise(currentRoundData as MissingWordRound)
+    }
+  }
+
+  // Get current round data
+  const getRoundData = () => {
+    if (!journey) return null
+    return isTestMode 
+      ? journey.summaryTest[currentRound]
+      : journey.rounds[currentRound]
+  }
+
+  // We intentionally omit getRoundData and initializeMultiWordExercise from deps
+  // to prevent re-initializing exercises on every render
+  useEffect(() => {
+    if (loading || !journey) return
+    
+    const roundData = getRoundData()
+    if (roundData?.type === 'missing_word' && 'missingWordIndices' in roundData) {
+      initializeMultiWordExercise(roundData as MissingWordRound)
+    }
+  }, [currentRound, isTestMode, journey, loading]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Initialize the multi-word exercise state
+  const initializeMultiWordExercise = (round: MissingWordRound) => {
+    if (!round.missingWordIndices || !round.correctWords) return
+    
+    // Create a copy of the options array and shuffle it
+    const shuffledOptions = [...round.options]
+    shuffleArray(shuffledOptions)
+    setFilledWords(Array(round.missingWordIndices.length).fill(null))
+    setAvailableWords(shuffledOptions)
   }
 
   // Render loading state
@@ -511,16 +631,16 @@ export default function JourneyPage() {
   }
 
   // Get current round data
-  const roundData = isTestMode 
-    ? journey.summaryTest[currentRound]
-    : journey.rounds[currentRound]
+  const roundData = getRoundData()
+  if (!roundData) return null;
 
   // Render matching round
   if (roundData.type === 'matching') {
+    const matchingRound = roundData as MatchingRound;
     // Add defensive check to ensure words array exists
-    const words = roundData.words || [];
-    const englishSentence = roundData.englishSentence || '';
-    const translatedSentence = roundData.translatedSentence || '';
+    const words = matchingRound.words || [];
+    const englishSentence = matchingRound.englishSentence || '';
+    const translatedSentence = matchingRound.translatedSentence || '';
 
     return (
       <div className="relative min-h-screen flex flex-col items-center p-4">
@@ -616,106 +736,233 @@ export default function JourneyPage() {
 
   // Render missing word round
   if (roundData.type === 'missing_word') {
-    // Add defensive checks
-    const sentence = roundData.sentence || '';
-    const missingWordIndex = typeof roundData.missingWordIndex === 'number' ? roundData.missingWordIndex : 0;
-    const correctWord = roundData.correctWord || '';
-    const options = roundData.options || [];
-    
-    // Create sentence with blank
-    const words = sentence.split(' ');
-    if (words.length > missingWordIndex) {
-      words[missingWordIndex] = '______';
-    }
-    const sentenceWithBlank = words.join(' ');
+    // Handle both multi-word and legacy single-word formats
+    if ('missingWordIndices' in roundData) {
+      // Multi-word format with drag and drop interface
+      const multiWordRound = roundData as MissingWordRound
+      const sentence = multiWordRound.sentence || '';
+      const missingWordIndices = multiWordRound.missingWordIndices || [];
+      const correctWords = multiWordRound.correctWords || [];
+      
+      // Create sentence with blanks
+      const words = sentence.split(' ');
+      const sentenceWithBlanks = words.map((word, i) => {
+        if (missingWordIndices.includes(i)) {
+          const blankIndex = missingWordIndices.indexOf(i);
+          return { isBlank: true, index: blankIndex, word: filledWords[blankIndex] || null };
+        }
+        return { isBlank: false, word };
+      });
 
-    return (
-      <div className="relative min-h-screen flex flex-col items-center p-4">
-        <BackgroundGradientAnimation
-          gradientBackgroundStart="rgb(0, 17, 82)"
-          gradientBackgroundEnd="rgb(108, 0, 162)"
-          firstColor="18, 113, 255"
-          secondColor="221, 74, 255"
-          thirdColor="100, 220, 255"
-          fourthColor="200, 50, 50"
-          fifthColor="180, 180, 50"
-          pointerColor="140, 100, 255"
-          size="100%"
-          blendingValue="soft-light"
-          interactive={false}
-          containerClassName="fixed inset-0 opacity-20"
-        />
-        
-        <div className="relative w-full max-w-3xl mx-auto mt-20 p-6 bg-white dark:bg-zinc-900 rounded-lg shadow-lg">
-          <div className="text-sm mb-4">
-            {isTestMode ? 'Summary Test' : 'Journey'} - Round {currentRound + 1} of {isTestMode ? journey.summaryTest.length : journey.rounds.length}
-          </div>
+      return (
+        <div className="relative min-h-screen flex flex-col items-center p-4">
+          <BackgroundGradientAnimation
+            gradientBackgroundStart="rgb(0, 17, 82)"
+            gradientBackgroundEnd="rgb(108, 0, 162)"
+            firstColor="18, 113, 255"
+            secondColor="221, 74, 255"
+            thirdColor="100, 220, 255"
+            fourthColor="200, 50, 50"
+            fifthColor="180, 180, 50"
+            pointerColor="140, 100, 255"
+            size="100%"
+            blendingValue="soft-light"
+            interactive={false}
+            containerClassName="fixed inset-0 opacity-20"
+          />
           
-          <h2 className="text-2xl font-bold mb-6">Fill in the Missing Word</h2>
-          
-          <div className="mb-4 text-center text-sm text-gray-500 dark:text-gray-400">
-            Select the correct word to complete the sentence
-          </div>
-          
-          <div className="mb-8">
-            <p className="text-lg mb-4 text-center font-medium">{sentenceWithBlank}</p>
+          <div className="relative w-full max-w-3xl mx-auto mt-20 p-6 bg-white dark:bg-zinc-900 rounded-lg shadow-lg">
+            <div className="text-sm mb-4">
+              {isTestMode ? 'Summary Test' : 'Journey'} - Round {currentRound + 1} of {isTestMode ? journey.summaryTest.length : journey.rounds.length}
+            </div>
             
-            {selectedOption && (
-              <div className="flex justify-center mb-4">
-                <div className="px-4 py-2 bg-blue-100 dark:bg-blue-900 rounded-md shadow-sm animate-bounce-in text-lg">
-                  {selectedOption}
+            <h2 className="text-2xl font-bold mb-6">Fill in the Missing Words</h2>
+            
+            <div className="mb-4 text-center text-sm text-gray-500 dark:text-gray-400">
+              Drag the words to the correct positions in the sentence
+            </div>
+            
+            <div className="mb-8">
+              <div className="flex flex-wrap gap-2 p-4 mb-6 text-center text-lg">
+                {sentenceWithBlanks.map((item, i) => (
+                  item.isBlank ? (
+                    <div 
+                      key={i}
+                      onClick={() => item.word && handleRemoveWord(item.index)}
+                      onDragOver={(e) => { e.preventDefault(); }}
+                      onDrop={() => handleDrop(item.index)}
+                      className={`inline-flex items-center justify-center min-w-20 h-10 px-2 border-2 ${
+                        item.word 
+                          ? 'bg-blue-100 dark:bg-blue-900 border-blue-300 dark:border-blue-700 cursor-pointer' 
+                          : 'border-dashed border-gray-400 dark:border-gray-600'
+                      } rounded-md`}
+                    >
+                      {item.word || '______'}
+                    </div>
+                  ) : (
+                    <div key={i} className="inline-flex items-center">
+                      {item.word}
+                    </div>
+                  )
+                ))}
+              </div>
+              
+              <div className="mb-6">
+                <p className="text-lg mb-2">Available Words:</p>
+                <div className="flex flex-wrap gap-3 mt-4">
+                  {availableWords.map((word, i) => (
+                    <div
+                      key={i}
+                      draggable
+                      onDragStart={() => handleDragStart(word)}
+                      onClick={() => {
+                        // Find first empty blank and place word there
+                        const emptyIndex = filledWords.findIndex(w => w === null);
+                        if (emptyIndex !== -1) handleDrop(emptyIndex);
+                      }}
+                      className="px-3 py-2 bg-white dark:bg-zinc-800 border border-gray-200 dark:border-gray-700 rounded-md shadow-sm cursor-move hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                    >
+                      {word}
+                    </div>
+                  ))}
                 </div>
               </div>
-            )}
-            
-            <div className="grid grid-cols-2 gap-4 mt-8">
-              {options.map((option, i) => (
-                <button
-                  key={i}
-                  onClick={() => handleOptionClick(option)}
-                  disabled={showFeedback}
-                  className={`px-4 py-3 rounded-md transition-all text-lg ${
-                    selectedOption === option 
-                      ? 'bg-blue-100 dark:bg-blue-900 border-2 border-blue-500 dark:border-blue-400' 
-                      : 'bg-white dark:bg-zinc-800 hover:bg-gray-100 dark:hover:bg-zinc-700 border border-gray-200 dark:border-gray-700'
-                  } shadow-sm`}
-                >
-                  {option}
-                </button>
-              ))}
             </div>
+            
+            {showFeedback ? (
+              <div className={`p-4 rounded-lg mb-6 ${isCorrect ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200' : 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200'}`}>
+                {isCorrect ? (
+                  <p className="text-lg font-medium">Great job! That&apos;s correct!</p>
+                ) : (
+                  <div>
+                    <p className="text-lg font-medium mb-2">Not quite right. The correct placement is:</p>
+                    {correctWords.map((word, i) => (
+                      <span key={i} className="inline-block mr-2 mb-2 px-2 py-1 bg-white dark:bg-zinc-800 rounded-md">
+                        <span className="font-bold">{word}</span>
+                        {i < correctWords.length - 1 ? " " : ""}
+                      </span>
+                    ))}
+                    <div className="mt-4">
+                      <Button onClick={handleRetry}>Retry</Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <Button 
+                onClick={handleSubmit} 
+                disabled={filledWords.some(word => word === null)}
+                className="w-full"
+              >
+                Submit
+              </Button>
+            )}
           </div>
+        </div>
+      );
+    } else {
+      // Legacy single-word format
+      const legacyRound = roundData as LegacyMissingWordRound
+      const sentence = legacyRound.sentence || '';
+      const missingWordIndex = typeof legacyRound.missingWordIndex === 'number' ? legacyRound.missingWordIndex : 0;
+      const correctWord = legacyRound.correctWord || '';
+      const options = legacyRound.options || [];
+      
+      // Create sentence with blank
+      const words = sentence.split(' ');
+      if (words.length > missingWordIndex) {
+        words[missingWordIndex] = '______';
+      }
+      const sentenceWithBlank = words.join(' ');
+
+      return (
+        <div className="relative min-h-screen flex flex-col items-center p-4">
+          <BackgroundGradientAnimation
+            gradientBackgroundStart="rgb(0, 17, 82)"
+            gradientBackgroundEnd="rgb(108, 0, 162)"
+            firstColor="18, 113, 255"
+            secondColor="221, 74, 255"
+            thirdColor="100, 220, 255"
+            fourthColor="200, 50, 50"
+            fifthColor="180, 180, 50"
+            pointerColor="140, 100, 255"
+            size="100%"
+            blendingValue="soft-light"
+            interactive={false}
+            containerClassName="fixed inset-0 opacity-20"
+          />
           
-          {showFeedback ? (
-            <div className={`p-4 rounded-lg mb-6 ${isCorrect ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200' : 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200'}`}>
-              {isCorrect ? (
-                <p className="text-lg font-medium">Great job! That&apos;s correct!</p>
-              ) : (
-                <div>
-                  <p className="text-lg font-medium mb-2">Not quite right. The correct answer is: <span className="font-bold">{correctWord}</span></p>
-                  <Button onClick={handleRetry}>Retry</Button>
+          <div className="relative w-full max-w-3xl mx-auto mt-20 p-6 bg-white dark:bg-zinc-900 rounded-lg shadow-lg">
+            <div className="text-sm mb-4">
+              {isTestMode ? 'Summary Test' : 'Journey'} - Round {currentRound + 1} of {isTestMode ? journey.summaryTest.length : journey.rounds.length}
+            </div>
+            
+            <h2 className="text-2xl font-bold mb-6">Fill in the Missing Word</h2>
+            
+            <div className="mb-4 text-center text-sm text-gray-500 dark:text-gray-400">
+              Select the correct word to complete the sentence
+            </div>
+            
+            <div className="mb-8">
+              <p className="text-lg mb-4 text-center font-medium">{sentenceWithBlank}</p>
+              
+              {selectedOption && (
+                <div className="flex justify-center mb-4">
+                  <div className="px-4 py-2 bg-blue-100 dark:bg-blue-900 rounded-md shadow-sm animate-bounce-in text-lg">
+                    {selectedOption}
+                  </div>
                 </div>
               )}
+              
+              <div className="grid grid-cols-2 gap-4 mt-8">
+                {options.map((option, i) => (
+                  <button
+                    key={i}
+                    onClick={() => handleOptionClick(option)}
+                    disabled={showFeedback}
+                    className={`px-4 py-3 rounded-md transition-all text-lg ${
+                      selectedOption === option 
+                        ? 'bg-blue-100 dark:bg-blue-900 border-2 border-blue-500 dark:border-blue-400' 
+                        : 'bg-white dark:bg-zinc-800 hover:bg-gray-100 dark:hover:bg-zinc-700 border border-gray-200 dark:border-gray-700'
+                    } shadow-sm`}
+                  >
+                    {option}
+                  </button>
+                ))}
+              </div>
             </div>
-          ) : (
-            <Button 
-              onClick={handleSubmit} 
-              disabled={!selectedOption}
-              className="w-full"
-            >
-              Submit
-            </Button>
-          )}
+            
+            {showFeedback ? (
+              <div className={`p-4 rounded-lg mb-6 ${isCorrect ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200' : 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200'}`}>
+                {isCorrect ? (
+                  <p className="text-lg font-medium">Great job! That&apos;s correct!</p>
+                ) : (
+                  <div>
+                    <p className="text-lg font-medium mb-2">Not quite right. The correct answer is: <span className="font-bold">{correctWord}</span></p>
+                    <Button onClick={handleRetry}>Retry</Button>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <Button 
+                onClick={handleSubmit} 
+                disabled={!selectedOption}
+                className="w-full"
+              >
+                Submit
+              </Button>
+            )}
+          </div>
         </div>
-      </div>
-    )
+      )
+    }
   }
 
   // Render spelling round
   if (roundData.type === 'spelling') {
-    // Add defensive checks
-    const englishWord = roundData.englishWord || '';
-    const correctSpelling = roundData.correctSpelling || '';
+    const spellingRound = roundData as SpellingRound;
+    const englishWord = spellingRound.englishWord || '';
+    const correctSpelling = spellingRound.correctSpelling || '';
     
     return (
       <div className="relative min-h-screen flex flex-col items-center p-4">
@@ -797,4 +1044,13 @@ export default function JourneyPage() {
   }
 
   return null
+}
+
+// Main component wrapped with Suspense
+export default function JourneyPage() {
+  return (
+    <Suspense fallback={<div className="flex h-screen items-center justify-center">Loading journey...</div>}>
+      <JourneyPageContent />
+    </Suspense>
+  )
 } 
