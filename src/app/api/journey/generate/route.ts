@@ -3,6 +3,11 @@ import OpenAI from 'openai';
 import * as fs from 'fs';
 import * as path from 'path';
 
+// Configure route segment - extends timeout for complex AI operations
+export const maxDuration = 60; // 60 seconds for Vercel Pro (5 seconds for Hobby plan)
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
 // Define types for rounds
 type MatchingRound = {
   type: 'matching';
@@ -56,9 +61,11 @@ type JourneyData = {
   summaryTest: Round[];
 };
 
-// Initialize OpenAI client
+// Initialize OpenAI client with timeout configuration
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
+  timeout: 60000, // 60 second timeout to prevent 504 errors
+  maxRetries: 2,   // Retry failed requests up to 2 times
 });
 
 // Define the language codes and names mapping
@@ -346,14 +353,15 @@ export async function POST(req: Request) {
       // Create a more flexible, theme-based prompt
       const prompt = createDynamicPrompt(languageName, language, userLevel, levelDescription, selectedTheme);
 
-      // Generate content with ChatGPT
+      // Generate content with ChatGPT with timeout protection
       console.log(`🤖 Calling OpenAI API with theme: ${selectedTheme}...`);
-      const completion = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
-        messages: [
-          {
-            role: "system",
-            content: `You are a creative language learning curriculum designer. Create diverse, engaging content that avoids repetitive patterns. Prioritize natural conversation and cultural authenticity.
+      const completion = await Promise.race([
+        openai.chat.completions.create({
+          model: "gpt-4o-mini",
+          messages: [
+            {
+              role: "system",
+              content: `You are a creative language learning curriculum designer. Create diverse, engaging content that avoids repetitive patterns. Prioritize natural conversation and cultural authenticity.
 
 CRITICAL: Always respond with VALID JSON only. Use this EXACT structure:
 {
@@ -376,15 +384,20 @@ MISSING WORD QUALITY CONTROL:
 - Use completely different word types: nouns vs verbs vs adjectives
 - Example GOOD: "Ich ____ Deutsch" → correct: "spreche" (verb), wrong: "Tisch" (noun), "schnell" (adjective), "gestern" (adverb)
 - Example BAD: "Ich möchte ____ Äpfel" → "fünf", "drei", "vier", "zwei" (all numbers work!)`
-          },
-          { role: "user", content: prompt }
-        ],
-        temperature: 0.7, // Slightly lower temperature for more consistent JSON
-        top_p: 0.9,
-        frequency_penalty: 0.3, // Reduce repetition
-        presence_penalty: 0.2,
-        response_format: { type: "json_object" }
-      });
+            },
+            { role: "user", content: prompt }
+          ],
+          temperature: 0.7, // Slightly lower temperature for more consistent JSON
+          top_p: 0.9,
+          frequency_penalty: 0.3, // Reduce repetition
+          presence_penalty: 0.2,
+          response_format: { type: "json_object" }
+        }),
+        // Add a 45-second timeout for the main content generation
+        new Promise<never>((_, reject) => 
+          setTimeout(() => reject(new Error('ChatGPT content generation timeout')), 45000)
+        )
+      ]);
       
       console.log(`✅ ChatGPT API call successful! Generated ${completion.choices[0].message.content?.length || 0} characters`);
       
@@ -473,38 +486,55 @@ MISSING WORD QUALITY CONTROL:
           throw new Error('Invalid rounds in journey data');
         }
         
-        // Generate images for any image rounds
+        // Generate images for any image rounds with optimized timeout handling
         console.log('🖼️ Processing image rounds...');
+        const imageGenerationPromises: Promise<void>[] = [];
+        
         for (let i = 0; i < journeyData.rounds.length; i++) {
           const round = journeyData.rounds[i];
           if (round.type === 'image') {
-            console.log(`🎨 Found image round at index ${i}, generating image...`);
+            console.log(`🎨 Found image round at index ${i}, scheduling image generation...`);
             
-            try {
-              // Re-enable image generation with error handling
-              console.log(`🎯 Generating image for prompt: ${round.englishPrompt}`);
-              const response = await openai.images.generate({
+            // Generate images in parallel with timeout protection
+            const imagePromise = Promise.race([
+              // Image generation with 30 second timeout
+              openai.images.generate({
                 model: "dall-e-3",
                 prompt: round.englishPrompt,
                 n: 1,
-                size: "1024x1024",
+                size: "1024x1024", 
                 quality: "standard",
                 style: "natural"
-              });
-              
-              const imageUrl = response.data[0]?.url;
+              }),
+              // Timeout after 30 seconds
+              new Promise<never>((_, reject) => 
+                setTimeout(() => reject(new Error('Image generation timeout')), 30000)
+              )
+            ])
+            .then(response => {
+              const imageUrl = response.data?.[0]?.url;
               if (imageUrl) {
                 (round as ImageRound).imageUrl = imageUrl;
-                console.log(`✅ Successfully generated image: ${imageUrl.substring(0, 100)}...`);
+                console.log(`✅ Successfully generated image for round ${i}: ${imageUrl.substring(0, 100)}...`);
               } else {
                 throw new Error('No image URL returned from DALL-E 3');
               }
-            } catch (imageError) {
-              console.error('❌ Image generation failed:', imageError);
-              (round as ImageRound).imageUrl = 'https://placehold.co/1024x1024/EAEAEA/CCCCCC?text=Image+Generation+Failed';
-              console.log('🎭 Using placeholder image due to generation failure');
-            }
+            })
+            .catch(imageError => {
+              console.error(`❌ Image generation failed for round ${i}:`, imageError);
+              (round as ImageRound).imageUrl = 'https://placehold.co/1024x1024/E3F2FD/1976D2?text=Image+Unavailable';
+              console.log(`🎭 Using placeholder image for round ${i} due to generation failure`);
+            });
+            
+            imageGenerationPromises.push(imagePromise);
           }
+        }
+        
+        // Wait for all image generations to complete (or fail with placeholders)
+        if (imageGenerationPromises.length > 0) {
+          console.log(`⏳ Waiting for ${imageGenerationPromises.length} image(s) to generate...`);
+          await Promise.allSettled(imageGenerationPromises);
+          console.log('🖼️ All image processing completed');
         }
         
         // Process the journey data to scramble words for matching rounds
@@ -537,6 +567,10 @@ MISSING WORD QUALITY CONTROL:
         // Check for rate limiting
         else if (openaiError.message.includes('rate_limit')) {
           console.error('🚨 OpenAI rate limit exceeded - falling back to static content');
+        }
+        // Check for timeout issues
+        else if (openaiError.message.includes('timeout') || openaiError.message.includes('504')) {
+          console.error('🚨 OpenAI timeout detected - falling back to static content');
         }
         // Check for authentication issues
         else if (openaiError.message.includes('authentication') || openaiError.message.includes('api_key')) {
