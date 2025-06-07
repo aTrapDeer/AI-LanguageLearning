@@ -3,7 +3,7 @@ import OpenAI from 'openai';
 
 // Define request parameters type that accommodates all model types
 interface ImageRequestParams {
-  model: "dall-e-2" | "dall-e-3";
+  model: "dall-e-3";
   prompt: string;
   n?: number;
   size?: "256x256" | "512x512" | "1024x1024" | "1792x1024" | "1024x1792";
@@ -102,11 +102,11 @@ export async function POST(req: Request) {
           requestParams.style = style;
         }
         console.log('Using DALL-E 3 configuration');
-      } else if (model === 'dall-e-2') {
+      } else if (model === 'dall-e-3') {
         // DALL-E 2 doesn't support quality or style parameters
         delete requestParams.quality;
         delete requestParams.style;
-        console.log('Using DALL-E 2 configuration');
+        console.log('Using DALL-E 3 configuration');
       }
       
       console.log('Final request params:', JSON.stringify(requestParams, null, 2));

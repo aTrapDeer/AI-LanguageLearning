@@ -781,7 +781,7 @@ function JourneyPageContent() {
         },
         body: JSON.stringify({ 
           prompt: visualPrompt, 
-          model: "dall-e-2",
+          model: "dall-e-3",
           size: "1024x1024"
         }),
         signal: controller.signal
