@@ -185,13 +185,23 @@ MISSING_WORD:
 - Levels 1-4: {"type":"missing_word", "sentence":"...", "missingWordIndices":[index], "correctWords":["word"], "options":["correct","wrong1","wrong2","wrong3"], "isSingleWord":true}
 - Levels 5+: {"type":"missing_word", "sentence":"...", "missingWordIndices":[i1,i2,...], "correctWords":["word1","word2",...], "options":["all","correct","words","plus","distractors"], "isSingleWord":false}
 
+CRITICAL FOR MISSING_WORD EXERCISES:
+- There must be ONLY ONE grammatically and contextually correct answer
+- Wrong options must be CLEARLY wrong (different parts of speech, nonsensical in context)
+- Avoid interchangeable options like numbers, colors, or synonyms
+- Example: "I eat ____ for breakfast" → correct: "cereal", wrong: "running", "blue", "yesterday" (NOT "toast", "eggs", "fruit")
+- Example: "Der Hund ____ im Park" → correct: "läuft", wrong: "Tisch", "blau", "gestern" (NOT "rennt", "spielt", "springt")
+
 SPELLING: {"type":"spelling", "englishWord":"...", "correctSpelling":"..."}
 
 IMAGE: {"type":"image", "englishPrompt":"A clear, simple image of [object/scene]", "targetLanguageWord":"${languageName} word for what's shown", "options":["correct_word","wrong1","wrong2","wrong3"], "imageUrl":"", "description":"Brief description for accessibility"}
 
 GUIDELINES:
 - Use ${multiWordCount} missing words for level ${level}
-- Make wrong options completely unrelated (not synonyms)
+- Make wrong options completely unrelated (not synonyms or valid alternatives)
+- CRITICAL: Each missing word exercise must have exactly ONE correct answer
+- Wrong options should be from different word categories (noun vs verb vs adjective vs adverb)
+- Avoid numbers, colors, or interchangeable words as distractors
 - Vary sentence lengths: ${level <= 3 ? '3-5' : level <= 6 ? '5-8' : '8-12'} words
 - Cultural relevance: include ${languageName}-speaking region references when appropriate
 - Avoid repetitive patterns
@@ -357,7 +367,15 @@ IMPORTANT JSON RULES:
 - NO extra characters before property names
 - Property names must be exactly: "language", "level", "rounds", "summaryTest"
 - NO dots, spaces, or quotes before property names
-- Ensure all JSON is properly formatted and parseable`
+- Ensure all JSON is properly formatted and parseable
+
+MISSING WORD QUALITY CONTROL:
+- NEVER use interchangeable numbers (vier/fünf/drei/zwei)
+- NEVER use similar colors (rot/blau/grün/gelb)
+- NEVER use synonyms or valid alternatives
+- Use completely different word types: nouns vs verbs vs adjectives
+- Example GOOD: "Ich ____ Deutsch" → correct: "spreche" (verb), wrong: "Tisch" (noun), "schnell" (adjective), "gestern" (adverb)
+- Example BAD: "Ich möchte ____ Äpfel" → "fünf", "drei", "vier", "zwei" (all numbers work!)`
           },
           { role: "user", content: prompt }
         ],
