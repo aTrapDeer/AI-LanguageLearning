@@ -26,7 +26,7 @@ export async function POST(request: Request) {
         
         // Forward the SDP offer to OpenAI
         const baseUrl = "https://api.openai.com/v1/realtime";
-        const model = "gpt-4o-realtime-preview-2024-12-17";
+        const model = "gpt-4o-mini-realtime-preview-2024-12-17";
         const response = await fetch(`${baseUrl}?model=${model}&voice=alloy&session_id=${sessionId}`, {
             method: "POST",
             body: sdpOffer,

@@ -181,7 +181,7 @@ export const useWebSocket = ({
             wsRef.current?.send(JSON.stringify({
               type: "audio",
               audio: base64Audio,
-              model: "gpt-4o-realtime-preview-2024-12-17",
+              model: "gpt-4o-mini-realtime-preview-2024-12-17",
               metadata: {
                 language: language,
                 timestamp: Date.now()
