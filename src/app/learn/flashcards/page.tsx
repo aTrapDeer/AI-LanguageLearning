@@ -34,6 +34,8 @@ export default function FlashcardsPage() {
   const [progress, setProgress] = useState<Record<number, 'known' | 'unknown'>>({});
   const [sessionComplete, setSessionComplete] = useState(false);
   const [userLevel, setUserLevel] = useState<number>(3); // Default to level 3
+  const [isAnimating, setIsAnimating] = useState(false);
+  const [animatingOut, setAnimatingOut] = useState(false);
 
   // Get language from URL params or context
   const langParam = searchParams.get('lang');
@@ -41,6 +43,8 @@ export default function FlashcardsPage() {
 
   const generateFlashcards = useCallback(async (level?: number) => {
     setLoading(true);
+    const actualLevel = level || userLevel;
+    console.log(`🎯 Generating flashcards for ${currentLanguage} at level ${actualLevel}`);
     try {
       const response = await fetch('/api/flashcards/generate', {
         method: 'POST',
@@ -49,7 +53,7 @@ export default function FlashcardsPage() {
         },
         body: JSON.stringify({
           language: currentLanguage,
-          level: level || userLevel, // Use provided level or user's current level
+          level: actualLevel, // Use provided level or user's current level
         }),
       });
 
@@ -64,6 +68,8 @@ export default function FlashcardsPage() {
       setShowAnswer(false);
       setProgress({});
       setSessionComplete(false);
+      setIsAnimating(false);
+      setAnimatingOut(false);
     } catch (error) {
       console.error('Error generating flashcards:', error);
     }
@@ -80,20 +86,24 @@ export default function FlashcardsPage() {
     if (session?.user) {
       const fetchUserProgressAndGenerateFlashcards = async () => {
         try {
+          console.log(`🔍 Fetching progress for language: ${currentLanguage}`);
           // Fetch user's progress for the current language
           const progressResponse = await fetch(`/api/user/progress/check?language=${currentLanguage}`);
           if (progressResponse.ok) {
             const progressData = await progressResponse.json();
             if (progressData.exists && progressData.progress) {
+              console.log(`✅ User progress found - Level: ${progressData.progress.level} for ${currentLanguage}`);
               setUserLevel(progressData.progress.level);
               generateFlashcards(progressData.progress.level);
               return;
             }
           }
           // If no progress found or error, use default level
+          console.log(`⚠️ No progress found for ${currentLanguage}, using default level: ${userLevel}`);
           generateFlashcards(userLevel);
         } catch (error) {
           console.error('Error fetching user progress:', error);
+          console.log(`🔄 Using default level: ${userLevel} due to error`);
           generateFlashcards(userLevel);
         }
       };
@@ -108,15 +118,25 @@ export default function FlashcardsPage() {
   };
 
   const handleAnswer = (known: boolean) => {
+    if (isAnimating) return; // Prevent multiple clicks during animation
+    
     setProgress({
       ...progress,
       [currentIndex]: known ? 'known' : 'unknown'
     });
     
     if (currentIndex < (flashcardData?.words.length || 0) - 1) {
-      setCurrentIndex(currentIndex + 1);
-      setIsFlipped(false);
+      setIsAnimating(true);
+      setAnimatingOut(true);
       setShowAnswer(false);
+      
+      // After slide-out animation completes, move to next card
+      setTimeout(() => {
+        setCurrentIndex(currentIndex + 1);
+        setIsFlipped(false);
+        setAnimatingOut(false);
+        setIsAnimating(false);
+      }, 500); // 500ms for slide-out animation
     } else {
       setSessionComplete(true);
     }
@@ -128,6 +148,8 @@ export default function FlashcardsPage() {
     setShowAnswer(false);
     setProgress({});
     setSessionComplete(false);
+    setIsAnimating(false);
+    setAnimatingOut(false);
   };
 
   const getStats = () => {
@@ -271,40 +293,61 @@ export default function FlashcardsPage() {
           </label>
         </div>
 
-        {/* Flashcard */}
-        <div 
-          className="relative w-full h-80 perspective-1000 cursor-pointer mb-6"
-          onClick={handleFlipCard}
-        >
-          <div className={`relative w-full h-full transition-transform duration-700 transform-style-preserve-3d ${isFlipped ? 'rotate-y-180' : ''}`}>
-            {/* Front of card */}
-            <div className="absolute w-full h-full backface-hidden bg-white rounded-2xl shadow-xl flex flex-col items-center justify-center p-6 border-2 border-gray-100">
-              <div className="text-center">
-                <div className="text-3xl font-bold text-gray-800 mb-4">
-                  {startWithEnglish ? currentCard.translation : currentCard.word}
-                </div>
-                {currentCard.context && !startWithEnglish && (
-                  <div className="text-sm text-gray-600 italic">
-                    {currentCard.context}
+        {/* Card Stack */}
+        <div className="relative w-full h-80 mb-6">
+          {/* Background stack cards */}
+          {[...Array(Math.min(3, (flashcardData?.words.length || 0) - currentIndex - 1))].map((_, index) => (
+            <div
+              key={currentIndex + index + 1}
+              className="absolute w-full h-full rounded-2xl shadow-lg bg-white border border-gray-200 card-stack-item"
+              style={{
+                transform: `translateY(${(index + 1) * 8}px) scale(${1 - (index + 1) * 0.03})`,
+                zIndex: 10 - index,
+                opacity: 0.8 - index * 0.2
+              }}
+            />
+          ))}
+          
+          {/* Main active card */}
+          <div 
+            className={`relative w-full h-full cursor-pointer transition-all duration-500 ${
+              animatingOut 
+                ? 'transform -translate-y-full opacity-0' 
+                : 'transform translate-y-0 opacity-100'
+            }`}
+            style={{ zIndex: 20 }}
+            onClick={handleFlipCard}
+          >
+            <div className={`relative w-full h-full transition-transform duration-300 transform-style-preserve-3d ${isFlipped ? 'rotate-y-180' : ''}`}>
+              {/* Front of card */}
+              <div className="absolute w-full h-full backface-hidden bg-white rounded-2xl shadow-2xl flex flex-col items-center justify-center p-6 border-2 border-gray-100">
+                <div className="text-center">
+                  <div className="text-3xl font-bold text-gray-800 mb-4">
+                    {startWithEnglish ? currentCard.translation : currentCard.word}
                   </div>
-                )}
-                <div className="mt-6 text-sm text-gray-500">
-                  Tap to flip
+                  {currentCard.context && !startWithEnglish && (
+                    <div className="text-sm text-gray-600 italic mb-4">
+                      {currentCard.context}
+                    </div>
+                  )}
+                  <div className="mt-6 text-sm text-gray-500">
+                    Tap to flip
+                  </div>
                 </div>
               </div>
-            </div>
 
-            {/* Back of card */}
-            <div className="absolute w-full h-full backface-hidden bg-indigo-600 rounded-2xl shadow-xl flex flex-col items-center justify-center p-6 text-white rotate-y-180">
-              <div className="text-center">
-                <div className="text-3xl font-bold mb-4">
-                  {startWithEnglish ? currentCard.word : currentCard.translation}
-                </div>
-                {currentCard.context && startWithEnglish && (
-                  <div className="text-sm opacity-90 italic">
-                    {currentCard.context}
+              {/* Back of card */}
+              <div className="absolute w-full h-full backface-hidden bg-gradient-to-br from-indigo-600 to-purple-600 rounded-2xl shadow-2xl flex flex-col items-center justify-center p-6 text-white rotate-y-180">
+                <div className="text-center">
+                  <div className="text-3xl font-bold mb-4">
+                    {startWithEnglish ? currentCard.word : currentCard.translation}
                   </div>
-                )}
+                  {currentCard.context && startWithEnglish && (
+                    <div className="text-sm opacity-90 italic">
+                      {currentCard.context}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </div>
@@ -377,6 +420,27 @@ export default function FlashcardsPage() {
         @keyframes fadeIn {
           from { opacity: 0; transform: translateY(10px); }
           to { opacity: 1; transform: translateY(0); }
+        }
+        
+        /* Card stack animations */
+        .card-slide-up {
+          animation: slideUp 0.5s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+        }
+        
+        @keyframes slideUp {
+          0% {
+            transform: translateY(0) scale(1);
+            opacity: 1;
+          }
+          100% {
+            transform: translateY(-120%) scale(0.8);
+            opacity: 0;
+          }
+        }
+        
+        /* Smooth card stack transitions */
+        .card-stack-item {
+          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
       `}</style>
     </div>
