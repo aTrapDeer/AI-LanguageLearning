@@ -50,7 +50,7 @@ export default function DashboardPage() {
     {
       Icon: CardStackIcon,
       name: "Flashcard Vocabulary",
-      description: "Build your vocabulary with smart flashcards that adapt to your learning pace.",
+      description: "Interactive flashcards with 20 AI-generated words. Flip cards, track progress, and reinforce learning with spaced practice.",
       href: `/learn/flashcards?lang=${selectedLanguage?.code || 'en'}`,
       cta: "Practice Vocab",
       background: <div className="absolute inset-0 bg-gradient-to-br from-amber-100 to-transparent dark:from-amber-900/30" />,
