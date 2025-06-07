@@ -253,7 +253,23 @@ try {
 // Generate journey content
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
+    // Get raw text first for debugging, then parse
+    const bodyText = await req.text();
+    console.log('Raw request body received, length:', bodyText.length);
+    
+    let body;
+    try {
+      body = JSON.parse(bodyText);
+      console.log('Successfully parsed JSON body:', body);
+    } catch (jsonError) {
+      console.error('JSON parsing error:', jsonError);
+      console.error('Raw request body that failed to parse:', bodyText);
+      console.error('Character at error position:', bodyText.charAt(12));
+      console.error('Context around error:', bodyText.substring(Math.max(0, 12-10), 12+10));
+      // Return fallback if JSON is malformed
+      return NextResponse.json(getFallbackJourney('en', 1));
+    }
+    
     const { language, level } = body;
 
     console.log(`Journey generation requested for language: ${language}, level: ${level}`);
