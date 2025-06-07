@@ -110,6 +110,117 @@ function JourneyPageContent() {
   
   const DEFAULT_FALLBACK_IMAGE = 'https://placehold.co/400x200/EAEAEA/CCCCCC?text=Example+Image'
 
+  // State persistence helpers
+  const getStorageKey = (userId: string, language: string) => 
+    `journey_state_${userId}_${language}`
+
+  const saveJourneyState = () => {
+    if (!session?.user?.id || !journey) return
+    
+    const stateToSave = {
+      journey,
+      currentRound,
+      isTestMode,
+      userProgress,
+      journeyComplete,
+      timestamp: Date.now(),
+      preloadedImages
+    }
+    
+    try {
+      const storageKey = getStorageKey(session.user.id, lang)
+      sessionStorage.setItem(storageKey, JSON.stringify(stateToSave))
+      console.log('Journey state saved to sessionStorage')
+    } catch (error) {
+      console.warn('Failed to save journey state:', error)
+    }
+  }
+
+  const loadJourneyState = (): boolean => {
+    if (!session?.user?.id) return false
+    
+    try {
+      const storageKey = getStorageKey(session.user.id, lang)
+      const savedState = sessionStorage.getItem(storageKey)
+      
+      if (!savedState) return false
+      
+      const parsedState = JSON.parse(savedState)
+      
+      // Check if saved state is not too old (max 4 hours)
+      const maxAge = 4 * 60 * 60 * 1000 // 4 hours in milliseconds
+      if (Date.now() - parsedState.timestamp > maxAge) {
+        console.log('Saved journey state is too old, creating new journey')
+        sessionStorage.removeItem(storageKey)
+        return false
+      }
+      
+      // Validate that the saved journey has the expected structure
+      if (!parsedState.journey || !parsedState.journey.rounds || !parsedState.journey.summaryTest) {
+        console.log('Invalid saved journey structure, creating new journey')
+        sessionStorage.removeItem(storageKey)
+        return false
+      }
+      
+      console.log('Restoring journey state from sessionStorage')
+      setJourney(parsedState.journey)
+      setCurrentRound(parsedState.currentRound || 0)
+      setIsTestMode(parsedState.isTestMode || false)
+      setUserProgress(parsedState.userProgress || null)
+      setJourneyComplete(parsedState.journeyComplete || false)
+      setPreloadedImages(parsedState.preloadedImages || {})
+      
+      return true
+    } catch (error) {
+      console.warn('Failed to load journey state:', error)
+      return false
+    }
+  }
+
+  const clearJourneyState = () => {
+    if (!session?.user?.id) return
+    
+    try {
+      const storageKey = getStorageKey(session.user.id, lang)
+      sessionStorage.removeItem(storageKey)
+      console.log('Journey state cleared from sessionStorage')
+    } catch (error) {
+      console.warn('Failed to clear journey state:', error)
+    }
+  }
+
+  // Save state whenever key state changes
+  useEffect(() => {
+    if (journey && session?.user?.id) {
+      saveJourneyState()
+    }
+  }, [journey, currentRound, isTestMode, journeyComplete]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Cleanup handler for when component unmounts or user leaves
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      // Save final state before page unload
+      if (journey && session?.user?.id) {
+        saveJourneyState()
+      }
+    }
+
+    const handleVisibilityChange = () => {
+      // Save state when page becomes hidden
+      if (document.visibilityState === 'hidden' && journey && session?.user?.id) {
+        saveJourneyState()
+      }
+    }
+
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [journey, session?.user?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
   // We intentionally omit generateJourney from deps to prevent refetching on every render
   // as this would cause infinite loops and unnecessary API calls
   useEffect(() => {
@@ -119,6 +230,15 @@ function JourneyPageContent() {
     }
 
     if (status === "authenticated" && session?.user?.id) {
+      // Try to load existing journey state first
+      const stateLoaded = loadJourneyState()
+      
+      if (stateLoaded) {
+        setLoading(false)
+        return
+      }
+
+      // If no saved state, fetch user progress and generate new journey
       const fetchUserProgress = async () => {
         try {
           console.log(`Fetching progress for user ${session.user.id} and language ${lang}`)
@@ -172,7 +292,7 @@ function JourneyPageContent() {
 
       fetchUserProgress()
     }
-  }, [status, session, lang, router]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [status, session?.user?.id, lang, router]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Generate the journey content based on user's level
   const generateJourney = async (language: string, level: number) => {
@@ -376,6 +496,32 @@ function JourneyPageContent() {
     setSelectedOption(option)
   }
 
+  // Improved mobile-friendly word placement for multi-word exercises
+  const handleWordPlacement = (word: string, blankIndex?: number) => {
+    // If specific blank index provided, use it
+    if (blankIndex !== undefined) {
+      // If blank is already filled, swap the words
+      if (filledWords[blankIndex]) {
+        // Add the displaced word back to available words
+        setAvailableWords(prev => [...prev, filledWords[blankIndex]!])
+      }
+      
+      // Update filledWords array
+      const newFilledWords = [...filledWords]
+      newFilledWords[blankIndex] = word
+      setFilledWords(newFilledWords)
+      
+      // Remove word from available options
+      setAvailableWords(prev => prev.filter(w => w !== word))
+    } else {
+      // Find first empty blank and place word there
+      const emptyIndex = filledWords.findIndex(w => w === null)
+      if (emptyIndex !== -1) {
+        handleWordPlacement(word, emptyIndex)
+      }
+    }
+  }
+
   // Handle word drag start for multi-word exercises
   const handleDragStart = (word: string) => {
     setIsDragging(word)
@@ -385,13 +531,7 @@ function JourneyPageContent() {
   const handleDrop = (blankIndex: number) => {
     if (!isDragging) return
     
-    // Update filledWords array
-    const newFilledWords = [...filledWords]
-    newFilledWords[blankIndex] = isDragging
-    setFilledWords(newFilledWords)
-    
-    // Remove word from available options
-    setAvailableWords(availableWords.filter(word => word !== isDragging))
+    handleWordPlacement(isDragging, blankIndex)
     
     // Reset dragging state
     setIsDragging(null)
@@ -630,6 +770,10 @@ function JourneyPageContent() {
       // Create a visual-focused prompt
       const visualPrompt = `A simple, clean illustration showing: a person with ${keyWords.join(' and ')}. Do NOT include any text or words in the image. Create a visual scene only.`;
       
+      // Add timeout to the fetch request
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+      
       const response = await fetch('/api/generate-image', {
         method: 'POST',
         headers: {
@@ -642,20 +786,29 @@ function JourneyPageContent() {
           quality: "auto",
           output_format: "png"
         }),
+        signal: controller.signal
       });
       
-      const data = await response.json();
+      clearTimeout(timeoutId);
+      
+      let data;
+      try {
+        data = await response.json();
+      } catch (jsonError) {
+        console.error('Failed to parse JSON response:', jsonError);
+        throw new Error('Invalid response from image generation API');
+      }
       
       let resultUrl = null;
       
       if (!response.ok) {
-        console.error('Failed to generate image:', data.error);
+        console.error(`Image generation failed with status ${response.status}:`, data.error || 'Unknown error');
         // Use fallback if provided
         if (data.fallbackUrl) {
-          console.log('Using fallback image URL');
+          console.log('Using fallback image URL from API response');
           resultUrl = data.fallbackUrl;
         } else {
-          console.log('Using default fallback image');
+          console.log('Using default fallback image due to API error');
           resultUrl = DEFAULT_FALLBACK_IMAGE;
           if (!isPreloading) {
             setUseDefaultImage(true);
@@ -665,10 +818,10 @@ function JourneyPageContent() {
         console.log(`Received image ${data.isBase64 ? 'as base64 data' : 'URL'}`);
         resultUrl = data.url;
       } else if (data.fallbackUrl) {
-        console.log('No URL returned, using fallback image');
+        console.log('No URL in successful response, using fallback image');
         resultUrl = data.fallbackUrl;
       } else {
-        console.log('Using default fallback image');
+        console.log('No URL or fallback in response, using default fallback image');
         resultUrl = DEFAULT_FALLBACK_IMAGE;
         if (!isPreloading) {
           setUseDefaultImage(true);
@@ -685,10 +838,16 @@ function JourneyPageContent() {
       
       return resultUrl;
     } catch (error) {
-      console.error('Error generating image:', error);
+      if (error instanceof Error && error.name === 'AbortError') {
+        console.error('Image generation request timed out');
+      } else {
+        console.error('Error generating image:', error);
+      }
+      
       const fallbackUrl = DEFAULT_FALLBACK_IMAGE;
       
       if (isPreloading && storeForRound !== undefined) {
+        console.log(`Storing fallback image for round ${storeForRound} due to error`);
         setPreloadedImages(prev => ({...prev, [storeForRound]: fallbackUrl}));
       } else {
         setSentenceImageUrl(fallbackUrl);
@@ -862,13 +1021,21 @@ function JourneyPageContent() {
     // Remove duplicates from options
     options = Array.from(new Set(options));
     
-    // Make sure the options don't contain duplicates by filtering out 
-    // any words that appear in the sentence but are not meant to be removed
+    // Get all words from the sentence
     const words = round.sentence.split(' ');
+    
+    // Get the words that are being removed (the missing words)
     const wordsToRemove = round.missingWordIndices.map(index => words[index]);
     
+    // Get words that will remain in the sentence (non-missing words)
+    const remainingWords = words.filter((word, index) => !round.missingWordIndices.includes(index));
+    
+    // Clean up remaining words (remove punctuation for comparison)
+    const cleanRemainingWords = remainingWords.map(word => 
+      word.replace(/[.,!?;:]$/g, '').toLowerCase().trim()
+    );
+    
     // Deduplicate correct words while maintaining order
-    // This ensures we don't have duplicated words in blanks
     const correctWordsDeduped: string[] = [];
     round.correctWords.forEach(word => {
       // Only add if it's not already in the array or if it's needed for a duplicate position
@@ -883,19 +1050,56 @@ function JourneyPageContent() {
     // Ensure each correct word appears exactly once in the options
     const uniqueCorrectWords = Array.from(new Set([...correctWordsDeduped]));
     
-    // Add other options that aren't already in the sentence or are meant to be removed
-    const distractors = options.filter(word => 
-      !words.includes(word) || wordsToRemove.includes(word)
-    );
+    // Filter out distractors that:
+    // 1. Already appear in the remaining sentence text
+    // 2. Are duplicates of correct words
+    // 3. Are case-insensitive matches of remaining words
+    const distractors = options.filter(word => {
+      const cleanWord = word.replace(/[.,!?;:]$/g, '').toLowerCase().trim();
+      
+      // Don't include if it's already a correct word
+      if (uniqueCorrectWords.some(correctWord => 
+        correctWord.toLowerCase().trim() === cleanWord
+      )) {
+        return false;
+      }
+      
+      // Don't include if it already appears in the remaining sentence
+      if (cleanRemainingWords.includes(cleanWord)) {
+        return false;
+      }
+      
+      // Don't include if it's one of the words being removed (but not a correct answer)
+      if (wordsToRemove.some(removedWord => 
+        removedWord.replace(/[.,!?;:]$/g, '').toLowerCase().trim() === cleanWord
+      ) && !uniqueCorrectWords.some(correctWord => 
+        correctWord.toLowerCase().trim() === cleanWord
+      )) {
+        return false;
+      }
+      
+      return true;
+    });
     
-    // Remove any duplicates that might still exist
-    const uniqueDistractors = distractors.filter(word => !uniqueCorrectWords.includes(word));
+    // Remove any duplicates that might still exist in distractors
+    const uniqueDistractors = Array.from(new Set(distractors));
     
-    // Combine and shuffle
+    // Combine correct words with distractors
     const finalOptions = [...uniqueCorrectWords, ...uniqueDistractors];
     
-    // Ensure we don't have more options than needed
-    const limitedOptions = finalOptions.slice(0, Math.max(6, uniqueCorrectWords.length + 3));
+    // Ensure we have enough options but not too many (minimum 3, maximum 8)
+    const minOptions = Math.max(3, uniqueCorrectWords.length);
+    const maxOptions = 8;
+    const limitedOptions = finalOptions.slice(0, Math.min(maxOptions, Math.max(minOptions, finalOptions.length)));
+    
+    // If we don't have enough options after filtering, add some back
+    if (limitedOptions.length < minOptions) {
+      console.warn(`Not enough options for missing word exercise. Adding fallback options.`);
+      // Add some random words from the original options that weren't included
+      const fallbackOptions = options.filter(word => !limitedOptions.includes(word));
+      const additionalNeeded = minOptions - limitedOptions.length;
+      limitedOptions.push(...fallbackOptions.slice(0, additionalNeeded));
+    }
     
     shuffleArray(limitedOptions);
     
@@ -963,6 +1167,7 @@ function JourneyPageContent() {
                 setJourneyComplete(false)
                 setIsTestMode(false)
                 setCurrentRound(0)
+                clearJourneyState()
                 generateJourney(lang, userProgress?.level || 1)
               }}
             >
@@ -1003,51 +1208,57 @@ function JourneyPageContent() {
           containerClassName="fixed inset-0 opacity-20"
         />
         
-        <div className="relative w-full max-w-3xl mx-auto mt-20 p-6 bg-white dark:bg-zinc-900 rounded-lg shadow-lg">
+        <div className="relative w-full max-w-3xl mx-auto mt-8 md:mt-20 p-4 md:p-6 bg-white dark:bg-zinc-900 rounded-lg shadow-lg">
           <div className="text-sm mb-4">
             {isTestMode ? 'Summary Test' : 'Journey'} - Round {currentRound + 1} of {isTestMode ? journey.summaryTest.length : journey.rounds.length}
           </div>
           
-          <h2 className="text-2xl font-bold mb-6">Match the Translation</h2>
+          <h2 className="text-xl md:text-2xl font-bold mb-4 md:mb-6">Match the Translation</h2>
           
-          <div className="mb-8">
-            <p className="text-lg mb-2">English:</p>
-            <div className="p-4 bg-gray-100 dark:bg-zinc-800 rounded-lg">
+          <div className="mb-6 md:mb-8">
+            <p className="text-base md:text-lg mb-2">English:</p>
+            <div className="p-3 md:p-4 bg-gray-100 dark:bg-zinc-800 rounded-lg text-sm md:text-base">
               {englishSentence}
             </div>
           </div>
           
-          <div className="mb-8">
-            <p className="text-lg mb-2">Translation:</p>
-            <div className="flex flex-wrap gap-2 p-4 min-h-16 bg-gray-100 dark:bg-zinc-800 rounded-lg border-2 border-dashed border-gray-300 dark:border-zinc-700">
+          <div className="mb-6 md:mb-8">
+            <p className="text-base md:text-lg mb-2">Translation:</p>
+            <div className="flex flex-wrap gap-2 p-3 md:p-4 min-h-16 bg-gray-100 dark:bg-zinc-800 rounded-lg border-2 border-dashed border-gray-300 dark:border-zinc-700">
               {selectedWords.map((word, i) => (
-                <div 
+                <button 
                   key={i} 
-                  className="px-3 py-1 bg-blue-100 dark:bg-blue-900 rounded-md shadow-sm animate-bounce-in cursor-pointer hover:bg-blue-200 dark:hover:bg-blue-800 relative group transition-transform active:scale-95" 
+                  className="min-h-10 px-3 py-2 bg-blue-100 dark:bg-blue-900 rounded-md shadow-sm animate-bounce-in cursor-pointer hover:bg-blue-200 dark:hover:bg-blue-800 active:bg-blue-300 dark:active:bg-blue-700 relative group transition-all touch-manipulation select-none text-sm md:text-base" 
                   onClick={() => handleRemoveTranslationWord(i)}
-                  title="Click to remove this word"
+                  onTouchEnd={(e) => {
+                    e.preventDefault();
+                    handleRemoveTranslationWord(i);
+                  }}
+                  type="button"
+                  disabled={showFeedback}
+                  title="Tap to remove this word"
                 >
                   {word}
                   {!showFeedback && (
-                    <span className="absolute -top-1 -right-1 opacity-0 group-hover:opacity-100 transition-opacity bg-red-500 text-white rounded-full w-4 h-4 flex items-center justify-center text-xs">
+                    <span className="absolute -top-1 -right-1 opacity-0 group-hover:opacity-100 group-active:opacity-100 transition-opacity bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs">
                       ×
                     </span>
                   )}
-                </div>
+                </button>
               ))}
             </div>
             {selectedWords.length === 0 && (
-              <div className="text-center text-sm text-gray-500 dark:text-gray-400 mt-2">
-                Select words below to build your translation
+              <div className="text-center text-xs md:text-sm text-gray-500 dark:text-gray-400 mt-2">
+                Tap words below to build your translation
               </div>
             )}
             {!showFeedback && selectedWords.length > 0 && (
-              <div className="text-center text-sm text-gray-500 dark:text-gray-400 mt-2">
+              <div className="text-center text-xs md:text-sm text-gray-500 dark:text-gray-400 mt-2">
                 <span className="inline-flex items-center gap-1">
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
                   </svg>
-                  Click on a word to remove it
+                  Tap on a word to remove it
                 </span>
               </div>
             )}
@@ -1058,18 +1269,25 @@ function JourneyPageContent() {
             )}
           </div>
           
-          <div className="mb-8">
-            <p className="text-lg mb-2">Available Words:</p>
+          <div className="mb-6 md:mb-8">
+            <p className="text-base md:text-lg mb-2">Available Words:</p>
             <div className="flex flex-wrap gap-2">
               {words.map((word, i) => (
                 <button
                   key={i}
                   onClick={() => handleWordClick(word)}
+                  onTouchEnd={(e) => {
+                    e.preventDefault();
+                    if (!selectedWords.includes(word) && !showFeedback) {
+                      handleWordClick(word);
+                    }
+                  }}
                   disabled={selectedWords.includes(word) || showFeedback}
-                  className={`px-3 py-1 rounded-md transition-all ${
+                  type="button"
+                  className={`min-h-10 px-3 py-2 rounded-md transition-all touch-manipulation select-none text-sm md:text-base ${
                     selectedWords.includes(word)
-                      ? 'opacity-50 bg-gray-200 dark:bg-zinc-700'
-                      : 'bg-white dark:bg-zinc-800 hover:bg-blue-50 dark:hover:bg-blue-900 shadow-sm'
+                      ? 'opacity-50 bg-gray-200 dark:bg-zinc-700 cursor-not-allowed'
+                      : 'bg-white dark:bg-zinc-800 hover:bg-blue-50 dark:hover:bg-blue-900 active:bg-blue-100 dark:active:bg-blue-800 shadow-sm cursor-pointer border border-gray-200 dark:border-gray-700'
                   }`}
                 >
                   {word}
@@ -1079,13 +1297,13 @@ function JourneyPageContent() {
           </div>
           
           {showFeedback ? (
-            <div className={`p-4 rounded-lg mb-6 ${isCorrect ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200' : 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200'}`}>
+            <div className={`p-3 md:p-4 rounded-lg mb-4 md:mb-6 ${isCorrect ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200' : 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200'}`}>
               {isCorrect ? (
-                <p className="text-lg font-medium">Great job! That&apos;s correct!</p>
+                <p className="text-base md:text-lg font-medium">Great job! That&apos;s correct!</p>
               ) : (
                 <div>
-                  <p className="text-lg font-medium mb-2">Not quite right. Try again!</p>
-                  <Button onClick={handleRetry}>Retry</Button>
+                  <p className="text-base md:text-lg font-medium mb-3">Not quite right. Try again!</p>
+                  <Button onClick={handleRetry} className="min-h-12 touch-manipulation">Retry</Button>
                 </div>
               )}
             </div>
@@ -1093,7 +1311,8 @@ function JourneyPageContent() {
             <Button 
               onClick={handleSubmit} 
               disabled={selectedWords.length === 0}
-              className="w-full"
+              className="w-full min-h-12 touch-manipulation text-base"
+              type="button"
             >
               Submit
             </Button>
@@ -1107,7 +1326,7 @@ function JourneyPageContent() {
   if (roundData.type === 'missing_word') {
     // Handle both multi-word and legacy single-word formats
     if ('missingWordIndices' in roundData) {
-      // Multi-word format with drag and drop interface
+      // Multi-word format with improved mobile interface
       const multiWordRound = roundData as MissingWordRound
       const sentence = multiWordRound.sentence || '';
       const missingWordIndices = multiWordRound.missingWordIndices || [];
@@ -1144,23 +1363,23 @@ function JourneyPageContent() {
             containerClassName="fixed inset-0 opacity-20"
           />
           
-          <div className="relative w-full max-w-3xl mx-auto mt-20 p-6 bg-white dark:bg-zinc-900 rounded-lg shadow-lg">
+          <div className="relative w-full max-w-3xl mx-auto mt-8 md:mt-20 p-4 md:p-6 bg-white dark:bg-zinc-900 rounded-lg shadow-lg">
             <div className="text-sm mb-4">
               {isTestMode ? 'Summary Test' : 'Journey'} - Round {currentRound + 1} of {isTestMode ? journey.summaryTest.length : journey.rounds.length}
             </div>
             
-            <h2 className="text-2xl font-bold mb-6">Fill in the Missing Words</h2>
+            <h2 className="text-xl md:text-2xl font-bold mb-4 md:mb-6">Fill in the Missing Words</h2>
             
             {sentenceImageUrl && (
-              <div className="mb-6 flex justify-center">
-                <div className="relative">
+              <div className="mb-4 md:mb-6 flex justify-center">
+                <div className="relative max-w-full">
                   <Image 
                     src={sentenceImageUrl} 
                     alt="Visual representation of the sentence" 
                     width={400}
                     height={200}
-                    style={{ objectFit: 'contain', maxHeight: '12rem' }}
-                    className={`rounded-lg shadow-md ${useDefaultImage ? 'opacity-70' : ''}`}
+                    style={{ objectFit: 'contain', maxHeight: '10rem', width: 'auto' }}
+                    className={`rounded-lg shadow-md max-w-full h-auto ${useDefaultImage ? 'opacity-70' : ''}`}
                     unoptimized={true}
                     onError={(e) => {
                       console.error("Image failed to load");
@@ -1180,41 +1399,48 @@ function JourneyPageContent() {
             )}
             
             {isLoadingImage && (
-              <div className="mb-6 flex justify-center items-center h-48 bg-gray-100 dark:bg-zinc-800 rounded-lg">
+              <div className="mb-4 md:mb-6 flex justify-center items-center h-32 md:h-48 bg-gray-100 dark:bg-zinc-800 rounded-lg">
                 <div className="flex flex-col items-center gap-2">
-                  <div className="w-8 h-8 border-t-2 border-b-2 border-blue-500 rounded-full animate-spin"></div>
-                  <p>Generating image...</p>
+                  <div className="w-6 h-6 md:w-8 md:h-8 border-t-2 border-b-2 border-blue-500 rounded-full animate-spin"></div>
+                  <p className="text-sm md:text-base">Generating image...</p>
                 </div>
               </div>
             )}
             
-            <div className="mb-4 text-center text-sm text-gray-500 dark:text-gray-400">
-              Drag the words to the correct positions in the sentence
+            <div className="mb-4 text-center text-xs md:text-sm text-gray-500 dark:text-gray-400">
+              Tap the words below to fill in the blanks
             </div>
             
-            <div className="mb-8">
-              <div className="flex flex-wrap gap-2 p-4 mb-6 text-center text-lg">
+            <div className="mb-6 md:mb-8">
+              <div className="flex flex-wrap gap-1 md:gap-2 p-3 md:p-4 mb-4 md:mb-6 text-center text-base md:text-lg leading-relaxed">
                 {sentenceWithBlanks.map((item, i) => (
                   isBlankItem(item) ? (
-                    <div 
+                    <button 
                       key={i}
                       onClick={() => {
                         if (item.word) {
                           handleRemoveWord(item.index);
                         }
                       }}
+                      onTouchEnd={(e) => {
+                        e.preventDefault();
+                        if (item.word) {
+                          handleRemoveWord(item.index);
+                        }
+                      }}
                       onDragOver={(e) => { e.preventDefault(); }}
                       onDrop={() => handleDrop(item.index)}
-                      className={`inline-flex items-center justify-center min-w-20 h-10 px-3 border-2 ${
+                      type="button"
+                      className={`inline-flex items-center justify-center min-w-16 md:min-w-20 min-h-10 md:h-10 px-2 md:px-3 border-2 ${
                         item.word 
-                          ? 'bg-blue-100 dark:bg-blue-900 border-blue-300 dark:border-blue-700 cursor-pointer' 
-                          : 'border-dashed border-gray-400 dark:border-gray-600'
-                      } rounded-md mx-1`}
+                          ? 'bg-blue-100 dark:bg-blue-900 border-blue-300 dark:border-blue-700 cursor-pointer hover:bg-blue-200 dark:hover:bg-blue-800 active:bg-blue-300 dark:active:bg-blue-700' 
+                          : 'border-dashed border-gray-400 dark:border-gray-600 hover:border-blue-300 dark:hover:border-blue-600'
+                      } rounded-md mx-1 transition-all touch-manipulation select-none text-sm md:text-base`}
                     >
-                      {item.word || '___________'}
-                    </div>
+                      {item.word || '_____'}
+                    </button>
                   ) : (
-                    <div key={i} className="inline-flex items-center mx-1">
+                    <div key={i} className="inline-flex items-center mx-1 text-sm md:text-base">
                       {item.word}
                     </div>
                   )
@@ -1222,43 +1448,43 @@ function JourneyPageContent() {
               </div>
               
               <div className="mb-6">
-                <p className="text-lg mb-2">Available Words:</p>
-                <div className="flex flex-wrap gap-3 mt-4">
+                <p className="text-base md:text-lg mb-3">Available Words:</p>
+                <div className="grid grid-cols-2 md:flex md:flex-wrap gap-2 md:gap-3 mt-4">
                   {availableWords.map((word, i) => (
-                    <div
+                    <button
                       key={i}
                       draggable
                       onDragStart={() => handleDragStart(word)}
-                      onClick={() => {
-                        // Find first empty blank and place word there
-                        const emptyIndex = filledWords.findIndex(w => w === null);
-                        if (emptyIndex !== -1) handleDrop(emptyIndex);
+                      onClick={() => handleWordPlacement(word)}
+                      onTouchEnd={(e) => {
+                        e.preventDefault();
+                        handleWordPlacement(word);
                       }}
-                      className="px-3 py-2 bg-white dark:bg-zinc-800 border border-gray-200 dark:border-gray-700 rounded-md shadow-sm cursor-move hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                      type="button"
+                      className="min-h-12 px-3 py-2 bg-white dark:bg-zinc-800 border border-gray-200 dark:border-gray-700 rounded-md shadow-sm cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/20 active:bg-blue-100 dark:active:bg-blue-900/40 transition-all touch-manipulation select-none text-sm md:text-base"
                     >
                       {word}
-                    </div>
+                    </button>
                   ))}
                 </div>
               </div>
             </div>
             
             {showFeedback ? (
-              <div className={`p-4 rounded-lg mb-6 ${isCorrect ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200' : 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200'}`}>
+              <div className={`p-3 md:p-4 rounded-lg mb-4 md:mb-6 ${isCorrect ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200' : 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200'}`}>
                 {isCorrect ? (
-                  <p className="text-lg font-medium">Great job! That&apos;s correct!</p>
+                  <p className="text-base md:text-lg font-medium">Great job! That&apos;s correct!</p>
                 ) : (
                   <div>
-                    <p className="text-lg font-medium mb-2">Not quite right. The correct placement is:</p>
-                    {correctWords.map((word, i) => (
-                      <span key={i} className="inline-block mr-2 mb-2 px-2 py-1 bg-white dark:bg-zinc-800 rounded-md">
-                        <span className="font-bold">{word}</span>
-                        {i < correctWords.length - 1 ? " " : ""}
-                      </span>
-                    ))}
-                    <div className="mt-4">
-                      <Button onClick={handleRetry}>Retry</Button>
+                    <p className="text-base md:text-lg font-medium mb-2">Not quite right. The correct placement is:</p>
+                    <div className="flex flex-wrap gap-2 mb-4">
+                      {correctWords.map((word, i) => (
+                        <span key={i} className="inline-block px-2 py-1 bg-white dark:bg-zinc-800 rounded-md text-sm md:text-base">
+                          <span className="font-bold">{word}</span>
+                        </span>
+                      ))}
                     </div>
+                    <Button onClick={handleRetry} className="min-h-12 touch-manipulation">Retry</Button>
                   </div>
                 )}
               </div>
@@ -1266,7 +1492,8 @@ function JourneyPageContent() {
               <Button 
                 onClick={handleSubmit} 
                 disabled={filledWords.some(word => word === null)}
-                className="w-full"
+                className="w-full min-h-12 touch-manipulation text-base"
+                type="button"
               >
                 Submit
               </Button>
@@ -1275,7 +1502,7 @@ function JourneyPageContent() {
         </div>
       );
     } else {
-      // Legacy single-word format
+      // Legacy single-word format with improved mobile interface
       const legacyRound = roundData as LegacyMissingWordRound
       const sentence = legacyRound.sentence || '';
       const missingWordIndex = typeof legacyRound.missingWordIndex === 'number' ? legacyRound.missingWordIndex : 0;
@@ -1306,38 +1533,45 @@ function JourneyPageContent() {
             containerClassName="fixed inset-0 opacity-20"
           />
           
-          <div className="relative w-full max-w-3xl mx-auto mt-20 p-6 bg-white dark:bg-zinc-900 rounded-lg shadow-lg">
+          <div className="relative w-full max-w-3xl mx-auto mt-8 md:mt-20 p-4 md:p-6 bg-white dark:bg-zinc-900 rounded-lg shadow-lg">
             <div className="text-sm mb-4">
               {isTestMode ? 'Summary Test' : 'Journey'} - Round {currentRound + 1} of {isTestMode ? journey.summaryTest.length : journey.rounds.length}
             </div>
             
-            <h2 className="text-2xl font-bold mb-6">Fill in the Missing Word</h2>
+            <h2 className="text-xl md:text-2xl font-bold mb-4 md:mb-6">Fill in the Missing Word</h2>
             
-            <div className="mb-4 text-center text-sm text-gray-500 dark:text-gray-400">
-              Select the correct word to complete the sentence
+            <div className="mb-4 text-center text-xs md:text-sm text-gray-500 dark:text-gray-400">
+              Tap the correct word to complete the sentence
             </div>
             
-            <div className="mb-8">
-              <p className="text-lg mb-4 text-center font-medium">{sentenceWithBlank}</p>
+            <div className="mb-6 md:mb-8">
+              <p className="text-base md:text-lg mb-4 text-center font-medium leading-relaxed">{sentenceWithBlank}</p>
               
               {selectedOption && (
                 <div className="flex justify-center mb-4">
-                  <div className="px-4 py-2 bg-blue-100 dark:bg-blue-900 rounded-md shadow-sm animate-bounce-in text-lg">
+                  <div className="px-4 py-2 bg-blue-100 dark:bg-blue-900 rounded-md shadow-sm animate-bounce-in text-base md:text-lg">
                     {selectedOption}
                   </div>
                 </div>
               )}
               
-              <div className="grid grid-cols-2 gap-4 mt-8">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4 mt-6 md:mt-8">
                 {options.map((option, i) => (
                   <button
                     key={i}
                     onClick={() => handleOptionClick(option)}
+                    onTouchEnd={(e) => {
+                      e.preventDefault();
+                      if (!showFeedback) {
+                        handleOptionClick(option);
+                      }
+                    }}
                     disabled={showFeedback}
-                    className={`px-4 py-3 rounded-md transition-all text-lg ${
+                    type="button"
+                    className={`min-h-12 md:min-h-14 px-4 py-3 rounded-md transition-all text-base md:text-lg touch-manipulation select-none ${
                       selectedOption === option 
                         ? 'bg-blue-100 dark:bg-blue-900 border-2 border-blue-500 dark:border-blue-400' 
-                        : 'bg-white dark:bg-zinc-800 hover:bg-gray-100 dark:hover:bg-zinc-700 border border-gray-200 dark:border-gray-700'
+                        : 'bg-white dark:bg-zinc-800 hover:bg-gray-100 dark:hover:bg-zinc-700 active:bg-gray-200 dark:active:bg-zinc-600 border border-gray-200 dark:border-gray-700'
                     } shadow-sm`}
                   >
                     {option}
@@ -1347,13 +1581,13 @@ function JourneyPageContent() {
             </div>
             
             {showFeedback ? (
-              <div className={`p-4 rounded-lg mb-6 ${isCorrect ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200' : 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200'}`}>
+              <div className={`p-3 md:p-4 rounded-lg mb-4 md:mb-6 ${isCorrect ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200' : 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200'}`}>
                 {isCorrect ? (
-                  <p className="text-lg font-medium">Great job! That&apos;s correct!</p>
+                  <p className="text-base md:text-lg font-medium">Great job! That&apos;s correct!</p>
                 ) : (
                   <div>
-                    <p className="text-lg font-medium mb-2">Not quite right. The correct answer is: <span className="font-bold">{correctWord}</span></p>
-                    <Button onClick={handleRetry}>Retry</Button>
+                    <p className="text-base md:text-lg font-medium mb-2">Not quite right. The correct answer is: <span className="font-bold">{correctWord}</span></p>
+                    <Button onClick={handleRetry} className="min-h-12 touch-manipulation">Retry</Button>
                   </div>
                 )}
               </div>
@@ -1361,7 +1595,8 @@ function JourneyPageContent() {
               <Button 
                 onClick={handleSubmit} 
                 disabled={!selectedOption}
-                className="w-full"
+                className="w-full min-h-12 touch-manipulation text-base"
+                type="button"
               >
                 Submit
               </Button>
@@ -1395,49 +1630,49 @@ function JourneyPageContent() {
           containerClassName="fixed inset-0 opacity-20"
         />
         
-        <div className="relative w-full max-w-3xl mx-auto mt-20 p-6 bg-white dark:bg-zinc-900 rounded-lg shadow-lg">
+        <div className="relative w-full max-w-3xl mx-auto mt-8 md:mt-20 p-4 md:p-6 bg-white dark:bg-zinc-900 rounded-lg shadow-lg">
           <div className="text-sm mb-4">
             {isTestMode ? 'Summary Test' : 'Journey'} - Round {currentRound + 1} of {isTestMode ? journey.summaryTest.length : journey.rounds.length}
           </div>
           
-          <h2 className="text-2xl font-bold mb-6">Spell the Word</h2>
+          <h2 className="text-xl md:text-2xl font-bold mb-4 md:mb-6">Spell the Word</h2>
           
-          <div className="mb-8">
-            <p className="text-lg mb-2">English Word:</p>
-            <div className="p-4 bg-gray-100 dark:bg-zinc-800 rounded-lg text-center text-xl">
+          <div className="mb-6 md:mb-8">
+            <p className="text-base md:text-lg mb-2">English Word:</p>
+            <div className="p-3 md:p-4 bg-gray-100 dark:bg-zinc-800 rounded-lg text-center text-lg md:text-xl">
               {englishWord}
             </div>
           </div>
           
-          <div className="mb-8">
-            <p className="text-lg mb-2">Your Answer:</p>
+          <div className="mb-6 md:mb-8">
+            <p className="text-base md:text-lg mb-2">Your Answer:</p>
             <input
               type="text"
               value={spellingInput}
               onChange={handleSpellingChange}
               disabled={showFeedback}
               placeholder="Type the word in the target language"
-              className="w-full p-3 border rounded-lg dark:bg-zinc-800 dark:border-zinc-700 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="w-full min-h-12 p-3 text-base md:text-lg border rounded-lg dark:bg-zinc-800 dark:border-zinc-700 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 touch-manipulation"
               autoFocus
             />
           </div>
           
           {showFeedback && (
-            <div className={`p-4 rounded-lg mb-6 ${isCorrect ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200' : 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200'}`}>
+            <div className={`p-3 md:p-4 rounded-lg mb-4 md:mb-6 ${isCorrect ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200' : 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200'}`}>
               {isCorrect ? (
                 <div>
-                  <p className="text-lg font-medium">Great job!</p>
+                  <p className="text-base md:text-lg font-medium">Great job!</p>
                   {showCorrectAnswer && (
                     <p className="mt-2">The exact spelling is: <span className="font-bold">{correctSpelling}</span></p>
                   )}
                 </div>
               ) : (
                 <div>
-                  <p className="text-lg font-medium mb-2">Not quite right.</p>
+                  <p className="text-base md:text-lg font-medium mb-2">Not quite right.</p>
                   {showCorrectAnswer && (
                     <p className="mb-4">The correct spelling is: <span className="font-bold">{correctSpelling}</span></p>
                   )}
-                  <Button onClick={handleRetry}>Retry</Button>
+                  <Button onClick={handleRetry} className="min-h-12 touch-manipulation">Retry</Button>
                 </div>
               )}
             </div>
@@ -1447,7 +1682,8 @@ function JourneyPageContent() {
             <Button 
               onClick={handleSubmit} 
               disabled={spellingInput.trim() === ''}
-              className="w-full"
+              className="w-full min-h-12 touch-manipulation text-base"
+              type="button"
             >
               Submit
             </Button>
