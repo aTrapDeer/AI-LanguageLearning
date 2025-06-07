@@ -1,0 +1,86 @@
+{
+  "language": "ar",
+  "level": 1,
+  "rounds": [
+    {
+      "type": "matching",
+      "englishSentence": "Hello, how are you?",
+      "translatedSentence": "مرحبا، كيف حالك؟",
+      "words": ["مرحبا،", "كيف", "حالك؟"]
+    },
+    {
+      "type": "missing_word",
+      "sentence": "أحب شرب القهوة في الصباح",
+      "missingWordIndex": 2,
+      "correctWord": "شرب",
+      "options": ["شرب", "طاولة", "نافذة", "أزرق"]
+    },
+    {
+      "type": "spelling",
+      "englishWord": "book",
+      "correctSpelling": "كتاب"
+    },
+    {
+      "type": "matching",
+      "englishSentence": "I would like some tea, please.",
+      "translatedSentence": "أريد بعض الشاي، من فضلك.",
+      "words": ["أريد", "بعض", "الشاي،", "من", "فضلك."]
+    },
+    {
+      "type": "missing_word",
+      "sentence": "اليوم الطقس جميل جداً",
+      "missingWordIndex": 3,
+      "correctWord": "جداً",
+      "options": ["جداً", "كرسي", "تفاحة", "أسود"]
+    },
+    {
+      "type": "spelling",
+      "englishWord": "water",
+      "correctSpelling": "ماء"
+    },
+    {
+      "type": "matching",
+      "englishSentence": "My name is Ahmad.",
+      "translatedSentence": "اسمي أحمد.",
+      "words": ["اسمي", "أحمد."]
+    },
+    {
+      "type": "missing_word",
+      "sentence": "أنا من مصر",
+      "missingWordIndex": 1,
+      "correctWord": "من",
+      "options": ["من", "قط", "طاولة", "أزرق"]
+    },
+    {
+      "type": "spelling",
+      "englishWord": "house",
+      "correctSpelling": "بيت"
+    },
+    {
+      "type": "matching",
+      "englishSentence": "What time is it?",
+      "translatedSentence": "كم الساعة؟",
+      "words": ["كم", "الساعة؟"]
+    }
+  ],
+  "summaryTest": [
+    {
+      "type": "matching",
+      "englishSentence": "Thank you very much",
+      "translatedSentence": "شكراً جزيلاً",
+      "words": ["شكراً", "جزيلاً"]
+    },
+    {
+      "type": "missing_word",
+      "sentence": "أعيش في القاهرة",
+      "missingWordIndex": 1,
+      "correctWord": "في",
+      "options": ["في", "كلب", "أخضر", "كبير"]
+    },
+    {
+      "type": "spelling",
+      "englishWord": "friend",
+      "correctSpelling": "صديق"
+    }
+  ]
+} 

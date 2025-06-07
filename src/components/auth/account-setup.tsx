@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
@@ -81,6 +81,34 @@ export function AccountSetup({ userId }: { userId: string }) {
   const [step, setStep] = useState<"select" | "active" | "proficiency">("select")
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [isLanguageSetup, setIsLanguageSetup] = useState(false)
+  const [setupLanguageCode, setSetupLanguageCode] = useState<string | null>(null)
+
+  // Check if this is language setup (user selected a new language they haven't learned)
+  useEffect(() => {
+    const setupLanguage = localStorage.getItem('setupLanguage');
+    if (setupLanguage) {
+      // This is language setup, not initial account setup
+      setIsLanguageSetup(true);
+      setSetupLanguageCode(setupLanguage);
+      
+      // Find the language object
+      const language = LANGUAGES.find(l => l.value === setupLanguage);
+      if (language) {
+        // Pre-select this language and skip to proficiency step
+        setSelectedLanguages([setupLanguage]);
+        setActiveLanguage(setupLanguage);
+        setStep("proficiency");
+        setCurrentLanguageIndex(0);
+        
+        // Initialize proficiency level
+        setProficiencyLevels({ [setupLanguage]: "1" });
+      }
+      
+      // Clear the setup flag
+      localStorage.removeItem('setupLanguage');
+    }
+  }, []);
 
   // Get current language we're asking proficiency for
   const currentLanguage = selectedLanguages[currentLanguageIndex] || "";
@@ -208,8 +236,14 @@ export function AccountSetup({ userId }: { userId: string }) {
 
       console.log("Account setup successful:", data);
       
-      // Redirect to dashboard on success
-      router.push("/dashboard")
+      // Redirect based on setup type
+      if (isLanguageSetup && setupLanguageCode) {
+        // Redirect back to the journey page for the new language
+        router.push(`/learn/journey?lang=${setupLanguageCode}`);
+      } else {
+        // Initial account setup - redirect to dashboard
+        router.push("/dashboard");
+      }
       router.refresh()
     } catch (err) {
       console.error("Account setup error:", err)
@@ -250,14 +284,18 @@ export function AccountSetup({ userId }: { userId: string }) {
         <CardHeader className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white">
           <div className="flex items-center space-x-2">
             <Languages className="h-6 w-6" />
-            <CardTitle className="text-2xl font-bold">Welcome to Language Learning!</CardTitle>
+            <CardTitle className="text-2xl font-bold">
+              {isLanguageSetup ? "Add New Language" : "Welcome to Language Learning!"}
+            </CardTitle>
           </div>
           <CardDescription className="text-indigo-100 text-base mt-2">
-            {step === "select" 
-              ? "What language(s) would you like to learn? Select all that interest you!" 
-              : step === "active"
-                ? "Choose one language to focus on first"
-                : `What's your proficiency level in ${getCurrentLanguageName()}?`}
+            {isLanguageSetup 
+              ? `What's your proficiency level in ${getCurrentLanguageName()}?`
+              : step === "select" 
+                ? "What language(s) would you like to learn? Select all that interest you!" 
+                : step === "active"
+                  ? "Choose one language to focus on first"
+                  : `What's your proficiency level in ${getCurrentLanguageName()}?`}
           </CardDescription>
           
           {step === "proficiency" && selectedLanguages.length > 1 && (

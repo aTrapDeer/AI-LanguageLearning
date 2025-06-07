@@ -1,0 +1,86 @@
+{
+  "language": "ko",
+  "level": 1,
+  "rounds": [
+    {
+      "type": "matching",
+      "englishSentence": "Hello, how are you?",
+      "translatedSentence": "안녕하세요, 어떻게 지내세요?",
+      "words": ["안녕하세요,", "어떻게", "지내세요?"]
+    },
+    {
+      "type": "missing_word",
+      "sentence": "저는 아침에 커피를 마셔요",
+      "missingWordIndex": 3,
+      "correctWord": "커피를",
+      "options": ["커피를", "테이블", "창문", "파란색"]
+    },
+    {
+      "type": "spelling",
+      "englishWord": "book",
+      "correctSpelling": "책"
+    },
+    {
+      "type": "matching",
+      "englishSentence": "I would like some tea, please.",
+      "translatedSentence": "차 좀 주세요.",
+      "words": ["차", "좀", "주세요."]
+    },
+    {
+      "type": "missing_word",
+      "sentence": "오늘 날씨가 정말 좋아요",
+      "missingWordIndex": 3,
+      "correctWord": "좋아요",
+      "options": ["좋아요", "의자", "사과", "검은색"]
+    },
+    {
+      "type": "spelling",
+      "englishWord": "water",
+      "correctSpelling": "물"
+    },
+    {
+      "type": "matching",
+      "englishSentence": "My name is Kim Minjun.",
+      "translatedSentence": "제 이름은 김민준이에요.",
+      "words": ["제", "이름은", "김민준이에요."]
+    },
+    {
+      "type": "missing_word",
+      "sentence": "저는 한국에서 왔어요",
+      "missingWordIndex": 1,
+      "correctWord": "한국에서",
+      "options": ["한국에서", "고양이", "책상", "파란색"]
+    },
+    {
+      "type": "spelling",
+      "englishWord": "house",
+      "correctSpelling": "집"
+    },
+    {
+      "type": "matching",
+      "englishSentence": "What time is it?",
+      "translatedSentence": "지금 몇 시예요?",
+      "words": ["지금", "몇", "시예요?"]
+    }
+  ],
+  "summaryTest": [
+    {
+      "type": "matching",
+      "englishSentence": "Thank you very much",
+      "translatedSentence": "정말 감사합니다",
+      "words": ["정말", "감사합니다"]
+    },
+    {
+      "type": "missing_word",
+      "sentence": "저는 서울에 살아요",
+      "missingWordIndex": 2,
+      "correctWord": "살아요",
+      "options": ["살아요", "개", "초록색", "큰"]
+    },
+    {
+      "type": "spelling",
+      "englishWord": "friend",
+      "correctSpelling": "친구"
+    }
+  ]
+} 

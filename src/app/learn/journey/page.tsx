@@ -398,6 +398,111 @@ function JourneyPageContent() {
       const testRound = fallback.summaryTest[0] as MatchingRound;
       testRound.translatedSentence = 'Vielen Dank';
       testRound.words = ['Vielen', 'Dank'];
+    } else if (language === 'pt-BR') {
+      // Brazilian Portuguese fallback
+      const matchingRound = fallback.rounds[0] as MatchingRound;
+      matchingRound.translatedSentence = 'Olá, como você está?';
+      matchingRound.words = ['Olá,', 'como', 'você', 'está?'];
+      
+      // Update missing word round
+      const missingWordRound = fallback.rounds[1] as LegacyMissingWordRound;
+      missingWordRound.sentence = 'Eu gosto de tomar café de manhã';
+      missingWordRound.missingWordIndex = 3;
+      missingWordRound.correctWord = 'tomar';
+      missingWordRound.options = ['tomar', 'mesa', 'janela', 'azul'];
+      
+      // Update spelling round
+      const spellingRound = fallback.rounds[2] as SpellingRound;
+      spellingRound.correctSpelling = 'livro';
+      
+      // Update test round
+      const testRound = fallback.summaryTest[0] as MatchingRound;
+      testRound.translatedSentence = 'Muito obrigado';
+      testRound.words = ['Muito', 'obrigado'];
+    } else if (language === 'zh') {
+      // Chinese fallback
+      const matchingRound = fallback.rounds[0] as MatchingRound;
+      matchingRound.translatedSentence = '你好，你好吗？';
+      matchingRound.words = ['你好，', '你', '好吗？'];
+      
+      // Update missing word round
+      const missingWordRound = fallback.rounds[1] as LegacyMissingWordRound;
+      missingWordRound.sentence = '我喜欢早上喝咖啡';
+      missingWordRound.missingWordIndex = 2;
+      missingWordRound.correctWord = '早上';
+      missingWordRound.options = ['早上', '桌子', '窗户', '蓝色'];
+      
+      // Update spelling round
+      const spellingRound = fallback.rounds[2] as SpellingRound;
+      spellingRound.correctSpelling = '书';
+      
+      // Update test round
+      const testRound = fallback.summaryTest[0] as MatchingRound;
+      testRound.translatedSentence = '非常感谢';
+      testRound.words = ['非常', '感谢'];
+    } else if (language === 'ko') {
+      // Korean fallback
+      const matchingRound = fallback.rounds[0] as MatchingRound;
+      matchingRound.translatedSentence = '안녕하세요, 어떻게 지내세요?';
+      matchingRound.words = ['안녕하세요,', '어떻게', '지내세요?'];
+      
+      // Update missing word round
+      const missingWordRound = fallback.rounds[1] as LegacyMissingWordRound;
+      missingWordRound.sentence = '저는 아침에 커피 마시는 것을 좋아해요';
+      missingWordRound.missingWordIndex = 3;
+      missingWordRound.correctWord = '커피';
+      missingWordRound.options = ['커피', '테이블', '창문', '파란색'];
+      
+      // Update spelling round
+      const spellingRound = fallback.rounds[2] as SpellingRound;
+      spellingRound.correctSpelling = '책';
+      
+      // Update test round
+      const testRound = fallback.summaryTest[0] as MatchingRound;
+      testRound.translatedSentence = '정말 감사합니다';
+      testRound.words = ['정말', '감사합니다'];
+    } else if (language === 'no') {
+      // Norwegian fallback
+      const matchingRound = fallback.rounds[0] as MatchingRound;
+      matchingRound.translatedSentence = 'Hei, hvordan har du det?';
+      matchingRound.words = ['Hei,', 'hvordan', 'har', 'du', 'det?'];
+      
+      // Update missing word round
+      const missingWordRound = fallback.rounds[1] as LegacyMissingWordRound;
+      missingWordRound.sentence = 'Jeg liker å drikke kaffe om morgenen';
+      missingWordRound.missingWordIndex = 4;
+      missingWordRound.correctWord = 'drikke';
+      missingWordRound.options = ['drikke', 'bord', 'vindu', 'blå'];
+      
+      // Update spelling round
+      const spellingRound = fallback.rounds[2] as SpellingRound;
+      spellingRound.correctSpelling = 'bok';
+      
+      // Update test round
+      const testRound = fallback.summaryTest[0] as MatchingRound;
+      testRound.translatedSentence = 'Tusen takk';
+      testRound.words = ['Tusen', 'takk'];
+    } else if (language === 'ar') {
+      // Arabic fallback
+      const matchingRound = fallback.rounds[0] as MatchingRound;
+      matchingRound.translatedSentence = 'مرحبا، كيف حالك؟';
+      matchingRound.words = ['مرحبا،', 'كيف', 'حالك؟'];
+      
+      // Update missing word round
+      const missingWordRound = fallback.rounds[1] as LegacyMissingWordRound;
+      missingWordRound.sentence = 'أحب شرب القهوة في الصباح';
+      missingWordRound.missingWordIndex = 2;
+      missingWordRound.correctWord = 'شرب';
+      missingWordRound.options = ['شرب', 'طاولة', 'نافذة', 'أزرق'];
+      
+      // Update spelling round
+      const spellingRound = fallback.rounds[2] as SpellingRound;
+      spellingRound.correctSpelling = 'كتاب';
+      
+      // Update test round
+      const testRound = fallback.summaryTest[0] as MatchingRound;
+      testRound.translatedSentence = 'شكرا جزيلا';
+      testRound.words = ['شكرا', 'جزيلا'];
     } else if (language === 'es') {
       // Update matching round
       const matchingRound = fallback.rounds[0] as MatchingRound;

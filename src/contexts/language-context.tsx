@@ -66,9 +66,23 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     setSelectedLanguage(language);
     localStorage.setItem('selectedLanguage', JSON.stringify(language));
     
-    // If user is authenticated, update their active language in the database
+    // If user is authenticated, check if they have progress for this language
     if (session?.user) {
       try {
+        // Check if user has progress for this language
+        const progressResponse = await fetch(`/api/user/progress/check?language=${language.code}`);
+        
+        if (progressResponse.status === 404 || progressResponse.status === 406) {
+          // No progress found for this language - redirect to account setup
+          console.log(`No progress found for language ${language.code}, redirecting to setup`);
+          
+          // Set a flag to indicate this is for language setup, not initial account setup
+          localStorage.setItem('setupLanguage', language.code);
+          router.push('/account-setup');
+          return;
+        }
+        
+        // Update their active language in the database
         await fetch('/api/user/active-language', {
           method: 'PUT',
           headers: {
@@ -77,7 +91,8 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
           body: JSON.stringify({ language: language.code }),
         });
       } catch (error) {
-        console.error('Failed to update active language:', error);
+        console.error('Failed to check progress or update active language:', error);
+        // Continue anyway, let the journey page handle the missing progress
       }
     }
     

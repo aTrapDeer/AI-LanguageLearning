@@ -1,0 +1,86 @@
+{
+  "language": "zh",
+  "level": 1,
+  "rounds": [
+    {
+      "type": "matching",
+      "englishSentence": "Hello, how are you?",
+      "translatedSentence": "你好，你好吗？",
+      "words": ["你好，", "你", "好吗？"]
+    },
+    {
+      "type": "missing_word",
+      "sentence": "我喜欢早上喝咖啡",
+      "missingWordIndex": 2,
+      "correctWord": "早上",
+      "options": ["早上", "桌子", "窗户", "蓝色"]
+    },
+    {
+      "type": "spelling",
+      "englishWord": "book",
+      "correctSpelling": "书"
+    },
+    {
+      "type": "matching",
+      "englishSentence": "I would like some tea, please.",
+      "translatedSentence": "我想要一些茶，谢谢。",
+      "words": ["我", "想要", "一些", "茶，", "谢谢。"]
+    },
+    {
+      "type": "missing_word",
+      "sentence": "今天天气很好",
+      "missingWordIndex": 3,
+      "correctWord": "好",
+      "options": ["好", "椅子", "苹果", "黑色"]
+    },
+    {
+      "type": "spelling",
+      "englishWord": "water",
+      "correctSpelling": "水"
+    },
+    {
+      "type": "matching",
+      "englishSentence": "My name is Li Ming.",
+      "translatedSentence": "我叫李明。",
+      "words": ["我", "叫", "李明。"]
+    },
+    {
+      "type": "missing_word",
+      "sentence": "我来自中国",
+      "missingWordIndex": 1,
+      "correctWord": "来自",
+      "options": ["来自", "猫", "桌子", "蓝色"]
+    },
+    {
+      "type": "spelling",
+      "englishWord": "house",
+      "correctSpelling": "房子"
+    },
+    {
+      "type": "matching",
+      "englishSentence": "What time is it?",
+      "translatedSentence": "现在几点？",
+      "words": ["现在", "几点？"]
+    }
+  ],
+  "summaryTest": [
+    {
+      "type": "matching",
+      "englishSentence": "Thank you very much",
+      "translatedSentence": "非常感谢",
+      "words": ["非常", "感谢"]
+    },
+    {
+      "type": "missing_word",
+      "sentence": "我住在北京",
+      "missingWordIndex": 1,
+      "correctWord": "住在",
+      "options": ["住在", "狗", "绿色", "大"]
+    },
+    {
+      "type": "spelling",
+      "englishWord": "friend",
+      "correctSpelling": "朋友"
+    }
+  ]
+} 

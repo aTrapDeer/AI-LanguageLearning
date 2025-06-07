@@ -126,7 +126,81 @@ const FALLBACK_DATA: Record<string, JourneyData | null> = {
   }
 };
 
-// Try to load German fallback data
+// Theme and content generation helpers
+function getRandomThemes(level: number): string[] {
+  const allThemes = {
+    beginner: [
+      'daily routines', 'family and friends', 'food and dining', 'shopping', 'weather and seasons',
+      'home and living', 'hobbies and free time', 'transportation', 'health and body', 'numbers and time'
+    ],
+    intermediate: [
+      'work and career', 'education and learning', 'travel and tourism', 'technology and media',
+      'environment and nature', 'culture and traditions', 'sports and fitness', 'arts and entertainment',
+      'politics and society', 'science and innovation'
+    ],
+    advanced: [
+      'philosophy and ethics', 'business and economics', 'global issues', 'literature and poetry',
+      'history and heritage', 'psychology and human behavior', 'international relations',
+      'sustainability and future', 'scientific research', 'cultural analysis'
+    ]
+  };
+
+  if (level <= 3) return allThemes.beginner;
+  if (level <= 6) return [...allThemes.beginner, ...allThemes.intermediate];
+  return [...allThemes.intermediate, ...allThemes.advanced];
+}
+
+function createDynamicPrompt(languageName: string, languageCode: string, level: number, levelDescription: string, theme: string): string {
+  const complexity = level <= 3 ? 'simple' : level <= 6 ? 'intermediate' : 'advanced';
+  const multiWordCount = level <= 4 ? 1 : level <= 7 ? 2 : level <= 9 ? 3 : 4;
+  
+  return `Create a ${languageName} learning journey (level ${level}/10: ${levelDescription}) focused on "${theme}".
+
+REQUIREMENTS:
+- 10 varied rounds + 3 summary test rounds
+- Mix of matching, missing_word, and spelling exercises
+- Theme: ${theme} (but use diverse vocabulary within this theme)
+- Complexity: ${complexity} level content
+- Use natural, conversational ${languageName}
+
+EXERCISE FORMATS:
+
+MATCHING: {"type":"matching", "englishSentence":"...", "translatedSentence":"...", "words":["word1","word2","..."]}
+
+MISSING_WORD: 
+- Levels 1-4: {"type":"missing_word", "sentence":"...", "missingWordIndices":[index], "correctWords":["word"], "options":["correct","wrong1","wrong2","wrong3"], "isSingleWord":true}
+- Levels 5+: {"type":"missing_word", "sentence":"...", "missingWordIndices":[i1,i2,...], "correctWords":["word1","word2",...], "options":["all","correct","words","plus","distractors"], "isSingleWord":false}
+
+SPELLING: {"type":"spelling", "englishWord":"...", "correctSpelling":"..."}
+
+GUIDELINES:
+- Use ${multiWordCount} missing words for level ${level}
+- Make wrong options completely unrelated (not synonyms)
+- Vary sentence lengths: ${level <= 3 ? '3-5' : level <= 6 ? '5-8' : '8-12'} words
+- Cultural relevance: include ${languageName}-speaking region references when appropriate
+- Avoid repetitive patterns
+
+Return only valid JSON: {"language":"${languageCode}", "level":${level}, "rounds":[...], "summaryTest":[...]}`;
+}
+
+// Improved fallback management
+function createLanguageSpecificFallback(language: string, level: number): JourneyData | null {
+  // Check if we have a static file for this language
+  try {
+    const fallbackPath = path.join(process.cwd(), `src/static/sample-journey-${language}.json`);
+    if (fs.existsSync(fallbackPath)) {
+      const data = fs.readFileSync(fallbackPath, 'utf8');
+      const parsed = JSON.parse(data);
+      parsed.level = level; // Update to requested level
+      return parsed;
+    }
+  } catch (error) {
+    console.error(`Failed to load ${language} fallback:`, error);
+  }
+  return null;
+}
+
+// Try to load language-specific fallback data
 try {
   const germanFallbackPath = path.join(process.cwd(), 'src/static/sample-journey.json');
   if (fs.existsSync(germanFallbackPath)) {
@@ -135,6 +209,16 @@ try {
   }
 } catch (error) {
   console.error('Failed to load German fallback data:', error);
+}
+
+try {
+  const portugueseFallbackPath = path.join(process.cwd(), 'src/static/sample-journey-pt-br.json');
+  if (fs.existsSync(portugueseFallbackPath)) {
+    const portugueseData = fs.readFileSync(portugueseFallbackPath, 'utf8');
+    FALLBACK_DATA['pt-BR'] = JSON.parse(portugueseData);
+  }
+} catch (error) {
+  console.error('Failed to load Portuguese fallback data:', error);
 }
 
 // Generate journey content
@@ -170,89 +254,28 @@ export async function POST(req: Request) {
 
     // Try to generate with OpenAI
     try {
-      // ChatGPT prompt to generate journey content
-      const prompt = `
-Create an educational language learning journey for a ${levelDescription} student learning ${languageName}. The journey should have 10 regular rounds plus a 3-round summary test.
-
-IMPORTANT - DIFFICULTY SCALING: Users have reported that the difficulty progression is too gradual. Make each level SIGNIFICANTLY more challenging than the previous.
-
-Carefully adjust the difficulty of ALL content to match the student's level (${userLevel}/10) using these guidelines:
-- Level 1-2: Very simple words and phrases (greetings, numbers, colors)
-- Level 3-4: Basic everyday vocabulary and simple sentences
-- Level 5-6: Intermediate vocabulary, longer sentences, some grammar complexity
-- Level 7-8: Advanced vocabulary, complex sentences, idioms, with some multi-word challenges
-- Level 9-10: Native-level content, sophisticated vocabulary, cultural nuances, with frequent multi-word challenges
-
-The journey should include these round types:
-1. Matching rounds: User matches English words/phrases with their ${languageName} translations
-2. Missing word rounds: User fills in one or more missing words in a ${languageName} sentence (multiple words for levels 5+)
-3. Spelling rounds: User types the ${languageName} spelling for an English word or phrase (more complex for higher levels)
-
-For matching rounds, include:
-- "type": "matching"
-- "englishSentence": English sentence (e.g. "Hello, how are you?")
-- "translatedSentence": Translation in ${languageName} (e.g. "Hallo, wie geht es dir?")
-- "words": An array containing each word from the translated sentence in the correct order (e.g. ["Hallo,", "wie", "geht", "es", "dir?"])
-
-For missing word rounds, include:
-- "type": "missing_word"
-- For levels 1-4 (single missing word):
-  - "sentence": A sentence in ${languageName} (e.g. "Ich trinke gerne Kaffee am Morgen")
-  - "missingWordIndices": Array with a single index of the word to hide (e.g. [2] for "gerne" in the example)
-  - "correctWords": Array with the single word that will be hidden (e.g. ["gerne"])
-  - "options": Array of EXACTLY 4 words: the correct word plus 3 obviously incorrect options they can not be related or interchangable (small and large can be interchangable in theory)
-  - "isSingleWord": true
-- For levels 5-10 (multiple missing words):
-  - "sentence": A sentence in ${languageName} (e.g. "Ich trinke gerne Kaffee am Morgen")
-  - "missingWordIndices": Array with the indices of the words to hide (e.g. [2, 4] for "gerne" and "Morgen")
-  - "correctWords": Array with the words in their correct order (e.g. ["gerne", "Morgen"])
-  - "options": Array of 6-8 words, including all correct words plus distractors they can not be related or interchangable (small and large can be interchangable in theory)
-  - "isSingleWord": false
-
-For spelling rounds, include:
-- "type": "spelling"
-- "englishWord": A word in English (levels 1-5) or phrase (levels 6-10) (e.g. "book")
-- "correctSpelling": The correct spelling in ${languageName} (e.g. "Buch")
-
-LEVEL-SPECIFIC DIFFICULTY EXAMPLES (apply these principles across all round types):
-- Level 1: 2-3 word sentences, elementary vocabulary (hello, yes, no, thanks, numbers 1-10)
-- Level 2: 3-4 word sentences, basic nouns (cat, dog, house), colors, simple verbs in present tense
-- Level 3: 4-5 word simple sentences, common verbs with present tense conjugation, everyday nouns
-- Level 4: 5-6 word sentences, basic adjectives, simple questions, common phrases
-- Level 5: 6-8 word sentences, past tense, multiple-word matching, pronouns, possessives, 2 missing words
-- Level 6: 8+ word sentences, future tense, conditional statements, basic idioms, 2-3 missing words
-- Level 7: Complex sentences with subclauses, modal verbs, idiomatic expressions, 2-3 missing words
-- Level 8: Complex verb tenses, passive voice, technical vocabulary, cultural references, 3-4 missing words
-- Level 9: Literary language, slang, business terminology, longer texts with multiple clauses, 3-4 missing words
-- Level 10: Native-level content, academic/specialized vocabulary, nuanced expressions, complex grammar, 4+ missing words
-
-CHALLENGE REQUIREMENT: Each level should feel like a challenging stretch for the student. Don't make it too easy - push them to expand their knowledge.
-
-Format your response as a single JSON object with this structure:
-{
-  "language": "${language}",
-  "level": ${userLevel},
-  "rounds": [
-    // 10 rounds with a mix of types, difficulty appropriate to level ${userLevel}
-  ],
-  "summaryTest": [
-    // 3 test rounds with a mix of types, difficulty appropriate to level ${userLevel}
-  ]
-}
-`;
+      // Get a random theme to ensure variety
+      const themes = getRandomThemes(userLevel);
+      const selectedTheme = themes[Math.floor(Math.random() * themes.length)];
+      
+      // Create a more flexible, theme-based prompt
+      const prompt = createDynamicPrompt(languageName, language, userLevel, levelDescription, selectedTheme);
 
       // Generate content with ChatGPT
-      console.log('Calling OpenAI API...');
+      console.log(`Calling OpenAI API with theme: ${selectedTheme}...`);
       const completion = await openai.chat.completions.create({
         model: "gpt-4o",
         messages: [
           {
             role: "system",
-            content: "You are a language learning curriculum designer. You create educational content for language learners. You only respond in valid JSON format. Follow the example format exactly."
+            content: "You are a creative language learning curriculum designer. Create diverse, engaging content that avoids repetitive patterns. Prioritize natural conversation and cultural authenticity. Always respond in valid JSON format."
           },
           { role: "user", content: prompt }
         ],
-        temperature: 0.7,
+        temperature: 0.8, // Higher temperature for more variety
+        top_p: 0.9,
+        frequency_penalty: 0.3, // Reduce repetition
+        presence_penalty: 0.2,
         response_format: { type: "json_object" }
       });
       
@@ -347,9 +370,16 @@ Format your response as a single JSON object with this structure:
 function getFallbackJourney(language: string, level: number): JourneyData {
   console.log(`Using fallback journey for ${language} at level ${level}`);
   
-  // Use language-specific fallback if available
+  // Try new intelligent fallback first
+  const smartFallback = createLanguageSpecificFallback(language, level);
+  if (smartFallback) {
+    console.log(`Found smart fallback data for ${language}`);
+    return processJourneyData(smartFallback);
+  }
+  
+  // Use cached fallback if available
   if (FALLBACK_DATA[language]) {
-    console.log(`Found specific fallback data for ${language}`);
+    console.log(`Found cached fallback data for ${language}`);
     const fallback = {...FALLBACK_DATA[language]!};
     fallback.level = level; // Update level to match request
     fallback.language = language; // Ensure language code is correct
@@ -364,8 +394,155 @@ function getFallbackJourney(language: string, level: number): JourneyData {
   fallback.language = language;
   fallback.level = level;
   
-  // Try to add some language-specific fallback indicators
-  if (language in LANGUAGE_NAMES) {
+  // Add language-specific fallback content
+  if (language === 'pt-BR') {
+    // Brazilian Portuguese fallback
+    fallback.rounds[0] = {
+      type: 'matching',
+      englishSentence: "Hello, how are you?",
+      translatedSentence: 'Olá, como você está?',
+      words: ['Olá,', 'como', 'você', 'está?']
+    };
+    
+    fallback.rounds[1] = {
+      type: 'missing_word',
+      sentence: 'Eu gosto de tomar café de manhã',
+      missingWordIndex: 3,
+      correctWord: 'tomar',
+      options: ['tomar', 'mesa', 'janela', 'azul']
+    };
+    
+    fallback.rounds[2] = {
+      type: 'spelling',
+      englishWord: "book",
+      correctSpelling: 'livro'
+    };
+    
+    // Update test round
+    fallback.summaryTest[0] = {
+      type: 'matching',
+      englishSentence: "Thank you very much",
+      translatedSentence: 'Muito obrigado',
+      words: ['Muito', 'obrigado']
+    };
+  } else if (language === 'zh') {
+    // Chinese fallback
+    fallback.rounds[0] = {
+      type: 'matching',
+      englishSentence: "Hello, how are you?",
+      translatedSentence: '你好，你好吗？',
+      words: ['你好，', '你', '好吗？']
+    };
+    
+    fallback.rounds[1] = {
+      type: 'missing_word',
+      sentence: '我喜欢早上喝咖啡',
+      missingWordIndex: 2,
+      correctWord: '早上',
+      options: ['早上', '桌子', '窗户', '蓝色']
+    };
+    
+    fallback.rounds[2] = {
+      type: 'spelling',
+      englishWord: "book",
+      correctSpelling: '书'
+    };
+    
+    fallback.summaryTest[0] = {
+      type: 'matching',
+      englishSentence: "Thank you very much",
+      translatedSentence: '非常感谢',
+      words: ['非常', '感谢']
+    };
+  } else if (language === 'ko') {
+    // Korean fallback
+    fallback.rounds[0] = {
+      type: 'matching',
+      englishSentence: "Hello, how are you?",
+      translatedSentence: '안녕하세요, 어떻게 지내세요?',
+      words: ['안녕하세요,', '어떻게', '지내세요?']
+    };
+    
+    fallback.rounds[1] = {
+      type: 'missing_word',
+      sentence: '저는 아침에 커피 마시는 것을 좋아해요',
+      missingWordIndex: 3,
+      correctWord: '커피',
+      options: ['커피', '테이블', '창문', '파란색']
+    };
+    
+    fallback.rounds[2] = {
+      type: 'spelling',
+      englishWord: "book",
+      correctSpelling: '책'
+    };
+    
+    fallback.summaryTest[0] = {
+      type: 'matching',
+      englishSentence: "Thank you very much",
+      translatedSentence: '정말 감사합니다',
+      words: ['정말', '감사합니다']
+    };
+  } else if (language === 'no') {
+    // Norwegian fallback
+    fallback.rounds[0] = {
+      type: 'matching',
+      englishSentence: "Hello, how are you?",
+      translatedSentence: 'Hei, hvordan har du det?',
+      words: ['Hei,', 'hvordan', 'har', 'du', 'det?']
+    };
+    
+    fallback.rounds[1] = {
+      type: 'missing_word',
+      sentence: 'Jeg liker å drikke kaffe om morgenen',
+      missingWordIndex: 4,
+      correctWord: 'drikke',
+      options: ['drikke', 'bord', 'vindu', 'blå']
+    };
+    
+    fallback.rounds[2] = {
+      type: 'spelling',
+      englishWord: "book",
+      correctSpelling: 'bok'
+    };
+    
+    fallback.summaryTest[0] = {
+      type: 'matching',
+      englishSentence: "Thank you very much",
+      translatedSentence: 'Tusen takk',
+      words: ['Tusen', 'takk']
+    };
+  } else if (language === 'ar') {
+    // Arabic fallback
+    fallback.rounds[0] = {
+      type: 'matching',
+      englishSentence: "Hello, how are you?",
+      translatedSentence: 'مرحبا، كيف حالك؟',
+      words: ['مرحبا،', 'كيف', 'حالك؟']
+    };
+    
+    fallback.rounds[1] = {
+      type: 'missing_word',
+      sentence: 'أحب شرب القهوة في الصباح',
+      missingWordIndex: 2,
+      correctWord: 'شرب',
+      options: ['شرب', 'طاولة', 'نافذة', 'أزرق']
+    };
+    
+    fallback.rounds[2] = {
+      type: 'spelling',
+      englishWord: "book",
+      correctSpelling: 'كتاب'
+    };
+    
+    fallback.summaryTest[0] = {
+      type: 'matching',
+      englishSentence: "Thank you very much",
+      translatedSentence: 'شكرا جزيلا',
+      words: ['شكرا', 'جزيلا']
+    };
+  } else if (language in LANGUAGE_NAMES) {
+    // Generic fallback with placeholder text
     const langName = LANGUAGE_NAMES[language];
     fallback.rounds[0].translatedSentence = `[Translation to ${langName} would be here]`;
     if (fallback.rounds[0].type === 'matching') {
