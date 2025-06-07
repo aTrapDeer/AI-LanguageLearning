@@ -36,18 +36,18 @@ type SpellingRound = {
   correctSpelling: string;
 };
 
-// New image question type
-type ImageQuestionRound = {
-  type: 'image_question';
+// New image generation round type
+type ImageRound = {
+  type: 'image';
   englishPrompt: string;
-  targetLanguagePrompt: string;
-  correctAnswer: string;
+  targetLanguageWord: string;
   options: string[];
-  imageDescription: string;
+  imageUrl: string;
+  description?: string;
 };
 
 // Support both new and legacy formats
-type Round = MatchingRound | MissingWordRound | SpellingRound | LegacyMissingWordRound | ImageQuestionRound;
+type Round = MatchingRound | MissingWordRound | SpellingRound | LegacyMissingWordRound | ImageRound;
 
 type JourneyData = {
   language: string;
@@ -168,16 +168,18 @@ function createDynamicPrompt(languageName: string, languageCode: string, level: 
 
 REQUIREMENTS:
 - 10 varied rounds + 3 summary test rounds
-- Mix of matching, missing_word, spelling, and image_question exercises
-- MUST include exactly 2 image_question rounds in the 10 main rounds
+- Mix of matching, missing_word, spelling, and IMAGE exercises
+- EXACTLY 1 image exercise in the main rounds (not in summary)
 - Theme: ${theme} (but use diverse vocabulary within this theme)
 - Complexity: ${complexity} level content
 - Use natural, conversational ${languageName}
-- Create UNIQUE content - avoid repetitive patterns and words
 
 EXERCISE FORMATS:
 
-MATCHING: {"type":"matching", "englishSentence":"...", "translatedSentence":"...", "words":["word1","word2","..."]}
+MATCHING: {"type":"matching", "englishSentence":"...", "translatedSentence":"...", "words":["ALL","words","from","translated","sentence","including","punctuation"]}
+- The "words" array MUST contain ALL words from the translatedSentence in the correct order
+- Include punctuation marks as separate elements if needed
+- Example: translatedSentence "Was studierst du?" → words ["Was","studierst","du?"]
 
 MISSING_WORD: 
 - Levels 1-4: {"type":"missing_word", "sentence":"...", "missingWordIndices":[index], "correctWords":["word"], "options":["correct","wrong1","wrong2","wrong3"], "isSingleWord":true}
@@ -185,23 +187,21 @@ MISSING_WORD:
 
 SPELLING: {"type":"spelling", "englishWord":"...", "correctSpelling":"..."}
 
-IMAGE_QUESTION: {"type":"image_question", "englishPrompt":"What do you see in this image?", "targetLanguagePrompt":"[Same question in ${languageName}]", "correctAnswer":"[correct answer in ${languageName}]", "options":["correct","wrong1","wrong2","wrong3"], "imageDescription":"A clear visual scene description for DALL-E to generate"}
+IMAGE: {"type":"image", "englishPrompt":"A clear, simple image of [object/scene]", "targetLanguageWord":"${languageName} word for what's shown", "options":["correct_word","wrong1","wrong2","wrong3"], "imageUrl":"", "description":"Brief description for accessibility"}
 
-CONTENT VARIETY RULES:
+GUIDELINES:
 - Use ${multiWordCount} missing words for level ${level}
 - Make wrong options completely unrelated (not synonyms)
 - Vary sentence lengths: ${level <= 3 ? '3-5' : level <= 6 ? '5-8' : '8-12'} words
-- Use different sentence structures and verb tenses
-- Include varied vocabulary beyond basic words
 - Cultural relevance: include ${languageName}-speaking region references when appropriate
-- NO repetitive "I like coffee" or "Hello, how are you" patterns
-- Use random everyday scenarios: restaurants, parks, offices, homes, streets, etc.
+- Avoid repetitive patterns
+- For IMAGE exercise: Choose common nouns/objects that are easy to visualize and recognize
 
-IMAGE QUESTION GUIDELINES:
-- Create visual scenes that test vocabulary knowledge
-- Use simple, recognizable objects and actions
-- Image descriptions should be clear and specific for DALL-E generation
-- Examples: "A person reading a book in a library", "Fresh fruit on a kitchen table", "Children playing in a park"
+CRITICAL FOR MATCHING EXERCISES:
+- The "words" array must contain every single word from the "translatedSentence"
+- Split the translatedSentence on spaces to get the words array
+- Do NOT include extra distractor words in the words array
+- The user will reconstruct the exact translatedSentence using only these words
 
 Return only valid JSON: {"language":"${languageCode}", "level":${level}, "rounds":[...], "summaryTest":[...]}`;
 }
@@ -250,33 +250,53 @@ try {
   console.error('Failed to load Portuguese fallback data:', error);
 }
 
+// Image generation function using DALL-E 3 - TEMPORARILY DISABLED
+/* COMMENTED OUT TO PREVENT RATE LIMITING
+async function generateImage(prompt: string): Promise<string> {
+  try {
+    console.log(`Generating image with DALL-E 3 for prompt: ${prompt}`);
+    const response = await openai.images.generate({
+      model: "dall-e-3",
+      prompt: prompt,
+      n: 1,
+      size: "1024x1024",
+      quality: "standard",
+      style: "natural"
+    });
+    
+    const imageUrl = response.data[0]?.url;
+    if (!imageUrl) {
+      throw new Error('No image URL returned from DALL-E 3');
+    }
+    
+    console.log(`✅ Successfully generated image: ${imageUrl}`);
+    return imageUrl;
+  } catch (error) {
+    console.error('DALL-E 3 image generation failed:', error);
+    // Return a placeholder image URL if generation fails
+    return 'https://placehold.co/1024x1024/EAEAEA/CCCCCC?text=Image+Generation+Failed';
+  }
+}
+*/
+
 // Generate journey content
 export async function POST(req: Request) {
   try {
-    // Get raw text first for debugging, then parse
-    const bodyText = await req.text();
-    console.log('Raw request body received, length:', bodyText.length);
+    // Debug: Log the raw request body before parsing 
+    const rawBody = await req.text();
+    console.log(`🔍 Raw request body: "${rawBody}"`);
+    console.log(`🔍 Raw body length: ${rawBody.length}`);
+    console.log(`🔍 First 50 chars: "${rawBody.substring(0, 50)}"`);
     
-    let body;
-    try {
-      body = JSON.parse(bodyText);
-      console.log('Successfully parsed JSON body:', body);
-    } catch (jsonError) {
-      console.error('JSON parsing error:', jsonError);
-      console.error('Raw request body that failed to parse:', bodyText);
-      console.error('Character at error position:', bodyText.charAt(12));
-      console.error('Context around error:', bodyText.substring(Math.max(0, 12-10), 12+10));
-      // Return fallback if JSON is malformed
-      return NextResponse.json(getFallbackJourney('en', 1));
-    }
-    
+    // Now parse the JSON
+    const body = JSON.parse(rawBody);
     const { language, level } = body;
 
-    console.log(`Journey generation requested for language: ${language}, level: ${level}`);
+    console.log(`🚀 Journey generation requested for language: ${language}, level: ${level}`);
     
     // Validate language code
     if (!language) {
-      console.warn('No language code provided, defaulting to English');
+      console.warn('❌ No language code provided, defaulting to English');
       return NextResponse.json(getFallbackJourney('en', level || 1));
     }
     
@@ -289,13 +309,23 @@ export async function POST(req: Request) {
     const languageName = LANGUAGE_NAMES[language] || 'English';
     const levelDescription = LEVEL_DESCRIPTIONS[userLevel] || LEVEL_DESCRIPTIONS[1];
     
-    console.log(`Using language name: ${languageName} at level: ${userLevel}`);
+    console.log(`📝 Using language name: ${languageName} at level: ${userLevel}`);
+    console.log(`📄 Level description: ${levelDescription}`);
     
     // Check for OpenAI API key
     if (!process.env.OPENAI_API_KEY) {
-      console.warn('OPENAI_API_KEY is not set, using fallback journey data');
+      console.warn('❌ OPENAI_API_KEY is not set, using fallback journey data');
       return NextResponse.json(getFallbackJourney(language, userLevel));
     }
+
+    // Verify API key format
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey.startsWith('sk-') || apiKey.length < 20) {
+      console.warn('❌ OPENAI_API_KEY appears to be invalid format, using fallback journey data');
+      return NextResponse.json(getFallbackJourney(language, userLevel));
+    }
+
+    console.log('✅ OpenAI API key validated, proceeding with ChatGPT generation...');
 
     // Try to generate with OpenAI
     try {
@@ -307,22 +337,38 @@ export async function POST(req: Request) {
       const prompt = createDynamicPrompt(languageName, language, userLevel, levelDescription, selectedTheme);
 
       // Generate content with ChatGPT
-      console.log(`Calling OpenAI API with theme: ${selectedTheme}...`);
+      console.log(`🤖 Calling OpenAI API with theme: ${selectedTheme}...`);
       const completion = await openai.chat.completions.create({
         model: "gpt-4o-mini",
         messages: [
           {
             role: "system",
-            content: "You are a creative language learning curriculum designer. Create diverse, engaging content that avoids repetitive patterns. Prioritize natural conversation and cultural authenticity. Always respond in valid JSON format."
+            content: `You are a creative language learning curriculum designer. Create diverse, engaging content that avoids repetitive patterns. Prioritize natural conversation and cultural authenticity.
+
+CRITICAL: Always respond with VALID JSON only. Use this EXACT structure:
+{
+  "language": "language_code",
+  "level": number,
+  "rounds": [...],
+  "summaryTest": [...]
+}
+
+IMPORTANT JSON RULES:
+- NO extra characters before property names
+- Property names must be exactly: "language", "level", "rounds", "summaryTest"
+- NO dots, spaces, or quotes before property names
+- Ensure all JSON is properly formatted and parseable`
           },
           { role: "user", content: prompt }
         ],
-        temperature: 0.9, // Higher temperature for more variety
-        top_p: 0.95,
-        frequency_penalty: 0.4, // Reduce repetition
-        presence_penalty: 0.3,
+        temperature: 0.7, // Slightly lower temperature for more consistent JSON
+        top_p: 0.9,
+        frequency_penalty: 0.3, // Reduce repetition
+        presence_penalty: 0.2,
         response_format: { type: "json_object" }
       });
+      
+      console.log(`✅ ChatGPT API call successful! Generated ${completion.choices[0].message.content?.length || 0} characters`);
       
       // Extract and parse the JSON content
       const jsonContent = completion.choices[0].message.content;
@@ -332,11 +378,21 @@ export async function POST(req: Request) {
         throw new Error('Failed to generate journey content');
       }
       
+      console.log(`📝 Raw response length: ${jsonContent.length} characters`);
+      
+      // Clean up common JSON formatting issues that ChatGPT sometimes produces
+      const cleanedJson = jsonContent
+        .replace(/"\.(summaryTest|rounds|language|level)"/g, '"$1"') // Remove dots before property names
+        .replace(/(['"])\s*:\s*([^,}\]]*[^,}\]\s])\s*([,}\]])/g, '$1: $2$3') // Fix spacing issues
+        .trim();
+      
+      console.log(`🧹 Cleaned JSON (first 200 chars): ${cleanedJson.substring(0, 200)}...`);
+      
       // Parse and validate the JSON
       let journeyData: JourneyData;
       try {
-        journeyData = JSON.parse(jsonContent);
-        console.log('Successfully parsed OpenAI response');
+        journeyData = JSON.parse(cleanedJson);
+        console.log('✅ Successfully parsed OpenAI response');
         
         // Validate structure
         if (!journeyData.rounds || !Array.isArray(journeyData.rounds) || journeyData.rounds.length === 0) {
@@ -349,13 +405,23 @@ export async function POST(req: Request) {
           throw new Error('Invalid journey structure: missing or empty summaryTest array');
         }
 
-        // Validate each round
+        // Validate each round and add image support
         const isValidRound = (round: Partial<Round>): boolean => {
           if (!round || !round.type) return false;
           
           switch (round.type) {
             case 'matching':
-              return !!round.englishSentence && !!round.translatedSentence && Array.isArray(round.words);
+              if (!round.englishSentence || !round.translatedSentence || !Array.isArray(round.words)) {
+                return false;
+              }
+              // Check if words array contains all words from translatedSentence
+              const translatedWords = round.translatedSentence.split(' ');
+              const words = round.words as string[];
+              const hasAllWords = translatedWords.every(word => words.includes(word));
+              if (!hasAllWords) {
+                console.warn(`⚠️ Matching exercise missing words. Expected: ${translatedWords.join(' ')}, Got: ${words.join(' ')}`);
+              }
+              return true;
             case 'missing_word':
               // Support both new multi-word format and legacy single-word format
               if ('missingWordIndices' in round && Array.isArray(round.missingWordIndices)) {
@@ -373,12 +439,8 @@ export async function POST(req: Request) {
               return false;
             case 'spelling':
               return !!round.englishWord && !!round.correctSpelling;
-            case 'image_question':
-              return !!round.englishPrompt && 
-                     !!(round as ImageQuestionRound).targetLanguagePrompt && 
-                     !!(round as ImageQuestionRound).correctAnswer && 
-                     Array.isArray(round.options) && 
-                     !!(round as ImageQuestionRound).imageDescription;
+            case 'image':
+              return !!round.englishPrompt && !!round.targetLanguageWord && Array.isArray(round.options);
             default:
               return false;
           }
@@ -393,6 +455,40 @@ export async function POST(req: Request) {
           throw new Error('Invalid rounds in journey data');
         }
         
+        // Generate images for any image rounds
+        console.log('🖼️ Processing image rounds...');
+        for (let i = 0; i < journeyData.rounds.length; i++) {
+          const round = journeyData.rounds[i];
+          if (round.type === 'image') {
+            console.log(`🎨 Found image round at index ${i}, generating image...`);
+            
+            try {
+              // Re-enable image generation with error handling
+              console.log(`🎯 Generating image for prompt: ${round.englishPrompt}`);
+              const response = await openai.images.generate({
+                model: "dall-e-3",
+                prompt: round.englishPrompt,
+                n: 1,
+                size: "1024x1024",
+                quality: "standard",
+                style: "natural"
+              });
+              
+              const imageUrl = response.data[0]?.url;
+              if (imageUrl) {
+                (round as ImageRound).imageUrl = imageUrl;
+                console.log(`✅ Successfully generated image: ${imageUrl.substring(0, 100)}...`);
+              } else {
+                throw new Error('No image URL returned from DALL-E 3');
+              }
+            } catch (imageError) {
+              console.error('❌ Image generation failed:', imageError);
+              (round as ImageRound).imageUrl = 'https://placehold.co/1024x1024/EAEAEA/CCCCCC?text=Image+Generation+Failed';
+              console.log('🎭 Using placeholder image due to generation failure');
+            }
+          }
+        }
+        
         // Process the journey data to scramble words for matching rounds
         journeyData = processJourneyData(journeyData);
         
@@ -400,11 +496,41 @@ export async function POST(req: Request) {
         return NextResponse.json(journeyData);
       } catch (parseError) {
         console.error('Error parsing journey data:', parseError);
+        console.error('Raw OpenAI response:', jsonContent);
         throw new Error('Failed to parse journey content');
       }
     } catch (openaiError) {
-      console.error('OpenAI error:', openaiError);
-      // Fall back to predefined content
+      console.error('❌ OpenAI generation failed:', openaiError);
+      
+      // Add specific error handling for common issues
+      if (openaiError instanceof Error) {
+        console.error('Error message:', openaiError.message);
+        
+        // For JSON parsing errors, let's try to fix and retry once more
+        if (openaiError.message.includes('Failed to parse journey content')) {
+          console.log('🔄 JSON parsing failed, but this means ChatGPT is working. Check the cleaned JSON format above.');
+          console.log('🚫 FORCING FALLBACK TO DEBUG - but ChatGPT generation is actually working!');
+        }
+        
+        // Check for quota/billing issues
+        if (openaiError.message.includes('quota') || openaiError.message.includes('billing')) {
+          console.error('🚨 OpenAI quota/billing issue detected - falling back to static content');
+        }
+        // Check for rate limiting
+        else if (openaiError.message.includes('rate_limit')) {
+          console.error('🚨 OpenAI rate limit exceeded - falling back to static content');
+        }
+        // Check for authentication issues
+        else if (openaiError.message.includes('authentication') || openaiError.message.includes('api_key')) {
+          console.error('🚨 OpenAI authentication issue - falling back to static content');
+        }
+        else {
+          console.error('🚨 Unknown OpenAI error - falling back to static content');
+        }
+      }
+      
+      // TEMPORARY: Comment out fallback to force debugging of ChatGPT issues
+      console.log('📦 Using fallback journey data...');
       return NextResponse.json(getFallbackJourney(language, userLevel));
     }
   } catch (error) {
@@ -419,10 +545,10 @@ export async function POST(req: Request) {
 
 // Get fallback journey content based on language
 function getFallbackJourney(language: string, level: number): JourneyData {
-  console.log(`Using fallback journey for ${language} at level ${level}`);
+  console.log(`📦 Using fallback journey for ${language} at level ${level}`);
   
   // Try new intelligent fallback first
-  console.log(`Attempting to find smart fallback for ${language}...`);
+  console.log(`🔍 Attempting to find smart fallback for ${language}...`);
   const smartFallback = createLanguageSpecificFallback(language, level);
   if (smartFallback) {
     console.log(`✅ Found smart fallback data for ${language}, returning it!`);
@@ -433,7 +559,7 @@ function getFallbackJourney(language: string, level: number): JourneyData {
   
   // Use cached fallback if available
   if (FALLBACK_DATA[language]) {
-    console.log(`Found cached fallback data for ${language}`);
+    console.log(`🗂️ Found cached fallback data for ${language}`);
     const fallback = {...FALLBACK_DATA[language]!};
     fallback.level = level; // Update level to match request
     fallback.language = language; // Ensure language code is correct
@@ -443,7 +569,7 @@ function getFallbackJourney(language: string, level: number): JourneyData {
   }
   
   // Modify English fallback for other languages
-  console.log(`No specific fallback for ${language}, adapting English template`);
+  console.log(`🔄 No specific fallback for ${language}, adapting English template`);
   const fallback = JSON.parse(JSON.stringify(FALLBACK_DATA.en));
   fallback.language = language;
   fallback.level = level;

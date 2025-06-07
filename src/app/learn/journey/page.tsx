@@ -43,18 +43,18 @@ type SpellingRound = {
   correctSpelling: string
 }
 
-// New image question type
-type ImageQuestionRound = {
-  type: 'image_question'
+// New image round type
+type ImageRound = {
+  type: 'image'
   englishPrompt: string
-  targetLanguagePrompt: string
-  correctAnswer: string
+  targetLanguageWord: string
   options: string[]
-  imageDescription: string
+  imageUrl: string
+  description?: string
 }
 
 // Support both formats
-type Round = MatchingRound | MissingWordRound | SpellingRound | LegacyMissingWordRound | ImageQuestionRound
+type Round = MatchingRound | MissingWordRound | SpellingRound | LegacyMissingWordRound | ImageRound
 
 // The complete journey structure
 type Journey = {
@@ -110,19 +110,6 @@ function JourneyPageContent() {
   const [filledWords, setFilledWords] = useState<(string | null)[]>([])
   const [availableWords, setAvailableWords] = useState<string[]>([])
   const [isDragging, setIsDragging] = useState<string | null>(null)
-  
-  // Image state
-  const [sentenceImageUrl, setSentenceImageUrl] = useState<string | null>(null)
-  const [isLoadingImage, setIsLoadingImage] = useState(false)
-  const [useDefaultImage, setUseDefaultImage] = useState(false)
-  const [preloadedImages, setPreloadedImages] = useState<Record<number, string>>({})
-  const [isPreloadingImages, setIsPreloadingImages] = useState(false)
-  
-  // Image question state
-  const [imageQuestionUrl, setImageQuestionUrl] = useState<string | null>(null)
-  const [isLoadingImageQuestion, setIsLoadingImageQuestion] = useState(false)
-  
-  const DEFAULT_FALLBACK_IMAGE = 'https://placehold.co/400x200/EAEAEA/CCCCCC?text=Example+Image'
 
   // State persistence helpers
   const getStorageKey = (userId: string, language: string) => 
@@ -137,8 +124,7 @@ function JourneyPageContent() {
       isTestMode,
       userProgress,
       journeyComplete,
-      timestamp: Date.now(),
-      preloadedImages
+      timestamp: Date.now()
     }
     
     try {
@@ -182,7 +168,6 @@ function JourneyPageContent() {
       setIsTestMode(parsedState.isTestMode || false)
       setUserProgress(parsedState.userProgress || null)
       setJourneyComplete(parsedState.journeyComplete || false)
-      setPreloadedImages(parsedState.preloadedImages || {})
       
       return true
     } catch (error) {
@@ -760,16 +745,16 @@ function JourneyPageContent() {
         }
         break
       }
-      case 'image_question': {
-        // Check if selected option matches the correct answer
-        const imageQuestionRound = currentRoundData as ImageQuestionRound
-        if (!imageQuestionRound.correctAnswer) {
-          console.error("Missing correctAnswer in image question round data")
+      case 'image': {
+        // Handle image identification questions
+        const imageRound = currentRoundData as ImageRound
+        if (!imageRound.targetLanguageWord) {
+          console.error("Missing targetLanguageWord in image round data")
           setIsCorrect(false)
           setShowFeedback(true)
           return
         }
-        correct = selectedOption === imageQuestionRound.correctAnswer
+        correct = selectedOption === imageRound.targetLanguageWord
         break
       }
     }
@@ -813,373 +798,58 @@ function JourneyPageContent() {
 
   // Move to next round
   const moveToNextRound = () => {
-    setShowFeedback(false)
-    setIsCorrect(false)
-    setShowCorrectAnswer(false)
+    // Clear exercise-specific states
     setSelectedWords([])
     setSelectedOption(null)
     setSpellingInput('')
+    setShowFeedback(false)
+    setIsCorrect(false)
+    setShowCorrectAnswer(false)
     setFilledWords([])
     setAvailableWords([])
     setIsDragging(null)
-    setSentenceImageUrl(null)
-    setIsLoadingImage(false)
-    setUseDefaultImage(false)
     
-    const maxRounds = isTestMode 
-      ? journey!.summaryTest.length
-      : journey!.rounds.length
-    
-    if (currentRound + 1 < maxRounds) {
-      setCurrentRound(currentRound + 1)
-    } else if (!isTestMode) {
-      // If regular rounds are done, move to test mode
-      setIsTestMode(true)
-      setCurrentRound(0)
+    // Move to next round or test mode
+    if (isTestMode) {
+      const testRounds = journey?.summaryTest || []
+      if (currentRound < testRounds.length - 1) {
+        setCurrentRound(currentRound + 1)
+      } else {
+        // All tests completed - journey is complete
+        setJourneyComplete(true)
+      }
     } else {
-      // If test mode is also done, journey is complete
-      setJourneyComplete(true)
+      const rounds = journey?.rounds || []
+      if (currentRound < rounds.length - 1) {
+        setCurrentRound(currentRound + 1)
+      } else {
+        // Move to test mode
+        setIsTestMode(true)
+        setCurrentRound(0)
+      }
     }
   }
 
   // Retry the current round
   const handleRetry = () => {
     setShowFeedback(false)
+    setShowCorrectAnswer(false)
     setSelectedWords([])
     setSelectedOption(null)
     setSpellingInput('')
-    setShowCorrectAnswer(false)
-    
-    // Reset multi-word exercise state if needed
-    const currentRoundData = getRoundData();
-    if (currentRoundData?.type === 'missing_word' && 'missingWordIndices' in currentRoundData) {
-      initializeMultiWordExercise(currentRoundData as MissingWordRound)
-    }
-    
-    // Reset image question state
-    if (currentRoundData?.type === 'image_question') {
-      setImageQuestionUrl(null)
-      setIsLoadingImageQuestion(false)
-    }
+    setFilledWords(Array(filledWords.length).fill(null))
+    setIsDragging(null)
   }
 
   // Get current round data
   const getRoundData = () => {
     if (!journey) return null
-    return isTestMode 
-      ? journey.summaryTest[currentRound]
-      : journey.rounds[currentRound]
+    
+    const rounds = isTestMode ? journey.summaryTest : journey.rounds
+    return rounds[currentRound] || null
   }
 
-  // Function to generate image for image questions
-  const generateImageQuestion = async (imageDescription: string) => {
-    setIsLoadingImageQuestion(true);
-    setImageQuestionUrl(null);
-
-    try {
-      const visualPrompt = `${imageDescription}. Do NOT include any text or words in the image. Create a clear, simple visual scene only.`;
-      
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 30000);
-      
-      const response = await fetch('/api/generate-image', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ 
-          prompt: visualPrompt, 
-          model: "dall-e-3",
-          size: "1024x1024"
-        }),
-        signal: controller.signal
-      });
-      
-      clearTimeout(timeoutId);
-      
-      let data;
-      try {
-        data = await response.json();
-      } catch (jsonError) {
-        console.error('Failed to parse JSON response:', jsonError);
-        throw new Error('Invalid response from image generation API');
-      }
-      
-      let resultUrl = null;
-      
-      if (!response.ok) {
-        console.error(`Image generation failed with status ${response.status}:`, data?.error || 'Unknown error');
-        resultUrl = data?.url || DEFAULT_FALLBACK_IMAGE;
-      } else if (data?.url) {
-        console.log(`Received image URL from API (fallback: ${data.fallback || false})`);
-        resultUrl = data.url;
-      } else {
-        console.log('No URL in response, using default fallback image');
-        resultUrl = DEFAULT_FALLBACK_IMAGE;
-      }
-      
-      setImageQuestionUrl(resultUrl);
-      return resultUrl;
-    } catch (error) {
-      if (error instanceof Error && error.name === 'AbortError') {
-        console.error('Image generation request timed out');
-      } else {
-        console.error('Error generating image:', error);
-      }
-      
-      const fallbackUrl = DEFAULT_FALLBACK_IMAGE;
-      setImageQuestionUrl(fallbackUrl);
-      return fallbackUrl;
-    } finally {
-      setIsLoadingImageQuestion(false);
-    }
-  };
-
-  // Enhanced function to generate and optionally store images
-  const generateSentenceImage = async (sentence: string, options?: { storeForRound?: number }) => {
-    if (!sentence) return null;
-    
-    const storeForRound = options?.storeForRound;
-    const isPreloading = storeForRound !== undefined;
-    
-    if (!isPreloading) {
-      setIsLoadingImage(true);
-      setSentenceImageUrl(null); // Reset any previous image
-      setUseDefaultImage(false);
-    }
-    
-    try {
-      // Create a visual-focused prompt using the complete sentence
-      // Clean the sentence by removing any placeholder blanks
-      const cleanSentence = sentence.replace(/____/g, '').replace(/\s+/g, ' ').trim();
-      
-      // Create a visual-focused prompt using the full sentence context
-      const visualPrompt = `A simple, clean illustration showing: ${cleanSentence}. Do NOT include any text or words in the image. Create a visual scene only.`;
-      
-      // Add timeout to the fetch request
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
-      
-      const response = await fetch('/api/generate-image', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ 
-          prompt: visualPrompt, 
-          model: "dall-e-3",
-          size: "1024x1024"
-        }),
-        signal: controller.signal
-      });
-      
-      clearTimeout(timeoutId);
-      
-      let data;
-      try {
-        data = await response.json();
-      } catch (jsonError) {
-        console.error('Failed to parse JSON response:', jsonError);
-        throw new Error('Invalid response from image generation API');
-      }
-      
-      let resultUrl = null;
-      
-      if (!response.ok) {
-        console.error(`Image generation failed with status ${response.status}:`, data?.error || 'Unknown error');
-        
-        // Check if we got a fallback URL from the API even on error
-        if (data?.url) {
-          console.log('Using fallback image URL from API error response');
-          resultUrl = data.url;
-          if (data.fallback && !isPreloading) {
-            setUseDefaultImage(true);
-          }
-        } else {
-          console.log('Using default fallback image due to API error');
-          resultUrl = DEFAULT_FALLBACK_IMAGE;
-          if (!isPreloading) {
-            setUseDefaultImage(true);
-          }
-        }
-      } else if (data?.url) {
-        console.log(`Received image URL from API (fallback: ${data.fallback || false})`);
-        resultUrl = data.url;
-        if (data.fallback && !isPreloading) {
-          setUseDefaultImage(true);
-        }
-      } else {
-        console.log('No URL in response, using default fallback image');
-        resultUrl = DEFAULT_FALLBACK_IMAGE;
-        if (!isPreloading) {
-          setUseDefaultImage(true);
-        }
-      }
-      
-      // Store the result
-      if (isPreloading && storeForRound !== undefined && resultUrl) {
-        console.log(`Storing preloaded image for round ${storeForRound}`);
-        setPreloadedImages(prev => ({...prev, [storeForRound]: resultUrl}));
-      } else if (resultUrl) {
-        setSentenceImageUrl(resultUrl);
-      }
-      
-      return resultUrl;
-    } catch (error) {
-      if (error instanceof Error && error.name === 'AbortError') {
-        console.error('Image generation request timed out');
-      } else {
-        console.error('Error generating image:', error);
-      }
-      
-      const fallbackUrl = DEFAULT_FALLBACK_IMAGE;
-      
-      if (isPreloading && storeForRound !== undefined) {
-        console.log(`Storing fallback image for round ${storeForRound} due to error`);
-        setPreloadedImages(prev => ({...prev, [storeForRound]: fallbackUrl}));
-      } else {
-        setSentenceImageUrl(fallbackUrl);
-        setUseDefaultImage(true);
-      }
-      
-      return fallbackUrl;
-    } finally {
-      if (!isPreloading) {
-        setIsLoadingImage(false);
-      }
-    }
-  };
-  
-  // Function to preload all images for better UX
-  const preloadAllImages = async () => {
-    if (!journey || isPreloadingImages) return;
-    
-    console.log("Starting to preload images for all rounds...");
-    setIsPreloadingImages(true);
-    
-    try {
-      // Identify all rounds that need images
-      const imageGenerationTasks: { sentence: string, roundIndex: number }[] = [];
-      
-      // Regular rounds
-      journey.rounds.forEach((round, index) => {
-        if (round.type === 'missing_word') {
-          let completeSentence = '';
-          
-          if ('missingWordIndices' in round && round.missingWordIndices && round.correctWords) {
-            // Multi-word format
-            const words = round.sentence.split(' ');
-            const completeWords = [...words];
-            
-            // Deduplicate correct words
-            const correctWordsDeduped: string[] = [];
-            round.correctWords.forEach(word => {
-              const alreadyUsedCount = correctWordsDeduped.filter(w => w === word).length;
-              const totalNeededCount = round.correctWords.filter(w => w === word).length;
-              
-              if (alreadyUsedCount < totalNeededCount) {
-                correctWordsDeduped.push(word);
-              }
-            });
-            
-            // Create complete sentence
-            round.missingWordIndices.forEach((wordIndex, i) => {
-              if (i < correctWordsDeduped.length) {
-                completeWords[wordIndex] = correctWordsDeduped[i];
-              }
-            });
-            
-            completeSentence = completeWords.join(' ');
-          } else if ('missingWordIndex' in round && typeof round.missingWordIndex === 'number' && round.correctWord) {
-            // Legacy single-word format
-            const words = round.sentence.split(' ');
-            const completeWords = [...words];
-            completeWords[round.missingWordIndex] = round.correctWord;
-            completeSentence = completeWords.join(' ');
-          }
-          
-          if (completeSentence) {
-            imageGenerationTasks.push({ sentence: completeSentence, roundIndex: index });
-          }
-        }
-      });
-      
-      // Test rounds (with offset to avoid collisions)
-      journey.summaryTest.forEach((round, index) => {
-        if (round.type === 'missing_word') {
-          let completeSentence = '';
-          
-          if ('missingWordIndices' in round && round.missingWordIndices && round.correctWords) {
-            // Multi-word format
-            const words = round.sentence.split(' ');
-            const completeWords = [...words];
-            
-            // Deduplicate correct words
-            const correctWordsDeduped: string[] = [];
-            round.correctWords.forEach(word => {
-              const alreadyUsedCount = correctWordsDeduped.filter(w => w === word).length;
-              const totalNeededCount = round.correctWords.filter(w => w === word).length;
-              
-              if (alreadyUsedCount < totalNeededCount) {
-                correctWordsDeduped.push(word);
-              }
-            });
-            
-            // Create complete sentence
-            round.missingWordIndices.forEach((wordIndex, i) => {
-              if (i < correctWordsDeduped.length) {
-                completeWords[wordIndex] = correctWordsDeduped[i];
-              }
-            });
-            
-            completeSentence = completeWords.join(' ');
-          } else if ('missingWordIndex' in round && typeof round.missingWordIndex === 'number' && round.correctWord) {
-            // Legacy single-word format
-            const words = round.sentence.split(' ');
-            const completeWords = [...words];
-            completeWords[round.missingWordIndex] = round.correctWord;
-            completeSentence = completeWords.join(' ');
-          }
-          
-          if (completeSentence) {
-            // Use an offset of 1000 for test rounds to avoid conflict with regular rounds
-            imageGenerationTasks.push({ sentence: completeSentence, roundIndex: 1000 + index });
-          }
-        }
-      });
-      
-      console.log(`Found ${imageGenerationTasks.length} rounds requiring images`);
-      
-      // Process in small batches to avoid rate limiting
-      const BATCH_SIZE = 3;
-      for (let i = 0; i < imageGenerationTasks.length; i += BATCH_SIZE) {
-        const batch = imageGenerationTasks.slice(i, i + BATCH_SIZE);
-        await Promise.all(
-          batch.map(task => 
-            generateSentenceImage(task.sentence, { storeForRound: task.roundIndex })
-          )
-        );
-        
-        // Add a small delay between batches
-        if (i + BATCH_SIZE < imageGenerationTasks.length) {
-          await new Promise(resolve => setTimeout(resolve, 1000));
-        }
-      }
-      
-      console.log(`Successfully preloaded ${Object.keys(preloadedImages).length} images`);
-    } catch (error) {
-      console.error("Error during image preloading:", error);
-    } finally {
-      setIsPreloadingImages(false);
-    }
-  };
-  
-  // Preload images when journey is loaded
-  useEffect(() => {
-    if (journey && !loading && !isPreloadingImages) {
-      preloadAllImages();
-    }
-  }, [journey, loading]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Image preloading completely removed - using dedicated image exercises instead
 
   // We intentionally omit getRoundData and initializeMultiWordExercise from deps
   // to prevent re-initializing exercises on every render
@@ -1190,22 +860,9 @@ function JourneyPageContent() {
     if (roundData?.type === 'missing_word' && 'missingWordIndices' in roundData) {
       initializeMultiWordExercise(roundData as MissingWordRound)
     }
-    
-    // Generate image for image questions
-    if (roundData?.type === 'image_question') {
-      const imageQuestionRound = roundData as ImageQuestionRound
-      if (imageQuestionRound.imageDescription) {
-        generateImageQuestion(imageQuestionRound.imageDescription)
-      }
-    }
   }, [currentRound, isTestMode, journey, loading]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Start preloading images once journey is loaded
-  useEffect(() => {
-    if (journey && !loading) {
-      preloadAllImages();
-    }
-  }, [journey, loading]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Image preloading removed - using dedicated image exercises
   
   // Initialize the multi-word exercise state
   const initializeMultiWordExercise = (round: MissingWordRound) => {
@@ -1302,25 +959,9 @@ function JourneyPageContent() {
     setFilledWords(Array(round.missingWordIndices.length).fill(null));
     setAvailableWords(limitedOptions);
     
-    // Check if we have a preloaded image for this round
-    const roundIndex = isTestMode ? 1000 + currentRound : currentRound;
-    if (preloadedImages[roundIndex]) {
-      console.log(`Using preloaded image for round ${roundIndex}`);
-      setSentenceImageUrl(preloadedImages[roundIndex]);
-      setIsLoadingImage(false);
-    } else {
-      // Generate image for the complete sentence if preloaded image not available
-      // Reconstruct the complete sentence by replacing the blanks with the correct words
-      const completeWords = [...words];
-      round.missingWordIndices.forEach((index, i) => {
-        if (i < correctWordsDeduped.length) {
-          completeWords[index] = correctWordsDeduped[i];
-        }
-      });
-      const completeSentence = completeWords.join(' ');
-      console.log("Generating image for complete sentence:", completeSentence);
-      generateSentenceImage(completeSentence);
-    }
+    // DISABLED: No longer generating images for missing word sentences
+    // We now have dedicated image exercises instead
+    console.log("Image generation disabled for missing word exercises - using dedicated image exercises");
   }
 
   // Render loading state
@@ -1565,43 +1206,6 @@ function JourneyPageContent() {
             </div>
             
             <h2 className="text-xl md:text-2xl font-bold mb-4 md:mb-6">Fill in the Missing Words</h2>
-            
-            {sentenceImageUrl && (
-              <div className="mb-4 md:mb-6 flex justify-center">
-                <div className="relative max-w-full">
-                  <Image 
-                    src={sentenceImageUrl} 
-                    alt="Visual representation of the sentence" 
-                    width={400}
-                    height={200}
-                    style={{ objectFit: 'contain', maxHeight: '10rem', width: 'auto' }}
-                    className={`rounded-lg shadow-md max-w-full h-auto ${useDefaultImage ? 'opacity-70' : ''}`}
-                    unoptimized={true}
-                    onError={(e) => {
-                      console.error("Image failed to load");
-                      // Use a fallback image
-                      const imgElement = e.currentTarget as HTMLImageElement;
-                      imgElement.src = DEFAULT_FALLBACK_IMAGE;
-                      setUseDefaultImage(true);
-                    }}
-                  />
-                  {useDefaultImage && (
-                    <div className="absolute inset-0 flex items-center justify-center text-xs text-gray-500 pointer-events-none">
-                      Example image not available
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-            
-            {isLoadingImage && (
-              <div className="mb-4 md:mb-6 flex justify-center items-center h-32 md:h-48 bg-gray-100 dark:bg-zinc-800 rounded-lg">
-                <div className="flex flex-col items-center gap-2">
-                  <div className="w-6 h-6 md:w-8 md:h-8 border-t-2 border-b-2 border-blue-500 rounded-full animate-spin"></div>
-                  <p className="text-sm md:text-base">Generating image...</p>
-                </div>
-              </div>
-            )}
             
             <div className="mb-4 text-center text-xs md:text-sm text-gray-500 dark:text-gray-400">
               Tap the words below to fill in the blanks
@@ -1889,13 +1493,13 @@ function JourneyPageContent() {
     )
   }
 
-  // Render image question round
-  if (roundData.type === 'image_question') {
-    const imageQuestionRound = roundData as ImageQuestionRound;
-    const englishPrompt = imageQuestionRound.englishPrompt || '';
-    const targetLanguagePrompt = imageQuestionRound.targetLanguagePrompt || '';
-    const correctAnswer = imageQuestionRound.correctAnswer || '';
-    const options = imageQuestionRound.options || [];
+  // Render image round
+  if (roundData.type === 'image') {
+    const imageRound = roundData as ImageRound;
+    const targetLanguageWord = imageRound.targetLanguageWord || '';
+    const options = imageRound.options || [];
+    const imageUrl = imageRound.imageUrl || '';
+    const description = imageRound.description || 'Generated image for exercise';
     
     return (
       <div className="relative min-h-screen flex flex-col items-center p-4">
@@ -1921,89 +1525,69 @@ function JourneyPageContent() {
           
           <h2 className="text-xl md:text-2xl font-bold mb-4 md:mb-6">What do you see?</h2>
           
-          {/* Image Display */}
+          <div className="mb-4 text-center text-xs md:text-sm text-gray-500 dark:text-gray-400">
+            Look at the image and select the correct word
+          </div>
+          
           <div className="mb-6 md:mb-8 flex justify-center">
-            {isLoadingImageQuestion ? (
-              <div className="w-full max-w-md h-64 md:h-80 bg-gray-100 dark:bg-zinc-800 rounded-lg flex items-center justify-center">
-                <div className="flex flex-col items-center gap-3">
-                  <div className="w-8 h-8 border-t-2 border-b-2 border-blue-500 rounded-full animate-spin"></div>
-                  <p className="text-sm md:text-base text-gray-600 dark:text-gray-400">Generating image...</p>
-                </div>
-              </div>
-            ) : imageQuestionUrl ? (
-              <div className="relative max-w-md">
-                <Image 
-                  src={imageQuestionUrl} 
-                  alt="Question image" 
-                  width={400}
-                  height={300}
-                  style={{ objectFit: 'contain', maxHeight: '20rem', width: 'auto' }}
-                  className="rounded-lg shadow-lg max-w-full h-auto"
-                  unoptimized={true}
-                  onError={(e) => {
-                    console.error("Image failed to load");
-                    const imgElement = e.currentTarget as HTMLImageElement;
-                    imgElement.src = DEFAULT_FALLBACK_IMAGE;
-                  }}
-                />
-              </div>
-            ) : (
-              <div className="w-full max-w-md h-64 md:h-80 bg-gray-100 dark:bg-zinc-800 rounded-lg flex items-center justify-center border-2 border-dashed border-gray-300 dark:border-gray-600">
-                <p className="text-gray-500 dark:text-gray-400">Image not available</p>
-              </div>
-            )}
+            <div className="relative max-w-full">
+              <Image 
+                src={imageUrl} 
+                alt={description}
+                width={400}
+                height={300}
+                style={{ objectFit: 'contain', maxHeight: '20rem', width: 'auto' }}
+                className="rounded-lg shadow-md max-w-full h-auto border-2 border-gray-200 dark:border-gray-700"
+                unoptimized={true}
+                onError={(e) => {
+                  console.error("Image failed to load:", imageUrl);
+                  // Use a fallback image
+                  const imgElement = e.currentTarget as HTMLImageElement;
+                  imgElement.src = 'https://placehold.co/400x300/EAEAEA/CCCCCC?text=Image+Not+Available';
+                }}
+              />
+            </div>
           </div>
           
-          {/* Question */}
-          <div className="mb-6 md:mb-8 text-center">
-            <p className="text-base md:text-lg text-gray-600 dark:text-gray-300 mb-2">{englishPrompt}</p>
-            <p className="text-lg md:text-xl font-medium">{targetLanguagePrompt}</p>
-          </div>
-          
-          {/* Selected Answer Display */}
           {selectedOption && (
-            <div className="flex justify-center mb-6">
+            <div className="flex justify-center mb-4">
               <div className="px-4 py-2 bg-blue-100 dark:bg-blue-900 rounded-md shadow-sm animate-bounce-in text-base md:text-lg">
                 {selectedOption}
               </div>
             </div>
           )}
           
-          {/* Answer Options */}
-          <div className="mb-6 md:mb-8">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
-              {options.map((option, i) => (
-                <button
-                  key={i}
-                  onClick={() => handleOptionClick(option)}
-                  onTouchEnd={(e) => {
-                    e.preventDefault();
-                    if (!showFeedback) {
-                      handleOptionClick(option);
-                    }
-                  }}
-                  disabled={showFeedback}
-                  type="button"
-                  className={`min-h-12 md:min-h-14 px-4 py-3 rounded-md transition-all text-base md:text-lg touch-manipulation select-none ${
-                    selectedOption === option 
-                      ? 'bg-blue-100 dark:bg-blue-900 border-2 border-blue-500 dark:border-blue-400' 
-                      : 'bg-white dark:bg-zinc-800 hover:bg-gray-100 dark:hover:bg-zinc-700 active:bg-gray-200 dark:active:bg-zinc-600 border border-gray-200 dark:border-gray-700'
-                  } shadow-sm`}
-                >
-                  {option}
-                </button>
-              ))}
-            </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4 mt-6 md:mt-8">
+            {options.map((option, i) => (
+              <button
+                key={i}
+                onClick={() => handleOptionClick(option)}
+                onTouchEnd={(e) => {
+                  e.preventDefault();
+                  if (!showFeedback) {
+                    handleOptionClick(option);
+                  }
+                }}
+                disabled={showFeedback}
+                type="button"
+                className={`min-h-12 md:min-h-14 px-4 py-3 rounded-md transition-all text-base md:text-lg touch-manipulation select-none ${
+                  selectedOption === option 
+                    ? 'bg-blue-100 dark:bg-blue-900 border-2 border-blue-500 dark:border-blue-400' 
+                    : 'bg-white dark:bg-zinc-800 hover:bg-gray-100 dark:hover:bg-zinc-700 active:bg-gray-200 dark:active:bg-zinc-600 border border-gray-200 dark:border-gray-700'
+                } shadow-sm`}
+              >
+                {option}
+              </button>
+            ))}
           </div>
           
-          {/* Feedback */}
           {showFeedback ? (
-            <div className={`p-3 md:p-4 rounded-lg mb-4 md:mb-6 ${isCorrect ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200' : 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200'}`}>
+            <div className={`p-3 md:p-4 rounded-lg mb-4 md:mb-6 mt-6 ${isCorrect ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200' : 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200'}`}>
               {isCorrect ? (
                 <p className="text-base md:text-lg font-medium">Great job! That&apos;s correct!</p>
               ) : (
                 <div>
-                  <p className="text-base md:text-lg font-medium mb-2">Not quite right. The correct answer is: <span className="font-bold">{correctAnswer}</span></p>
+                  <p className="text-base md:text-lg font-medium mb-2">Not quite right. The correct answer is: <span className="font-bold">{targetLanguageWord}</span></p>
                   <Button onClick={handleRetry} className="min-h-12 touch-manipulation">Retry</Button>
                 </div>
               )}
@@ -2012,7 +1596,7 @@ function JourneyPageContent() {
             <Button 
               onClick={handleSubmit} 
               disabled={!selectedOption}
-              className="w-full min-h-12 touch-manipulation text-base"
+              className="w-full min-h-12 touch-manipulation text-base mt-6"
               type="button"
             >
               Submit
