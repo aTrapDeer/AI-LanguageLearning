@@ -43,8 +43,18 @@ type SpellingRound = {
   correctSpelling: string
 }
 
+// New image question type
+type ImageQuestionRound = {
+  type: 'image_question'
+  englishPrompt: string
+  targetLanguagePrompt: string
+  correctAnswer: string
+  options: string[]
+  imageDescription: string
+}
+
 // Support both formats
-type Round = MatchingRound | MissingWordRound | SpellingRound | LegacyMissingWordRound
+type Round = MatchingRound | MissingWordRound | SpellingRound | LegacyMissingWordRound | ImageQuestionRound
 
 // The complete journey structure
 type Journey = {
@@ -107,6 +117,10 @@ function JourneyPageContent() {
   const [useDefaultImage, setUseDefaultImage] = useState(false)
   const [preloadedImages, setPreloadedImages] = useState<Record<number, string>>({})
   const [isPreloadingImages, setIsPreloadingImages] = useState(false)
+  
+  // Image question state
+  const [imageQuestionUrl, setImageQuestionUrl] = useState<string | null>(null)
+  const [isLoadingImageQuestion, setIsLoadingImageQuestion] = useState(false)
   
   const DEFAULT_FALLBACK_IMAGE = 'https://placehold.co/400x200/EAEAEA/CCCCCC?text=Example+Image'
 
@@ -746,6 +760,18 @@ function JourneyPageContent() {
         }
         break
       }
+      case 'image_question': {
+        // Check if selected option matches the correct answer
+        const imageQuestionRound = currentRoundData as ImageQuestionRound
+        if (!imageQuestionRound.correctAnswer) {
+          console.error("Missing correctAnswer in image question round data")
+          setIsCorrect(false)
+          setShowFeedback(true)
+          return
+        }
+        correct = selectedOption === imageQuestionRound.correctAnswer
+        break
+      }
     }
 
     setIsCorrect(correct)
@@ -829,6 +855,12 @@ function JourneyPageContent() {
     if (currentRoundData?.type === 'missing_word' && 'missingWordIndices' in currentRoundData) {
       initializeMultiWordExercise(currentRoundData as MissingWordRound)
     }
+    
+    // Reset image question state
+    if (currentRoundData?.type === 'image_question') {
+      setImageQuestionUrl(null)
+      setIsLoadingImageQuestion(false)
+    }
   }
 
   // Get current round data
@@ -838,6 +870,70 @@ function JourneyPageContent() {
       ? journey.summaryTest[currentRound]
       : journey.rounds[currentRound]
   }
+
+  // Function to generate image for image questions
+  const generateImageQuestion = async (imageDescription: string) => {
+    setIsLoadingImageQuestion(true);
+    setImageQuestionUrl(null);
+
+    try {
+      const visualPrompt = `${imageDescription}. Do NOT include any text or words in the image. Create a clear, simple visual scene only.`;
+      
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000);
+      
+      const response = await fetch('/api/generate-image', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          prompt: visualPrompt, 
+          model: "dall-e-3",
+          size: "1024x1024"
+        }),
+        signal: controller.signal
+      });
+      
+      clearTimeout(timeoutId);
+      
+      let data;
+      try {
+        data = await response.json();
+      } catch (jsonError) {
+        console.error('Failed to parse JSON response:', jsonError);
+        throw new Error('Invalid response from image generation API');
+      }
+      
+      let resultUrl = null;
+      
+      if (!response.ok) {
+        console.error(`Image generation failed with status ${response.status}:`, data?.error || 'Unknown error');
+        resultUrl = data?.url || DEFAULT_FALLBACK_IMAGE;
+      } else if (data?.url) {
+        console.log(`Received image URL from API (fallback: ${data.fallback || false})`);
+        resultUrl = data.url;
+      } else {
+        console.log('No URL in response, using default fallback image');
+        resultUrl = DEFAULT_FALLBACK_IMAGE;
+      }
+      
+      setImageQuestionUrl(resultUrl);
+      return resultUrl;
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        console.error('Image generation request timed out');
+      } else {
+        console.error('Error generating image:', error);
+      }
+      
+      const fallbackUrl = DEFAULT_FALLBACK_IMAGE;
+      setImageQuestionUrl(fallbackUrl);
+      return fallbackUrl;
+    } finally {
+      setIsLoadingImageQuestion(false);
+    }
+  };
 
   // Enhanced function to generate and optionally store images
   const generateSentenceImage = async (sentence: string, options?: { storeForRound?: number }) => {
@@ -1093,6 +1189,14 @@ function JourneyPageContent() {
     const roundData = getRoundData()
     if (roundData?.type === 'missing_word' && 'missingWordIndices' in roundData) {
       initializeMultiWordExercise(roundData as MissingWordRound)
+    }
+    
+    // Generate image for image questions
+    if (roundData?.type === 'image_question') {
+      const imageQuestionRound = roundData as ImageQuestionRound
+      if (imageQuestionRound.imageDescription) {
+        generateImageQuestion(imageQuestionRound.imageDescription)
+      }
     }
   }, [currentRound, isTestMode, journey, loading]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -1774,6 +1878,140 @@ function JourneyPageContent() {
             <Button 
               onClick={handleSubmit} 
               disabled={spellingInput.trim() === ''}
+              className="w-full min-h-12 touch-manipulation text-base"
+              type="button"
+            >
+              Submit
+            </Button>
+          )}
+        </div>
+      </div>
+    )
+  }
+
+  // Render image question round
+  if (roundData.type === 'image_question') {
+    const imageQuestionRound = roundData as ImageQuestionRound;
+    const englishPrompt = imageQuestionRound.englishPrompt || '';
+    const targetLanguagePrompt = imageQuestionRound.targetLanguagePrompt || '';
+    const correctAnswer = imageQuestionRound.correctAnswer || '';
+    const options = imageQuestionRound.options || [];
+    
+    return (
+      <div className="relative min-h-screen flex flex-col items-center p-4">
+        <BackgroundGradientAnimation
+          gradientBackgroundStart="rgb(0, 17, 82)"
+          gradientBackgroundEnd="rgb(108, 0, 162)"
+          firstColor="18, 113, 255"
+          secondColor="221, 74, 255"
+          thirdColor="100, 220, 255"
+          fourthColor="200, 50, 50"
+          fifthColor="180, 180, 50"
+          pointerColor="140, 100, 255"
+          size="100%"
+          blendingValue="soft-light"
+          interactive={false}
+          containerClassName="fixed inset-0 opacity-20"
+        />
+        
+        <div className="relative w-full max-w-3xl mx-auto mt-8 md:mt-20 p-4 md:p-6 bg-white dark:bg-zinc-900 rounded-lg shadow-lg">
+          <div className="text-sm mb-4">
+            {isTestMode ? 'Summary Test' : 'Journey'} - Round {currentRound + 1} of {isTestMode ? journey.summaryTest.length : journey.rounds.length}
+          </div>
+          
+          <h2 className="text-xl md:text-2xl font-bold mb-4 md:mb-6">What do you see?</h2>
+          
+          {/* Image Display */}
+          <div className="mb-6 md:mb-8 flex justify-center">
+            {isLoadingImageQuestion ? (
+              <div className="w-full max-w-md h-64 md:h-80 bg-gray-100 dark:bg-zinc-800 rounded-lg flex items-center justify-center">
+                <div className="flex flex-col items-center gap-3">
+                  <div className="w-8 h-8 border-t-2 border-b-2 border-blue-500 rounded-full animate-spin"></div>
+                  <p className="text-sm md:text-base text-gray-600 dark:text-gray-400">Generating image...</p>
+                </div>
+              </div>
+            ) : imageQuestionUrl ? (
+              <div className="relative max-w-md">
+                <Image 
+                  src={imageQuestionUrl} 
+                  alt="Question image" 
+                  width={400}
+                  height={300}
+                  style={{ objectFit: 'contain', maxHeight: '20rem', width: 'auto' }}
+                  className="rounded-lg shadow-lg max-w-full h-auto"
+                  unoptimized={true}
+                  onError={(e) => {
+                    console.error("Image failed to load");
+                    const imgElement = e.currentTarget as HTMLImageElement;
+                    imgElement.src = DEFAULT_FALLBACK_IMAGE;
+                  }}
+                />
+              </div>
+            ) : (
+              <div className="w-full max-w-md h-64 md:h-80 bg-gray-100 dark:bg-zinc-800 rounded-lg flex items-center justify-center border-2 border-dashed border-gray-300 dark:border-gray-600">
+                <p className="text-gray-500 dark:text-gray-400">Image not available</p>
+              </div>
+            )}
+          </div>
+          
+          {/* Question */}
+          <div className="mb-6 md:mb-8 text-center">
+            <p className="text-base md:text-lg text-gray-600 dark:text-gray-300 mb-2">{englishPrompt}</p>
+            <p className="text-lg md:text-xl font-medium">{targetLanguagePrompt}</p>
+          </div>
+          
+          {/* Selected Answer Display */}
+          {selectedOption && (
+            <div className="flex justify-center mb-6">
+              <div className="px-4 py-2 bg-blue-100 dark:bg-blue-900 rounded-md shadow-sm animate-bounce-in text-base md:text-lg">
+                {selectedOption}
+              </div>
+            </div>
+          )}
+          
+          {/* Answer Options */}
+          <div className="mb-6 md:mb-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
+              {options.map((option, i) => (
+                <button
+                  key={i}
+                  onClick={() => handleOptionClick(option)}
+                  onTouchEnd={(e) => {
+                    e.preventDefault();
+                    if (!showFeedback) {
+                      handleOptionClick(option);
+                    }
+                  }}
+                  disabled={showFeedback}
+                  type="button"
+                  className={`min-h-12 md:min-h-14 px-4 py-3 rounded-md transition-all text-base md:text-lg touch-manipulation select-none ${
+                    selectedOption === option 
+                      ? 'bg-blue-100 dark:bg-blue-900 border-2 border-blue-500 dark:border-blue-400' 
+                      : 'bg-white dark:bg-zinc-800 hover:bg-gray-100 dark:hover:bg-zinc-700 active:bg-gray-200 dark:active:bg-zinc-600 border border-gray-200 dark:border-gray-700'
+                  } shadow-sm`}
+                >
+                  {option}
+                </button>
+              ))}
+            </div>
+          </div>
+          
+          {/* Feedback */}
+          {showFeedback ? (
+            <div className={`p-3 md:p-4 rounded-lg mb-4 md:mb-6 ${isCorrect ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200' : 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200'}`}>
+              {isCorrect ? (
+                <p className="text-base md:text-lg font-medium">Great job! That&apos;s correct!</p>
+              ) : (
+                <div>
+                  <p className="text-base md:text-lg font-medium mb-2">Not quite right. The correct answer is: <span className="font-bold">{correctAnswer}</span></p>
+                  <Button onClick={handleRetry} className="min-h-12 touch-manipulation">Retry</Button>
+                </div>
+              )}
+            </div>
+          ) : (
+            <Button 
+              onClick={handleSubmit} 
+              disabled={!selectedOption}
               className="w-full min-h-12 touch-manipulation text-base"
               type="button"
             >

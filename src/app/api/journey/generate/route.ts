@@ -36,8 +36,18 @@ type SpellingRound = {
   correctSpelling: string;
 };
 
+// New image question type
+type ImageQuestionRound = {
+  type: 'image_question';
+  englishPrompt: string;
+  targetLanguagePrompt: string;
+  correctAnswer: string;
+  options: string[];
+  imageDescription: string;
+};
+
 // Support both new and legacy formats
-type Round = MatchingRound | MissingWordRound | SpellingRound | LegacyMissingWordRound;
+type Round = MatchingRound | MissingWordRound | SpellingRound | LegacyMissingWordRound | ImageQuestionRound;
 
 type JourneyData = {
   language: string;
@@ -158,10 +168,12 @@ function createDynamicPrompt(languageName: string, languageCode: string, level: 
 
 REQUIREMENTS:
 - 10 varied rounds + 3 summary test rounds
-- Mix of matching, missing_word, and spelling exercises
+- Mix of matching, missing_word, spelling, and image_question exercises
+- MUST include exactly 2 image_question rounds in the 10 main rounds
 - Theme: ${theme} (but use diverse vocabulary within this theme)
 - Complexity: ${complexity} level content
 - Use natural, conversational ${languageName}
+- Create UNIQUE content - avoid repetitive patterns and words
 
 EXERCISE FORMATS:
 
@@ -173,12 +185,23 @@ MISSING_WORD:
 
 SPELLING: {"type":"spelling", "englishWord":"...", "correctSpelling":"..."}
 
-GUIDELINES:
+IMAGE_QUESTION: {"type":"image_question", "englishPrompt":"What do you see in this image?", "targetLanguagePrompt":"[Same question in ${languageName}]", "correctAnswer":"[correct answer in ${languageName}]", "options":["correct","wrong1","wrong2","wrong3"], "imageDescription":"A clear visual scene description for DALL-E to generate"}
+
+CONTENT VARIETY RULES:
 - Use ${multiWordCount} missing words for level ${level}
 - Make wrong options completely unrelated (not synonyms)
 - Vary sentence lengths: ${level <= 3 ? '3-5' : level <= 6 ? '5-8' : '8-12'} words
+- Use different sentence structures and verb tenses
+- Include varied vocabulary beyond basic words
 - Cultural relevance: include ${languageName}-speaking region references when appropriate
-- Avoid repetitive patterns
+- NO repetitive "I like coffee" or "Hello, how are you" patterns
+- Use random everyday scenarios: restaurants, parks, offices, homes, streets, etc.
+
+IMAGE QUESTION GUIDELINES:
+- Create visual scenes that test vocabulary knowledge
+- Use simple, recognizable objects and actions
+- Image descriptions should be clear and specific for DALL-E generation
+- Examples: "A person reading a book in a library", "Fresh fruit on a kitchen table", "Children playing in a park"
 
 Return only valid JSON: {"language":"${languageCode}", "level":${level}, "rounds":[...], "summaryTest":[...]}`;
 }
@@ -278,10 +301,10 @@ export async function POST(req: Request) {
           },
           { role: "user", content: prompt }
         ],
-        temperature: 0.8, // Higher temperature for more variety
-        top_p: 0.9,
-        frequency_penalty: 0.3, // Reduce repetition
-        presence_penalty: 0.2,
+        temperature: 0.9, // Higher temperature for more variety
+        top_p: 0.95,
+        frequency_penalty: 0.4, // Reduce repetition
+        presence_penalty: 0.3,
         response_format: { type: "json_object" }
       });
       
@@ -334,6 +357,12 @@ export async function POST(req: Request) {
               return false;
             case 'spelling':
               return !!round.englishWord && !!round.correctSpelling;
+            case 'image_question':
+              return !!round.englishPrompt && 
+                     !!(round as ImageQuestionRound).targetLanguagePrompt && 
+                     !!(round as ImageQuestionRound).correctAnswer && 
+                     Array.isArray(round.options) && 
+                     !!(round as ImageQuestionRound).imageDescription;
             default:
               return false;
           }
