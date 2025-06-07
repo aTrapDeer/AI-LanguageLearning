@@ -800,11 +800,15 @@ function JourneyPageContent() {
       let resultUrl = null;
       
       if (!response.ok) {
-        console.error(`Image generation failed with status ${response.status}:`, data.error || 'Unknown error');
-        // Use fallback if provided
-        if (data.fallbackUrl) {
-          console.log('Using fallback image URL from API response');
-          resultUrl = data.fallbackUrl;
+        console.error(`Image generation failed with status ${response.status}:`, data?.error || 'Unknown error');
+        
+        // Check if we got a fallback URL from the API even on error
+        if (data?.url) {
+          console.log('Using fallback image URL from API error response');
+          resultUrl = data.url;
+          if (data.fallback && !isPreloading) {
+            setUseDefaultImage(true);
+          }
         } else {
           console.log('Using default fallback image due to API error');
           resultUrl = DEFAULT_FALLBACK_IMAGE;
@@ -812,14 +816,14 @@ function JourneyPageContent() {
             setUseDefaultImage(true);
           }
         }
-      } else if (data.url) {
-        console.log(`Received image ${data.isBase64 ? 'as base64 data' : 'URL'}`);
+      } else if (data?.url) {
+        console.log(`Received image URL from API (fallback: ${data.fallback || false})`);
         resultUrl = data.url;
-      } else if (data.fallbackUrl) {
-        console.log('No URL in successful response, using fallback image');
-        resultUrl = data.fallbackUrl;
+        if (data.fallback && !isPreloading) {
+          setUseDefaultImage(true);
+        }
       } else {
-        console.log('No URL or fallback in response, using default fallback image');
+        console.log('No URL in response, using default fallback image');
         resultUrl = DEFAULT_FALLBACK_IMAGE;
         if (!isPreloading) {
           setUseDefaultImage(true);

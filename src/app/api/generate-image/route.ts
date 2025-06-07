@@ -97,7 +97,7 @@ export async function POST(req: Request) {
       
       // Add model-specific parameters
       if (model === 'dall-e-3') {
-        requestParams.quality = quality;
+        requestParams.quality = quality as "standard" | "hd";
         if (style && (style === 'natural' || style === 'vivid')) {
           requestParams.style = style;
         }
@@ -143,40 +143,30 @@ export async function POST(req: Request) {
       
     } catch (openaiError) {
       console.error('=== OpenAI API Error ===');
-      console.error('Error type:', typeof openaiError);
-      console.error('Error message:', openaiError instanceof Error ? openaiError.message : String(openaiError));
+      console.error('Error:', openaiError);
       
-      // Handle specific OpenAI errors
-      if (openaiError instanceof Error) {
-        const errorMessage = openaiError.message.toLowerCase();
-        
-        if (errorMessage.includes('rate_limit') || errorMessage.includes('rate limit')) {
-          return createErrorResponse('Rate limit exceeded. Please try again later.', 429);
-        }
-        if (errorMessage.includes('insufficient_quota') || errorMessage.includes('quota')) {
-          return createErrorResponse('API quota exceeded. Please check your OpenAI billing.', 402);
-        }
-        if (errorMessage.includes('invalid_request') || errorMessage.includes('invalid request')) {
-          return createErrorResponse(`Invalid request: ${openaiError.message}`, 400);
-        }
-        if (errorMessage.includes('content_policy') || errorMessage.includes('safety')) {
-          return createErrorResponse('Content policy violation. Please modify your prompt.', 400);
-        }
-        if (errorMessage.includes('model_not_found') || errorMessage.includes('model')) {
-          return createErrorResponse('Invalid model. Please use dall-e-2 or dall-e-3.', 400);
-        }
-        if (errorMessage.includes('timeout')) {
-          return createErrorResponse('Request timed out. Please try again.', 504);
-        }
-      }
-      
-      return createErrorResponse(`OpenAI API error: ${openaiError instanceof Error ? openaiError.message : 'Unknown error'}`);
+      // Always fall back to placeholder image on any error
+      console.error('Image generation failed - falling back to placeholder');
+      return NextResponse.json({
+        url: 'https://placehold.co/1024x1024/E3F2FD/1976D2?text=Image+Generation+Unavailable',
+        prompt: prompt,
+        model: model,
+        success: true,
+        fallback: true,
+        message: 'Image generation currently unavailable - showing placeholder'
+      });
     }
   } catch (error) {
     console.error('=== General API Error ===');
-    console.error('Error type:', typeof error);
-    console.error('Error message:', error instanceof Error ? error.message : String(error));
+    console.error('Error:', error);
     
-    return createErrorResponse(`Server error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    // Always return a valid JSON response with placeholder
+    return NextResponse.json({
+      url: 'https://placehold.co/1024x1024/EAEAEA/757575?text=Server+Error',
+      prompt: 'Error occurred',
+      success: true,
+      fallback: true,
+      message: 'Server error - showing placeholder image'
+    });
   }
 } 
