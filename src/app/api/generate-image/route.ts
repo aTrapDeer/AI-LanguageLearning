@@ -14,6 +14,7 @@ interface ImageRequestParams {
   quality?: string;
   output_format?: string;
   response_format?: string;
+  style?: string;
   [key: string]: unknown;
 }
 
@@ -64,7 +65,7 @@ export async function POST(req: Request) {
       createTimeoutPromise(5000) // 5 second timeout for parsing request
     ]);
     
-    const { prompt, model = 'gpt-image-1', size = '1024x1024', quality = 'auto' } = body;
+    const { prompt, model = 'dall-e-3', size = '1024x1024', quality = 'auto' } = body;
 
     // Validate inputs
     if (!prompt) {
@@ -104,16 +105,26 @@ export async function POST(req: Request) {
       };
       
       // Add model-specific parameters
-      if (model === 'gpt-image-1') {
-        // gpt-image-1 always returns base64 images
+      if (model === 'dall-e-3') {
+        // DALL-E 3 parameters
+        requestParams.quality = quality === 'auto' ? 'standard' : quality;
+        requestParams.response_format = 'url'; // DALL-E 3 returns URLs
+        if (body.style) {
+          requestParams.style = body.style; // natural or vivid
+        }
+      } else if (model === 'dall-e-2') {
+        // DALL-E 2 parameters
+        requestParams.response_format = 'url';
+        // DALL-E 2 doesn't support quality or style parameters
+      } else if (model === 'gpt-image-1') {
+        // Azure-specific model (if using Azure OpenAI)
         requestParams.quality = quality;
-        // Specify output format if provided
         if (body.output_format) {
           requestParams.output_format = body.output_format;
         }
       } else {
-        // For dall-e models
-        requestParams.quality = 'standard';
+        // Default to DALL-E 3 behavior for unknown models
+        requestParams.quality = quality === 'auto' ? 'standard' : quality;
         requestParams.response_format = 'url';
       }
       
@@ -146,14 +157,14 @@ export async function POST(req: Request) {
       
       // Handle both URL and base64 formats
       if (imageData.url) {
-        // Return the image URL for dall-e models
+        // Return the image URL for DALL-E models
         return NextResponse.json({ 
           url: imageData.url,
           prompt: prompt,
           success: true
         });
       } else if (imageData.b64_json) {
-        // For gpt-image-1, we get base64 data
+        // For models that return base64 (like gpt-image-1)
         // Convert to a data URL that can be used directly in an <img> tag
         const format = body.output_format || 'png';
         const dataUrl = `data:image/${format};base64,${imageData.b64_json}`;
@@ -187,6 +198,9 @@ export async function POST(req: Request) {
         }
         if (openaiError.message.includes('insufficient_quota')) {
           return createErrorResponse('API quota exceeded.', 402);
+        }
+        if (openaiError.message.includes('model_not_found') || openaiError.message.includes('The model')) {
+          return createErrorResponse('Invalid model specified. Please use dall-e-2 or dall-e-3.', 400);
         }
       }
       

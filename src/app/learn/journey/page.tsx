@@ -781,10 +781,10 @@ function JourneyPageContent() {
         },
         body: JSON.stringify({ 
           prompt: visualPrompt, 
-          model: "gpt-image-1",
+          model: "dall-e-3",
           size: "1024x1024",
-          quality: "auto",
-          output_format: "png"
+          quality: "standard",
+          style: "natural"
         }),
         signal: controller.signal
       });
