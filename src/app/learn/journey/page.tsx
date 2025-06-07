@@ -748,27 +748,12 @@ function JourneyPageContent() {
     }
     
     try {
-      // Create a more visual-focused prompt that avoids showing text
-      // Extract the key objects/concepts from the sentence
-      const words = sentence.split(' ');
-      // Filter out common articles, prepositions, etc. across multiple languages
-      const stopWords = ['er', 'hat', 'auf', 'der', 'die', 'das', 'ein', 'eine', 'gelegt', 'und', 
-                         'ist', 'sind', 'in', 'im', 'an', 'am', 'zu', 'zum', 'zur', 'mit',
-                         'a', 'the', 'in', 'on', 'at', 'is', 'are', 'and', 'to', 'from', 'with', 'by',
-                         'el', 'la', 'los', 'las', 'un', 'una', 'y', 'en', 'es', 'son', 'con',
-                         'le', 'la', 'les', 'il', 'elle', 'et', 'est', 'sont', 'dans', 'sur', 'avec',
-                         'o', 'os', 'as', 'um', 'uma', 'e', 'é', 'são', 'em', 'no', 'na', 'com'];
+      // Create a visual-focused prompt using the complete sentence
+      // Clean the sentence by removing any placeholder blanks
+      const cleanSentence = sentence.replace(/____/g, '').replace(/\s+/g, ' ').trim();
       
-      // Clean keywords by removing punctuation and filtering stopwords
-      const keyWords = words
-        .map(word => word.replace(/[.,!?;:]$/g, '').trim()) // Remove trailing punctuation
-        .filter(word => 
-          word.length > 0 && 
-          !stopWords.includes(word.toLowerCase())
-        );
-      
-      // Create a visual-focused prompt
-      const visualPrompt = `A simple, clean illustration showing: a person with ${keyWords.join(' and ')}. Do NOT include any text or words in the image. Create a visual scene only.`;
+      // Create a visual-focused prompt using the full sentence context
+      const visualPrompt = `A simple, clean illustration showing: ${cleanSentence}. Do NOT include any text or words in the image. Create a visual scene only.`;
       
       // Add timeout to the fetch request
       const controller = new AbortController();

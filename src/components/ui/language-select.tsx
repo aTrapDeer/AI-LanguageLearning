@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { Button } from "./button";
 import {
   Dialog,
@@ -13,9 +14,15 @@ import { useLanguage, languages } from "@/contexts/language-context";
 
 export function LanguageSelect() {
   const { selectedLanguage, setLanguage } = useLanguage();
+  const [open, setOpen] = useState(false);
+
+  const handleLanguageSelect = (lang: typeof languages[0]) => {
+    setLanguage(lang);
+    setOpen(false); // Close the dialog after selection
+  };
 
   return (
-    <Dialog>
+    <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button variant="ghost" className="flex items-center gap-2">
           <span className="text-xl">{selectedLanguage?.flag}</span>
@@ -35,9 +42,7 @@ export function LanguageSelect() {
               key={lang.code}
               variant={selectedLanguage?.code === lang.code ? "default" : "outline"}
               className="w-full justify-start gap-2"
-              onClick={() => {
-                setLanguage(lang);
-              }}
+              onClick={() => handleLanguageSelect(lang)}
             >
               <span className="text-xl">{lang.flag}</span>
               <span>{lang.name}</span>
