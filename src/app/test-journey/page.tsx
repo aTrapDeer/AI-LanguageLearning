@@ -28,8 +28,8 @@ export default function TestJourneyPage() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ 
-          language: 'en', 
-          level: 1 
+          language: 'de', 
+          level: 2  // Test with level 2 to ensure single missing word
         }),
       });
 
@@ -87,6 +87,13 @@ export default function TestJourneyPage() {
               <p><strong>Level:</strong> {result.data.level}</p>
               <p><strong>Rounds:</strong> {result.data.rounds?.length || 0}</p>
               <p><strong>Summary Test:</strong> {result.data.summaryTest?.length || 0}</p>
+              
+                            <div className="mt-4">
+                <h4 className="font-medium">Missing Word Exercises Status:</h4>
+                <p className="text-sm text-gray-600">
+                  Level {result.data.level} should have single missing word exercises only
+                </p>
+              </div>
               
               <details className="mt-4">
                 <summary className="cursor-pointer font-medium">View Raw Data</summary>

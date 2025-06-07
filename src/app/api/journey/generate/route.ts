@@ -189,8 +189,14 @@ MATCHING: {"type":"matching", "englishSentence":"...", "translatedSentence":"...
 - Example: translatedSentence "Was studierst du?" → words ["Was","studierst","du?"]
 
 MISSING_WORD: 
-- Levels 1-4: {"type":"missing_word", "sentence":"...", "missingWordIndices":[index], "correctWords":["word"], "options":["correct","wrong1","wrong2","wrong3"], "isSingleWord":true}
-- Levels 5+: {"type":"missing_word", "sentence":"...", "missingWordIndices":[i1,i2,...], "correctWords":["word1","word2",...], "options":["all","correct","words","plus","distractors"], "isSingleWord":false}
+- Levels 1-4 (ALWAYS SINGLE WORD): {"type":"missing_word", "sentence":"...", "missingWordIndices":[index], "correctWords":["word"], "options":["correct","wrong1","wrong2","wrong3"], "isSingleWord":true}
+- Levels 5+ (CAN BE MULTIPLE): {"type":"missing_word", "sentence":"...", "missingWordIndices":[i1,i2,...], "correctWords":["word1","word2",...], "options":["all","correct","words","plus","distractors"], "isSingleWord":false}
+
+FOR LEVEL ${level} (${level <= 4 ? 'SINGLE WORD ONLY' : 'MULTIPLE WORDS ALLOWED'}):
+${level <= 4 ? 
+  '- MUST have exactly ONE missing word per exercise\n- Use missingWordIndices with exactly ONE index\n- Use correctWords with exactly ONE word\n- Example: "Ich trinke _____ Kaffee" → missingWordIndices:[2], correctWords:["gerne"]' :
+  `- Can have ${multiWordCount} missing words per exercise\n- Use missingWordIndices with ${multiWordCount} indices\n- Use correctWords with ${multiWordCount} words\n- Example: "Ich _____ es, im _____ zu gehen" → missingWordIndices:[1,4], correctWords:["liebe","Kino"]`
+}
 
 CRITICAL FOR MISSING_WORD EXERCISES:
 - There must be ONLY ONE grammatically and contextually correct answer
@@ -204,7 +210,7 @@ SPELLING: {"type":"spelling", "englishWord":"...", "correctSpelling":"..."}
 IMAGE: {"type":"image", "englishPrompt":"A clear, simple image of [object/scene]", "targetLanguageWord":"${languageName} word for what's shown", "options":["correct_word","wrong1","wrong2","wrong3"], "imageUrl":"", "description":"Brief description for accessibility"}
 
 GUIDELINES:
-- Use ${multiWordCount} missing words for level ${level}
+- For MISSING_WORD exercises at level ${level}: ${level <= 4 ? 'EXACTLY 1 missing word per exercise' : `${multiWordCount} missing words per exercise`}
 - Make wrong options completely unrelated (not synonyms or valid alternatives)
 - CRITICAL: Each missing word exercise must have exactly ONE correct answer
 - Wrong options should be from different word categories (noun vs verb vs adjective vs adverb)
@@ -456,10 +462,18 @@ MISSING WORD QUALITY CONTROL:
             case 'missing_word':
               // Support both new multi-word format and legacy single-word format
               if ('missingWordIndices' in round && Array.isArray(round.missingWordIndices)) {
-                return !!round.sentence && 
+                const multiWordRound = round as MissingWordRound;
+                const isValid = !!round.sentence && 
                        Array.isArray(round.missingWordIndices) && 
-                       Array.isArray((round as MissingWordRound).correctWords) && 
+                       Array.isArray(multiWordRound.correctWords) && 
                        Array.isArray(round.options);
+                
+                // Validate that the number of missing words matches the level requirement
+                if (isValid && userLevel <= 4 && multiWordRound.missingWordIndices.length > 1) {
+                  console.warn(`⚠️ Level ${userLevel} should have only 1 missing word, but got ${multiWordRound.missingWordIndices.length}. This will be fixed automatically.`);
+                }
+                
+                return isValid;
               } else if ('missingWordIndex' in round && 'correctWord' in round) {
                 // Handle legacy format
                 return !!round.sentence && 
@@ -536,6 +550,9 @@ MISSING WORD QUALITY CONTROL:
           await Promise.allSettled(imageGenerationPromises);
           console.log('🖼️ All image processing completed');
         }
+        
+        // Fix missing word exercises for appropriate levels
+        journeyData = fixMissingWordExercises(journeyData, userLevel);
         
         // Process the journey data to scramble words for matching rounds
         journeyData = processJourneyData(journeyData);
@@ -785,6 +802,69 @@ function getFallbackJourney(language: string, level: number): JourneyData {
   
   // Process the fallback data to scramble words in matching rounds
   return processJourneyData(fallback);
+}
+
+// Fix missing word exercises to match level requirements
+function fixMissingWordExercises(journeyData: JourneyData, level: number): JourneyData {
+  console.log(`🔧 Fixing missing word exercises for level ${level}`);
+  
+  // Fix regular rounds
+  journeyData.rounds = journeyData.rounds.map(round => {
+    if (round.type === 'missing_word' && 'missingWordIndices' in round) {
+      const multiWordRound = round as MissingWordRound;
+      
+      // For levels 1-4, convert multi-word exercises to single-word
+      if (level <= 4 && multiWordRound.missingWordIndices.length > 1) {
+        console.log(`🔧 Converting multi-word exercise to single-word for level ${level}`);
+        
+        // Take only the first missing word
+        const firstIndex = multiWordRound.missingWordIndices[0];
+        const firstCorrectWord = multiWordRound.correctWords[0];
+        
+        // Convert to legacy format for consistency
+        const legacyRound: LegacyMissingWordRound = {
+          type: 'missing_word',
+          sentence: multiWordRound.sentence,
+          missingWordIndex: firstIndex,
+          correctWord: firstCorrectWord,
+          options: multiWordRound.options.slice(0, 4) // Ensure exactly 4 options
+        };
+        
+        return legacyRound;
+      }
+    }
+    return round;
+  });
+  
+  // Fix summary test rounds
+  journeyData.summaryTest = journeyData.summaryTest.map(round => {
+    if (round.type === 'missing_word' && 'missingWordIndices' in round) {
+      const multiWordRound = round as MissingWordRound;
+      
+      // For levels 1-4, convert multi-word exercises to single-word
+      if (level <= 4 && multiWordRound.missingWordIndices.length > 1) {
+        console.log(`🔧 Converting multi-word test exercise to single-word for level ${level}`);
+        
+        // Take only the first missing word
+        const firstIndex = multiWordRound.missingWordIndices[0];
+        const firstCorrectWord = multiWordRound.correctWords[0];
+        
+        // Convert to legacy format for consistency
+        const legacyRound: LegacyMissingWordRound = {
+          type: 'missing_word',
+          sentence: multiWordRound.sentence,
+          missingWordIndex: firstIndex,
+          correctWord: firstCorrectWord,
+          options: multiWordRound.options.slice(0, 4) // Ensure exactly 4 options
+        };
+        
+        return legacyRound;
+      }
+    }
+    return round;
+  });
+  
+  return journeyData;
 }
 
 // Process the journey data, scrambling words for matching rounds
