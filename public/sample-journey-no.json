@@ -1,0 +1,86 @@
+{
+  "language": "no",
+  "level": 1,
+  "rounds": [
+    {
+      "type": "matching",
+      "englishSentence": "Hello, how are you?",
+      "translatedSentence": "Hei, hvordan har du det?",
+      "words": ["Hei,", "hvordan", "har", "du", "det?"]
+    },
+    {
+      "type": "missing_word",
+      "sentence": "Jeg liker å drikke kaffe om morgenen",
+      "missingWordIndex": 4,
+      "correctWord": "drikke",
+      "options": ["drikke", "bord", "vindu", "blå"]
+    },
+    {
+      "type": "spelling",
+      "englishWord": "book",
+      "correctSpelling": "bok"
+    },
+    {
+      "type": "matching",
+      "englishSentence": "I would like some tea, please.",
+      "translatedSentence": "Jeg vil gjerne ha litt te, takk.",
+      "words": ["Jeg", "vil", "gjerne", "ha", "litt", "te,", "takk."]
+    },
+    {
+      "type": "missing_word",
+      "sentence": "I dag er været veldig fint",
+      "missingWordIndex": 4,
+      "correctWord": "fint",
+      "options": ["fint", "stol", "eple", "svart"]
+    },
+    {
+      "type": "spelling",
+      "englishWord": "water",
+      "correctSpelling": "vann"
+    },
+    {
+      "type": "matching",
+      "englishSentence": "My name is Lars.",
+      "translatedSentence": "Jeg heter Lars.",
+      "words": ["Jeg", "heter", "Lars."]
+    },
+    {
+      "type": "missing_word",
+      "sentence": "Jeg kommer fra Norge",
+      "missingWordIndex": 2,
+      "correctWord": "fra",
+      "options": ["fra", "katt", "bord", "blå"]
+    },
+    {
+      "type": "spelling",
+      "englishWord": "house",
+      "correctSpelling": "hus"
+    },
+    {
+      "type": "matching",
+      "englishSentence": "What time is it?",
+      "translatedSentence": "Hvor mye er klokka?",
+      "words": ["Hvor", "mye", "er", "klokka?"]
+    }
+  ],
+  "summaryTest": [
+    {
+      "type": "matching",
+      "englishSentence": "Thank you very much",
+      "translatedSentence": "Tusen takk",
+      "words": ["Tusen", "takk"]
+    },
+    {
+      "type": "missing_word",
+      "sentence": "Jeg bor i Oslo",
+      "missingWordIndex": 2,
+      "correctWord": "i",
+      "options": ["i", "hund", "grønn", "stor"]
+    },
+    {
+      "type": "spelling",
+      "englishWord": "friend",
+      "correctSpelling": "venn"
+    }
+  ]
+} 

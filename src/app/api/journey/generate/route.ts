@@ -186,13 +186,18 @@ Return only valid JSON: {"language":"${languageCode}", "level":${level}, "rounds
 // Improved fallback management
 function createLanguageSpecificFallback(language: string, level: number): JourneyData | null {
   // Check if we have a static file for this language
+  console.log(`Looking for fallback file for language: ${language}`);
   try {
-    const fallbackPath = path.join(process.cwd(), `src/static/sample-journey-${language}.json`);
+    const fallbackPath = path.join(process.cwd(), `public/sample-journey-${language}.json`);
+    console.log(`Checking path: ${fallbackPath}`);
     if (fs.existsSync(fallbackPath)) {
+      console.log(`Found fallback file for ${language}!`);
       const data = fs.readFileSync(fallbackPath, 'utf8');
       const parsed = JSON.parse(data);
       parsed.level = level; // Update to requested level
       return parsed;
+    } else {
+      console.log(`No fallback file found for ${language} at ${fallbackPath}`);
     }
   } catch (error) {
     console.error(`Failed to load ${language} fallback:`, error);
@@ -212,10 +217,11 @@ try {
 }
 
 try {
-  const portugueseFallbackPath = path.join(process.cwd(), 'src/static/sample-journey-pt-br.json');
+  const portugueseFallbackPath = path.join(process.cwd(), 'src/static/sample-journey-pt-BR.json');
   if (fs.existsSync(portugueseFallbackPath)) {
     const portugueseData = fs.readFileSync(portugueseFallbackPath, 'utf8');
     FALLBACK_DATA['pt-BR'] = JSON.parse(portugueseData);
+    console.log('Successfully loaded Portuguese fallback data');
   }
 } catch (error) {
   console.error('Failed to load Portuguese fallback data:', error);
@@ -264,7 +270,7 @@ export async function POST(req: Request) {
       // Generate content with ChatGPT
       console.log(`Calling OpenAI API with theme: ${selectedTheme}...`);
       const completion = await openai.chat.completions.create({
-        model: "gpt-4o",
+        model: "gpt-4o-mini",
         messages: [
           {
             role: "system",
@@ -371,10 +377,13 @@ function getFallbackJourney(language: string, level: number): JourneyData {
   console.log(`Using fallback journey for ${language} at level ${level}`);
   
   // Try new intelligent fallback first
+  console.log(`Attempting to find smart fallback for ${language}...`);
   const smartFallback = createLanguageSpecificFallback(language, level);
   if (smartFallback) {
-    console.log(`Found smart fallback data for ${language}`);
+    console.log(`✅ Found smart fallback data for ${language}, returning it!`);
     return processJourneyData(smartFallback);
+  } else {
+    console.log(`❌ No smart fallback found for ${language}, trying cached data...`);
   }
   
   // Use cached fallback if available
@@ -542,7 +551,8 @@ function getFallbackJourney(language: string, level: number): JourneyData {
       words: ['شكرا', 'جزيلا']
     };
   } else if (language in LANGUAGE_NAMES) {
-    // Generic fallback with placeholder text
+    // Generic fallback with placeholder text - but this should never happen for pt-BR now
+    console.warn(`Using generic fallback for ${language} - this indicates a problem!`);
     const langName = LANGUAGE_NAMES[language];
     fallback.rounds[0].translatedSentence = `[Translation to ${langName} would be here]`;
     if (fallback.rounds[0].type === 'matching') {

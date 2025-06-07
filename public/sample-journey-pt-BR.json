@@ -1,0 +1,86 @@
+{
+  "language": "pt-BR",
+  "level": 1,
+  "rounds": [
+    {
+      "type": "matching",
+      "englishSentence": "Hello, how are you?",
+      "translatedSentence": "Olá, como você está?",
+      "words": ["Olá,", "como", "você", "está?"]
+    },
+    {
+      "type": "missing_word",
+      "sentence": "Eu gosto de tomar café de manhã",
+      "missingWordIndex": 3,
+      "correctWord": "tomar",
+      "options": ["tomar", "mesa", "janela", "azul"]
+    },
+    {
+      "type": "spelling",
+      "englishWord": "book",
+      "correctSpelling": "livro"
+    },
+    {
+      "type": "matching",
+      "englishSentence": "I would like a coffee, please.",
+      "translatedSentence": "Eu gostaria de um café, por favor.",
+      "words": ["Eu", "gostaria", "de", "um", "café,", "por", "favor."]
+    },
+    {
+      "type": "missing_word",
+      "sentence": "Hoje o tempo está muito bonito",
+      "missingWordIndex": 4,
+      "correctWord": "bonito",
+      "options": ["bonito", "cadeira", "maçã", "preto"]
+    },
+    {
+      "type": "spelling",
+      "englishWord": "water",
+      "correctSpelling": "água"
+    },
+    {
+      "type": "matching",
+      "englishSentence": "My name is John.",
+      "translatedSentence": "Meu nome é João.",
+      "words": ["Meu", "nome", "é", "João."]
+    },
+    {
+      "type": "missing_word",
+      "sentence": "Eu sou do Brasil",
+      "missingWordIndex": 2,
+      "correctWord": "do",
+      "options": ["do", "cachorro", "mesa", "azul"]
+    },
+    {
+      "type": "spelling",
+      "englishWord": "house",
+      "correctSpelling": "casa"
+    },
+    {
+      "type": "matching",
+      "englishSentence": "What time is it?",
+      "translatedSentence": "Que horas são?",
+      "words": ["Que", "horas", "são?"]
+    }
+  ],
+  "summaryTest": [
+    {
+      "type": "matching",
+      "englishSentence": "Thank you very much",
+      "translatedSentence": "Muito obrigado",
+      "words": ["Muito", "obrigado"]
+    },
+    {
+      "type": "missing_word",
+      "sentence": "Eu moro no Rio de Janeiro",
+      "missingWordIndex": 2,
+      "correctWord": "no",
+      "options": ["no", "gato", "verde", "grande"]
+    },
+    {
+      "type": "spelling",
+      "englishWord": "friend",
+      "correctSpelling": "amigo"
+    }
+  ]
+} 
