@@ -97,7 +97,7 @@ export default function PrivacyPolicy() {
             If you have any questions about this Privacy Policy or our data practices, please contact us at:
           </p>
           <p className="mt-2">
-            Email: privacy@laignfy.com
+            Email: privacy@laingfy.com
           </p>
         </section>
 

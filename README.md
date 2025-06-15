@@ -1,6 +1,6 @@
-# Laignfy - AI-Powered Language Learning Platform
+# Laingfy - AI-Powered Language Learning Platform
 
-Laignfy is an innovative language learning platform that leverages artificial intelligence to provide personalized, interactive language learning experiences. Our platform offers real-time conversation practice, pronunciation feedback, and adaptive learning paths tailored to each user's needs.
+Laingfy is an innovative language learning platform that leverages artificial intelligence to provide personalized, interactive language learning experiences. Our platform offers real-time conversation practice, pronunciation feedback, and adaptive learning paths tailored to each user's needs.
 
 ## Features
 

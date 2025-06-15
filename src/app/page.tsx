@@ -1,10 +1,15 @@
+"use client";
+
 import React from 'react';
 import Link from 'next/link';
+import { useSession } from 'next-auth/react';
 import { VerticalCutReveal } from '@/components/ui/vertical-cut-reveal';
 import AnimatedGlobe from '@/components/ui/globe';
 import { BackgroundGradientAnimation } from '@/components/ui/background-gradient-animation';
 
 export default function Home() {
+  const { data: session } = useSession();
+
   return (
     <div className="flex flex-col min-h-screen">
       {/* Hero Section */}
@@ -38,25 +43,44 @@ export default function Home() {
                 containerClassName="text-7xl font-extrabold tracking-wider text-center flex justify-center"
                 elementLevelClassName="text-white hover:scale-110 transition-transform duration-200"
               >
-                LAIGNFY
+                LAINGFY
               </VerticalCutReveal>
               <p className="text-xl text-white/80">
                 Learn languages naturally with AI
               </p>
             </div>
             <div className="flex justify-center gap-4">
-              <Link
-                href="/register"
-                className="px-8 py-3 bg-white text-indigo-600 rounded-lg font-semibold hover:bg-opacity-90 transition-colors"
-              >
-                Get Started
-              </Link>
-              <Link
-                href="/login"
-                className="px-8 py-3 bg-indigo-600 text-white rounded-lg font-semibold hover:bg-indigo-700 transition-colors"
-              >
-                Login
-              </Link>
+              {session ? (
+                <>
+                  <Link
+                    href="/dashboard"
+                    className="px-8 py-3 bg-white text-indigo-600 rounded-lg font-semibold hover:bg-opacity-90 transition-colors"
+                  >
+                    Dashboard
+                  </Link>
+                  <Link
+                    href="/dashboard"
+                    className="px-8 py-3 bg-indigo-600 text-white rounded-lg font-semibold hover:bg-indigo-700 transition-colors"
+                  >
+                    Continue Learning
+                  </Link>
+                </>
+              ) : (
+                <>
+                  <Link
+                    href="/register"
+                    className="px-8 py-3 bg-white text-indigo-600 rounded-lg font-semibold hover:bg-opacity-90 transition-colors"
+                  >
+                    Get Started
+                  </Link>
+                  <Link
+                    href="/login"
+                    className="px-8 py-3 bg-indigo-600 text-white rounded-lg font-semibold hover:bg-indigo-700 transition-colors"
+                  >
+                    Login
+                  </Link>
+                </>
+              )}
             </div>
           </div>
         </div>
