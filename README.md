@@ -40,4 +40,4 @@ We welcome contributions! Please see our contributing guidelines for more detail
 
 ## License
 
-Copyright © 2024 Laignfy. All rights reserved.
+Copyright © 2024 Laingfy. All rights reserved.

@@ -14,14 +14,14 @@ export default function TermsOfService() {
         <section className="mb-8">
           <h2 className="text-2xl font-semibold mb-4">1. Introduction</h2>
           <p>
-            Welcome to Laignfy (&ldquo;Service&rdquo;), an AI-powered language learning platform. By accessing or using Laignfy, you agree to comply with and be bound by these Terms of Service (&ldquo;Terms&rdquo;). If you do not agree with any part of these Terms, you must not access or use Laignfy.
+            Welcome to Laingfy (&ldquo;Service&rdquo;), an AI-powered language learning platform. By accessing or using Laingfy, you agree to comply with and be bound by these Terms of Service (&ldquo;Terms&rdquo;). If you do not agree with any part of these Terms, you must not access or use Laingfy.
           </p>
         </section>
 
         <section className="mb-8">
           <h2 className="text-2xl font-semibold mb-4">2. Service Description</h2>
           <p className="mb-4">
-            Laignfy provides AI-powered language learning services, including but not limited to:
+          Laingfy provides AI-powered language learning services, including but not limited to:
           </p>
           <ul className="list-disc pl-6 mb-4">
             <li>Interactive conversation practice with AI language tutors</li>
@@ -37,7 +37,7 @@ export default function TermsOfService() {
 
         <section className="mb-8">
           <h2 className="text-2xl font-semibold mb-4">3. User Eligibility and Accounts</h2>
-          <p className="mb-4">To use Laignfy, you must:</p>
+          <p className="mb-4">To use Laingfy, you must:</p>
           <ul className="list-disc pl-6">
             <li>Be at least 13 years of age</li>
             <li>Provide accurate and complete registration information</li>
@@ -49,7 +49,7 @@ export default function TermsOfService() {
 
         <section className="mb-8">
           <h2 className="text-2xl font-semibold mb-4">4. User Conduct</h2>
-          <p className="mb-4">When using Laignfy, you agree NOT to:</p>
+          <p className="mb-4">When using Laingfy, you agree NOT to:</p>
           <ul className="list-disc pl-6">
             <li>Use the Service for any unlawful or prohibited purpose</li>
             <li>Harass, abuse, or harm other users</li>
@@ -64,7 +64,7 @@ export default function TermsOfService() {
         <section className="mb-8">
           <h2 className="text-2xl font-semibold mb-4">5. Content and Intellectual Property</h2>
           <p className="mb-4">
-            All content provided through Laignfy, including AI-generated content, is protected by intellectual property rights. By using the Service:
+            All content provided through Laingfy, including AI-generated content, is protected by intellectual property rights. By using the Service:
           </p>
           <ul className="list-disc pl-6">
             <li>You retain rights to content you create or upload</li>
@@ -77,7 +77,7 @@ export default function TermsOfService() {
         <section className="mb-8">
           <h2 className="text-2xl font-semibold mb-4">6. Privacy and Data Usage</h2>
           <p>
-            Your use of Laignfy is subject to our Privacy Policy. We collect and process data, including audio recordings and learning progress, to provide and improve the Service. See our Privacy Policy for details on data handling practices.
+            Your use of Laingfy is subject to our Privacy Policy. We collect and process data, including audio recordings and learning progress, to provide and improve the Service. See our Privacy Policy for details on data handling practices.
           </p>
         </section>
 
@@ -98,21 +98,21 @@ export default function TermsOfService() {
         <section className="mb-8">
           <h2 className="text-2xl font-semibold mb-4">8. Limitation of Liability</h2>
           <p>
-            To the maximum extent permitted by law, Laignfy shall not be liable for any indirect, incidental, special, consequential, or punitive damages arising from your use of the Service.
+            To the maximum extent permitted by law, Laingfy shall not be liable for any indirect, incidental, special, consequential, or punitive damages arising from your use of the Service.
           </p>
         </section>
 
         <section className="mb-8">
           <h2 className="text-2xl font-semibold mb-4">9. Changes to Terms</h2>
           <p>
-            We may modify these Terms at any time. Continued use of Laignfy after changes constitutes acceptance of the modified Terms. We will notify users of significant changes.
+            We may modify these Terms at any time. Continued use of Laingfy after changes constitutes acceptance of the modified Terms. We will notify users of significant changes.
           </p>
         </section>
 
         <section className="mb-8">
           <h2 className="text-2xl font-semibold mb-4">10. Termination</h2>
           <p>
-            We reserve the right to suspend or terminate your access to Laignfy for violations of these Terms or any other reason. You may terminate your account at any time by contacting us.
+            We reserve the right to suspend or terminate your access to Laingfy for violations of these Terms or any other reason. You may terminate your account at any time by contacting us.
           </p>
         </section>
 
@@ -122,7 +122,7 @@ export default function TermsOfService() {
             For questions about these Terms, please contact us at:
           </p>
           <p className="mt-2">
-            Email: terms@laignfy.com
+            Email: terms@Laingfy.com
           </p>
         </section>
       </div>

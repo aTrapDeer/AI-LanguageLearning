@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Laignfy - AI Language Learning Platform",
+  title: "Laingfy - AI Language Learning Platform",
   description: "Learn languages naturally with AI-powered tutoring, real-time feedback, and interactive conversations. Master new languages with personalized practice sessions.",
   icons: {
     icon: [
@@ -27,13 +27,13 @@ export const metadata: Metadata = {
   },
   manifest: "/site.webmanifest",
   openGraph: {
-    title: "Laignfy - AI Language Learning Platform",
+    title: "Laingfy - AI Language Learning Platform",
     description: "Learn languages naturally with AI-powered tutoring and real-time feedback",
     images: [{ url: "/favicon/LOGO1.png", width: 512, height: 512 }],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Laignfy - AI Language Learning Platform",
+    title: "Laingfy - AI Language Learning Platform",
     description: "Learn languages naturally with AI-powered tutoring and real-time feedback",
     images: ["/favicon/LOGO1.png"],
   },
