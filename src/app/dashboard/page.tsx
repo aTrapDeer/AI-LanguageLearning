@@ -59,7 +59,7 @@ export default function DashboardPage() {
     {
       Icon: SpeakerLoudIcon,
       name: "Audio Conversations",
-      description: "Practice pronunciation and listening with AI-powered audio conversations.",
+      description: "Practice pronunciation and listening with AI-powered audio conversations. Choose between Native and Assisted modes.",
       href: `/learn/conversation?lang=${selectedLanguage?.code || 'en'}`,
       cta: "Start Speaking",
       background: <div className="absolute inset-0 bg-gradient-to-br from-emerald-100 to-transparent dark:from-emerald-900/30" />,
