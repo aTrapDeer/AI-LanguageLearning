@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useRef, useCallback } from "react"
+import React, { useEffect, useState, useRef, useCallback, Suspense } from "react"
 import { v4 as uuidv4 } from "uuid"
 import { useSearchParams, useRouter } from 'next/navigation';
 
@@ -536,4 +536,23 @@ Remember: You're helping them learn ${languageName} with English support, so bal
   );
 };
 
-export default ConversationSessionPage; 
+// Loading component for Suspense fallback
+const Loading = () => (
+  <div className="container flex flex-col items-center justify-center mx-auto max-w-5xl mt-24 mb-12">
+    <div className="text-center">
+      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 mx-auto"></div>
+      <p className="mt-4 text-gray-600">Loading conversation...</p>
+    </div>
+  </div>
+);
+
+// Wrapper component with Suspense boundary
+const ConversationSessionPageWrapper = () => {
+  return (
+    <Suspense fallback={<Loading />}>
+      <ConversationSessionPage />
+    </Suspense>
+  );
+};
+
+export default ConversationSessionPageWrapper; 
