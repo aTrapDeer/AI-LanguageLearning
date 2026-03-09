@@ -6,12 +6,17 @@ export const maxDuration = 30;
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-// Initialize OpenAI client
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-  timeout: 30000,
-  maxRetries: 2,
-});
+function getOpenAIClient() {
+  if (!process.env.OPENAI_API_KEY) {
+    throw new Error("OPENAI_API_KEY is not set");
+  }
+
+  return new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY,
+    timeout: 30000,
+    maxRetries: 2,
+  });
+}
 
 // Define language mapping
 const LANGUAGE_NAMES: Record<string, string> = {
@@ -112,6 +117,7 @@ ${level <= 3 ? '- Very basic, everyday vocabulary (family, food, colors, numbers
 `;
 
     // Call OpenAI API with gpt-4o-mini
+    const openai = getOpenAIClient();
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [

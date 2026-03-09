@@ -2,7 +2,7 @@ import { deleteCookie } from 'cookies-next';
 import { NextApiRequest, NextApiResponse } from 'next';
 
 /**
- * Clears all NextAuth.js and related authentication cookies
+ * Clears all NextAuth.js authentication cookies
  */
 export function clearAuthCookies(req?: NextApiRequest, res?: NextApiResponse) {
   // NextAuth.js specific cookies - include both secure and non-secure versions
@@ -15,8 +15,6 @@ export function clearAuthCookies(req?: NextApiRequest, res?: NextApiResponse) {
     '__Secure-next-auth.callback-url',
     '__Secure-next-auth.session-token',
     '__Host-next-auth.csrf-token',
-    // Other related cookies
-    'supabase-auth-token',
     // Legacy cookies that might be lingering
     '__Secure.next-auth.session-token',
     // Add cookies with different paths
@@ -40,9 +38,7 @@ export function clearAuthCookies(req?: NextApiRequest, res?: NextApiResponse) {
   if (typeof window !== 'undefined') {
     // Clear any session storage related to auth
     try {
-      sessionStorage.removeItem('supabase.auth.token');
       sessionStorage.removeItem('nextauth.message');
-      localStorage.removeItem('supabase.auth.token');
       localStorage.removeItem('nextauth.message');
     } catch (e) {
       console.error('Error clearing session storage:', e);

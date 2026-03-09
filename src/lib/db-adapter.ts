@@ -1,23 +1,34 @@
-import * as supabaseDb from './supabase-db';
-import { User, Progress, Learning, Chat } from '@prisma/client';
+import type {
+  CreateChatInput,
+  CreateLearningInput,
+  CreateProgressInput,
+  CreateUserInput,
+  DatabaseChat,
+  DatabaseLearning,
+  DatabaseProgress,
+  DatabaseUser,
+  UpdateProgressInput,
+  UpdateUserInput,
+} from "./database";
+import * as database from "./database";
 
-// This adapter maintains Prisma-like interface but uses Supabase under the hood
-export const prismaAdapter = {
+// This adapter maintains the existing db.user/db.progress surface while using Turso.
+export const dbAdapter = {
   user: {
     findUnique: async ({ where }: { where: Record<string, unknown> }) => {
       if (where.id) {
-        return supabaseDb.getUserById(where.id as string);
+        return database.getUserById(where.id as string);
       } else if (where.email) {
-        return supabaseDb.getUserByEmail(where.email as string);
+        return database.getUserByEmail(where.email as string);
       }
       return null;
     },
-    create: async ({ data }: { data: Omit<User, 'id' | 'createdAt' | 'updatedAt'> }) => {
-      return supabaseDb.createUser(data);
+    create: async ({ data }: { data: CreateUserInput }) => {
+      return database.createUser(data);
     },
-    update: async ({ where, data }: { where: Record<string, unknown>; data: Partial<User> }) => {
+    update: async ({ where, data }: { where: Record<string, unknown>; data: UpdateUserInput }) => {
       if (where.id) {
-        return supabaseDb.updateUser(where.id as string, data);
+        return database.updateUser(where.id as string, data);
       }
       return null;
     }
@@ -26,50 +37,52 @@ export const prismaAdapter = {
   progress: {
     findFirst: async ({ where }: { where: Record<string, unknown> }) => {
       if (where.userId && where.language) {
-        return supabaseDb.getProgress(where.userId as string, where.language as string);
+        return database.getProgress(where.userId as string, where.language as string);
       }
       return null;
     },
-    update: async ({ where, data }: { where: Record<string, unknown>; data: Partial<Progress> }) => {
+    update: async ({ where, data }: { where: Record<string, unknown>; data: UpdateProgressInput }) => {
       if (where.id) {
-        return supabaseDb.updateProgress(where.id as string, data);
+        return database.updateProgress(where.id as string, data);
       }
       return null;
     },
-    create: async ({ data }: { data: Omit<Progress, 'id' | 'createdAt' | 'updatedAt'> }) => {
-      return supabaseDb.createProgress(data);
+    create: async ({ data }: { data: CreateProgressInput }) => {
+      return database.createProgress(data);
     },
     getAllForUser: async (userId: string) => {
-      return supabaseDb.getAllUserProgress(userId);
+      return database.getAllUserProgress(userId);
     }
   },
 
   chat: {
-    create: async ({ data }: { data: Omit<Chat, 'id' | 'createdAt'> }) => {
-      return supabaseDb.createChatMessage(data);
+    create: async ({ data }: { data: CreateChatInput }) => {
+      return database.createChatMessage(data);
     },
     findMany: async ({ where }: { where: Record<string, unknown>; orderBy?: unknown }) => {
       if (where.userId && where.language) {
-        return supabaseDb.getChatHistory(where.userId as string, where.language as string);
+        return database.getChatHistory(where.userId as string, where.language as string);
       }
       return [];
     }
   },
 
   learning: {
-    create: async ({ data }: { data: Omit<Learning, 'id' | 'createdAt' | 'updatedAt'> }) => {
-      return supabaseDb.createLearningItem(data);
+    create: async ({ data }: { data: CreateLearningInput }) => {
+      return database.createLearningItem(data);
     },
     findMany: async ({ where }: { where: Record<string, unknown> }) => {
       if (where.userId && where.language) {
-        return supabaseDb.getLearningItems(where.userId as string, where.language as string);
+        return database.getLearningItems(where.userId as string, where.language as string);
       }
       return [];
     }
   }
-  
-  // Add more models and methods as needed to match your Prisma usage
 };
 
-// Use this adapter instead of Prisma in your code
-export default prismaAdapter; 
+export type DbUser = DatabaseUser;
+export type DbProgress = DatabaseProgress;
+export type DbLearning = DatabaseLearning;
+export type DbChat = DatabaseChat;
+
+export default dbAdapter;

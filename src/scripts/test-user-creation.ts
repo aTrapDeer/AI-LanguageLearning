@@ -12,12 +12,12 @@ const __dirname = path.dirname(__filename);
 dotenv.config({ path: path.resolve(__dirname, '../../.env.local') });
 
 /**
- * Test script that creates a user in Supabase
- * This uses the Prisma-compatible adapter which forwards requests to Supabase
+ * Test script that creates a user in Turso
+ * This uses the app's database adapter to verify CRUD behavior
  */
 async function createTestUser() {
   try {
-    console.log('🔄 Creating test user in Supabase database...');
+    console.log('🔄 Creating test user in Turso database...');
     
     // Generate hashed password
     const hashedPassword = await bcrypt.hash('TestPassword123', 10);
@@ -59,7 +59,6 @@ async function createTestUser() {
     
     if (!progress) {
       console.log('Creating progress record for user...');
-      // If using Supabase directly, we'd need to create this
       const newProgress = await db.progress.create({
         data: progressData
       });

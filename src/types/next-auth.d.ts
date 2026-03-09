@@ -1,31 +1,32 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
-import NextAuth from "next-auth"
-import { JWT } from "next-auth/jwt"
+import type { DefaultSession } from "next-auth";
 
 declare module "next-auth" {
   interface User {
-    id: string
-    email: string
-    name: string | null
-    learningLanguages: string[]
+    id: string;
+    learningLanguages: string[];
+    accountSetup?: boolean;
   }
 
   interface Session {
-    user: {
-      id: string
-      email: string
-      name: string | null
-      learningLanguages: string[]
-    }
+    user: DefaultSession["user"] & {
+      id: string;
+      learningLanguages: string[];
+      accountSetup?: boolean;
+    };
   }
 }
-/* eslint-enable @typescript-eslint/no-unused-vars */
 
 declare module "next-auth/jwt" {
   interface JWT {
-    id: string
-    email: string
-    name: string | null
-    learningLanguages: string[]
+    id?: string;
+    learningLanguages?: string[];
+    accountSetup?: boolean;
   }
-} 
+}
+
+declare module "next-auth/adapters" {
+  interface AdapterUser {
+    learningLanguages?: string[];
+    accountSetup?: boolean;
+  }
+}

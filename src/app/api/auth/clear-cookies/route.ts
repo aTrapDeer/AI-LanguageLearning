@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 /**
  * API Route to clear all authentication cookies
- * This helps resolve auth conflicts between NextAuth and Supabase
+ * This helps resolve lingering NextAuth cookie issues
  */
 export async function GET() {
   try {
@@ -14,7 +14,6 @@ export async function GET() {
       '__Secure-next-auth.callback-url',
       '__Secure-next-auth.session-token',
       '__Host-next-auth.csrf-token',
-      'supabase-auth-token',
       '__Secure.next-auth.session-token'
     ];
     

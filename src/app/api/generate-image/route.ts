@@ -12,11 +12,16 @@ interface ImageRequestParams {
   response_format?: "url" | "b64_json";
 }
 
-// Initialize OpenAI client with timeout
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-  timeout: 30000, // 30 second timeout
-});
+function getOpenAIClient() {
+  if (!process.env.OPENAI_API_KEY) {
+    throw new Error("OPENAI_API_KEY is not set");
+  }
+
+  return new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY,
+    timeout: 30000, // 30 second timeout
+  });
+}
 
 // Function to validate API key
 function isValidApiKey(key?: string): boolean {
@@ -113,6 +118,7 @@ export async function POST(req: Request) {
       
       // Make the API call
       console.log('Making OpenAI API call...');
+      const openai = getOpenAIClient();
       const response = await openai.images.generate(requestParams);
 
       console.log('OpenAI API call completed successfully');

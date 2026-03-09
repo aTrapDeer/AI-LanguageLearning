@@ -61,12 +61,17 @@ type JourneyData = {
   summaryTest: Round[];
 };
 
-// Initialize OpenAI client with timeout configuration
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-  timeout: 60000, // 60 second timeout to prevent 504 errors
-  maxRetries: 2,   // Retry failed requests up to 2 times
-});
+function getOpenAIClient() {
+  if (!process.env.OPENAI_API_KEY) {
+    throw new Error("OPENAI_API_KEY is not set");
+  }
+
+  return new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY,
+    timeout: 60000, // 60 second timeout to prevent 504 errors
+    maxRetries: 2,   // Retry failed requests up to 2 times
+  });
+}
 
 // Define the language codes and names mapping
 const LANGUAGE_NAMES: Record<string, string> = {
@@ -349,6 +354,7 @@ export async function POST(req: Request) {
     }
 
     console.log('✅ OpenAI API key validated, proceeding with ChatGPT generation...');
+    const openai = getOpenAIClient();
 
     // Try to generate with OpenAI
     try {

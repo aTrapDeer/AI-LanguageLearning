@@ -17,8 +17,13 @@ Laingfy is an innovative language learning platform that leverages artificial in
 ```bash
 npm install
 ```
-3. Set up your environment variables (see `.env.example`)
-4. Run the development server:
+3. Copy `.env.example` to `.env.local` and fill in your values.
+4. Create a Turso database and add:
+   - `TURSO_DATABASE_URL`
+   - `TURSO_AUTH_TOKEN`
+   - `AUTH_SECRET` / `NEXTAUTH_SECRET`
+5. Add `OPENAI_API_KEY` and the optional provider/service keys you plan to use.
+6. Run the development server:
 ```bash
 npm run dev:all
 ```
@@ -31,8 +36,20 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to start l
 - Tailwind CSS for styling
 - LiveKit for real-time audio processing
 - OpenAI for natural language processing
-- Prisma with PostgreSQL for data storage
-- Redis for session management
+- Turso (libSQL) for application data, auth data, and logging
+- NextAuth.js `4.24.13` for authentication
+- Redis for realtime and supporting services
+
+## Authentication Notes
+
+- Email/password auth is enabled out of the box.
+- Google OAuth is optional and only activates when `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are set.
+- User, account, session, verification token, progress, learning, and chat records are stored in Turso.
+
+## Database Notes
+
+- The app initializes its required Turso tables automatically on first use.
+- Chat history and learning progress are now written to Turso instead of Supabase.
 
 ## Contributing
 
