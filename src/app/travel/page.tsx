@@ -135,18 +135,6 @@ function TravelPageContent() {
     };
   }, [cleanup, getAudioDevices]);
 
-  const travelInstructions = useMemo(() => {
-    return `You are Travel mode for a traveler who understands English and needs help with ${activeLanguage.name}.
-
-Your job:
-- Listen to what is being said in ${activeLanguage.name}.
-- Translate it into clear, natural English.
-- Do not answer as the speaker.
-- Do not ask follow-up questions.
-- Keep the translation concise and practical for someone in the middle of a real-world travel situation.
-- If part of the audio is unclear, briefly say so instead of inventing details.`;
-  }, [activeLanguage.name]);
-
   const ensureActiveTurn = useCallback(() => {
     let turnId = currentTurnIdRef.current;
 
@@ -323,30 +311,6 @@ Your job:
       dataChannel.onopen = () => {
         setIsSessionActive(true);
         setConnectionStatus("Ready to translate");
-        dataChannel.send(
-          JSON.stringify({
-            type: "session.update",
-            session: {
-              instructions: travelInstructions,
-              output_modalities: ["text"],
-              audio: {
-                input: {
-                  transcription: {
-                    model: "gpt-4o-mini-transcribe",
-                  },
-                  turn_detection: {
-                    type: "semantic_vad",
-                    create_response: false,
-                    interrupt_response: true,
-                  },
-                  noise_reduction: {
-                    type: "near_field",
-                  },
-                },
-              },
-            },
-          })
-        );
       };
 
       dataChannel.onmessage = handleRealtimeMessage;
@@ -373,7 +337,7 @@ Your job:
       const offer = await peerConnection.createOffer();
       await peerConnection.setLocalDescription(offer);
 
-      const response = await fetch("/api/openai-session/sdp", {
+      const response = await fetch(`/api/openai-session/sdp?mode=travel&language=${encodeURIComponent(activeLanguageCode)}`, {
         method: "POST",
         headers: {
           "Content-Type": "application/sdp",
@@ -393,7 +357,7 @@ Your job:
       setError(sessionError instanceof Error ? sessionError.message : "Failed to start Travel session");
       cleanup();
     }
-  }, [cleanup, handleRealtimeMessage, selectedDevice, travelInstructions]);
+  }, [activeLanguageCode, cleanup, handleRealtimeMessage, selectedDevice]);
 
   const startHoldingToTalk = async () => {
     if (!isSessionActive) {
