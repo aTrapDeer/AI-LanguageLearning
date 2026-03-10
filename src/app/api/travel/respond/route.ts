@@ -72,6 +72,8 @@ Rules:
 - Provide exactly 3 options.
 - The options must be meaningfully different: one natural, one polite, and one concise/direct.
 - Keep each translation practical for real travel situations.
+- Every "backTranslation" value must be written in natural English only.
+- Never return the "backTranslation" in ${languageName} or any other non-English language.
 - Do not include markdown, code fences, or extra commentary.
 - If the script is Latin-based, pronunciation can be an empty string.
 - Preserve important place names, numbers, and times accurately.`,

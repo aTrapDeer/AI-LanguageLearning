@@ -135,33 +135,6 @@ function TravelPageContent() {
     };
   }, [cleanup, getAudioDevices]);
 
-  useEffect(() => {
-    if (!isHolding) {
-      return;
-    }
-
-    const handlePointerRelease = () => {
-      if (!audioStreamRef.current) {
-        return;
-      }
-
-      audioStreamRef.current.getAudioTracks().forEach((track) => {
-        track.enabled = false;
-      });
-
-      setIsHolding(false);
-      setConnectionStatus("Processing translation...");
-    };
-
-    window.addEventListener("pointerup", handlePointerRelease);
-    window.addEventListener("pointercancel", handlePointerRelease);
-
-    return () => {
-      window.removeEventListener("pointerup", handlePointerRelease);
-      window.removeEventListener("pointercancel", handlePointerRelease);
-    };
-  }, [isHolding]);
-
   const travelInstructions = useMemo(() => {
     return `You are Travel mode for a traveler who understands English and needs help with ${activeLanguage.name}.
 
@@ -201,6 +174,90 @@ Your job:
     );
   }, []);
 
+  const translateTurn = useCallback(
+    async (turnId: string, transcript: string) => {
+      const trimmedTranscript = transcript.trim();
+
+      if (!trimmedTranscript) {
+        updateTurn(turnId, (turn) => ({
+          ...turn,
+          translation: "I couldn't clearly hear that.",
+          status: "complete",
+        }));
+
+        if (!currentTurnIdRef.current) {
+          setConnectionStatus("Ready to translate");
+        }
+
+        return;
+      }
+
+      try {
+        const response = await fetch("/api/travel/translate", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            language: activeLanguageCode,
+            transcript: trimmedTranscript,
+          }),
+        });
+
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.error || "Failed to translate the transcript");
+        }
+
+        updateTurn(turnId, (turn) => ({
+          ...turn,
+          translation: data.translation || "I couldn't clearly hear that.",
+          status: "complete",
+        }));
+      } catch (translationError) {
+        console.error("Failed to translate transcript:", translationError);
+        updateTurn(turnId, (turn) => ({
+          ...turn,
+          translation: "I couldn't clearly hear that.",
+          status: "complete",
+        }));
+        setError(translationError instanceof Error ? translationError.message : "Failed to translate transcript");
+      } finally {
+        if (!currentTurnIdRef.current) {
+          setConnectionStatus("Ready to translate");
+        }
+      }
+    },
+    [activeLanguageCode, updateTurn]
+  );
+
+  const stopHoldingToTalk = useCallback(() => {
+    if (!isHolding) {
+      return;
+    }
+
+    audioStreamRef.current?.getAudioTracks().forEach((track) => {
+      track.enabled = false;
+    });
+
+    setIsHolding(false);
+    setConnectionStatus("Processing translation...");
+  }, [isHolding]);
+
+  useEffect(() => {
+    if (!isHolding) {
+      return;
+    }
+
+    window.addEventListener("pointerup", stopHoldingToTalk);
+    window.addEventListener("pointercancel", stopHoldingToTalk);
+
+    return () => {
+      window.removeEventListener("pointerup", stopHoldingToTalk);
+      window.removeEventListener("pointercancel", stopHoldingToTalk);
+    };
+  }, [isHolding, stopHoldingToTalk]);
+
   const handleRealtimeMessage = useCallback((event: MessageEvent<string>) => {
     try {
       const message = JSON.parse(event.data);
@@ -229,37 +286,15 @@ Your job:
         }
         case "conversation.item.input_audio_transcription.completed": {
           const turnId = ensureActiveTurn();
+          const completedTranscript = typeof message.transcript === "string" ? message.transcript.trim() : "";
           updateTurn(turnId, (turn) => ({
             ...turn,
-            transcript: message.transcript || turn.transcript,
+            transcript: completedTranscript || turn.transcript,
             status: "translating",
           }));
+          currentTurnIdRef.current = null;
           setConnectionStatus("Translating...");
-          break;
-        }
-        case "response.output_text.delta":
-        case "response.output_audio_transcript.delta": {
-          const turnId = ensureActiveTurn();
-          const delta = message.delta || "";
-          updateTurn(turnId, (turn) => ({
-            ...turn,
-            translation: `${turn.translation}${delta}`,
-            status: "translating",
-          }));
-          break;
-        }
-        case "response.output_text.done":
-        case "response.output_audio_transcript.done": {
-          const turnId = currentTurnIdRef.current;
-          if (turnId) {
-            updateTurn(turnId, (turn) => ({
-              ...turn,
-              translation: message.text || message.transcript || turn.translation,
-              status: "complete",
-            }));
-            currentTurnIdRef.current = null;
-          }
-          setConnectionStatus("Ready to translate");
+          void translateTurn(turnId, completedTranscript);
           break;
         }
         case "error": {
@@ -271,7 +306,7 @@ Your job:
     } catch (messageError) {
       console.error("Failed to process realtime event:", messageError);
     }
-  }, [ensureActiveTurn, updateTurn]);
+  }, [ensureActiveTurn, translateTurn, updateTurn]);
 
   const startSession = useCallback(async () => {
     try {
@@ -301,7 +336,7 @@ Your job:
                   },
                   turn_detection: {
                     type: "semantic_vad",
-                    create_response: true,
+                    create_response: false,
                     interrupt_response: true,
                   },
                   noise_reduction: {
@@ -566,48 +601,22 @@ Your job:
                       event.preventDefault();
                       void startHoldingToTalk();
                     }}
-                    onPointerUp={() => {
-                      if (!audioStreamRef.current) {
-                        return;
-                      }
-
-                      audioStreamRef.current.getAudioTracks().forEach((track) => {
-                        track.enabled = false;
-                      });
-
-                      setIsHolding(false);
-                      setConnectionStatus("Processing translation...");
-                    }}
-                    onPointerLeave={() => {
-                      if (!isHolding || !audioStreamRef.current) {
-                        return;
-                      }
-
-                      audioStreamRef.current.getAudioTracks().forEach((track) => {
-                        track.enabled = false;
-                      });
-
-                      setIsHolding(false);
-                      setConnectionStatus("Processing translation...");
-                    }}
-                    onPointerCancel={() => {
-                      if (!audioStreamRef.current) {
-                        return;
-                      }
-
-                      audioStreamRef.current.getAudioTracks().forEach((track) => {
-                        track.enabled = false;
-                      });
-
-                      setIsHolding(false);
-                      setConnectionStatus("Processing translation...");
-                    }}
+                    onPointerUp={stopHoldingToTalk}
+                    onPointerLeave={stopHoldingToTalk}
+                    onPointerCancel={stopHoldingToTalk}
+                    onContextMenu={(event) => event.preventDefault()}
+                    onDragStart={(event) => event.preventDefault()}
                     disabled={!isSessionActive && connectionStatus === "Connecting..."}
-                    className={`flex min-h-16 flex-1 items-center justify-center rounded-2xl border px-6 py-4 text-base font-semibold transition ${
+                    className={`flex min-h-16 flex-1 select-none items-center justify-center rounded-2xl border px-6 py-4 text-base font-semibold transition touch-none ${
                       isHolding
                         ? "border-rose-300 bg-rose-500 text-white shadow-lg shadow-rose-500/30"
                         : "border-indigo-200 bg-indigo-600 text-white hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-60"
                     }`}
+                    style={{
+                      userSelect: "none",
+                      WebkitUserSelect: "none",
+                      WebkitTouchCallout: "none",
+                    }}
                   >
                     <Mic className="mr-3 h-5 w-5" />
                     {isHolding ? "Listening now - release to translate" : "Hold to translate"}
