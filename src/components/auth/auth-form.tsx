@@ -79,15 +79,7 @@ export function AuthForm({ mode }: AuthFormProps) {
       setError(null)
       
       console.log("Starting Google sign in process...")
-      
-      // Clear any existing cookies first to prevent conflicts
-      try {
-        await fetch('/api/auth/clear-cookies');
-        console.log("Cleared existing cookies");
-      } catch (e) {
-        console.warn("Failed to clear cookies via API:", e);
-      }
-      
+
       // Try to sign in with Google with explicit options
       const result = await signIn("google", {
         callbackUrl: new URL(postLoginPath, window.location.origin).toString(),
