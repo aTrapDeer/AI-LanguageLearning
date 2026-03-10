@@ -41,10 +41,7 @@ const ConversationSessionPage = () => {
   
   // For tracking ephemeral user messages
   const ephemeralUserMessageIdRef = useRef<string | null>(null);
-
-  // Add timer ref for speech debouncing
-  const speechTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const SPEECH_DELAY = 5000; // 5 seconds delay
+  const assistantMessageIdRef = useRef<string | null>(null);
 
   // Move getAudioDevices outside useEffect to avoid recreating it on every render
   const getAudioDevices = useCallback(async () => {
@@ -99,9 +96,9 @@ const ConversationSessionPage = () => {
   };
 
   const cleanup = () => {
-    if (speechTimeoutRef.current) {
-      clearTimeout(speechTimeoutRef.current);
-      speechTimeoutRef.current = null;
+    if (dataChannelRef.current) {
+      dataChannelRef.current.close();
+      dataChannelRef.current = null;
     }
     if (peerConnectionRef.current) {
       peerConnectionRef.current.close();
@@ -118,6 +115,8 @@ const ConversationSessionPage = () => {
     if (audioElementRef.current) {
       audioElementRef.current.srcObject = null;
     }
+    ephemeralUserMessageIdRef.current = null;
+    assistantMessageIdRef.current = null;
     setIsSessionActive(false);
   };
 
@@ -179,32 +178,10 @@ Let's start with a warm greeting and dive into a real conversation. I'm curious 
       }
 
       cleanup();
+      setError("");
       setStatus("Initializing...");
 
-      // Get session from OpenAI through our secure backend
-      const sessionResponse = await fetch("/api/openai-session", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        }
-      });
-      
-      if (!sessionResponse.ok) {
-        const errorData = await sessionResponse.json();
-        throw new Error(errorData.error || "Failed to create session");
-      }
-
-      const sessionData = await sessionResponse.json();
-      console.log("Session data:", sessionData);
-
-      if (!sessionData.session_id) {
-        throw new Error("No session ID received from server");
-      }
-
-      // Create WebRTC peer connection using the ice servers from the session
-      const pc = new RTCPeerConnection({
-        iceServers: sessionData.ice_servers || [{ urls: "stun:stun.l.google.com:19302" }]
-      });
+      const pc = new RTCPeerConnection();
       peerConnectionRef.current = pc;
 
       // Handle incoming audio track
@@ -216,7 +193,7 @@ Let's start with a warm greeting and dive into a real conversation. I'm curious 
       };
 
       // Create data channel
-      const dc = pc.createDataChannel("chat");
+      const dc = pc.createDataChannel("oai-events");
       dataChannelRef.current = dc;
 
       // Set up data channel handlers
@@ -225,40 +202,28 @@ Let's start with a warm greeting and dive into a real conversation. I'm curious 
         setIsSessionActive(true);
         setStatus("Connected");
 
-        // Send initial configuration with language learning instructions
         dc.send(JSON.stringify({
           type: "session.update",
           session: {
-            modalities: ["text", "audio"],
-            input_audio_transcription: {
-              model: "whisper-1"
-            }
-          }
-        }));
-
-        // Send language learning context with mode-specific instructions
-        dc.send(JSON.stringify({
-          type: "conversation.item.create",
-          item: {
-            type: "message",
-            role: "user",
-            content: [
-              {
-                type: "input_text",
-                text: getLanguageInstructions(activeLanguage, mode)
+            instructions: getLanguageInstructions(activeLanguage, mode),
+            output_modalities: ["audio"],
+            audio: {
+              input: {
+                transcription: {
+                  model: "gpt-4o-mini-transcribe"
+                },
+                turn_detection: {
+                  type: "semantic_vad",
+                  create_response: true,
+                  interrupt_response: true
+                }
               }
-            ]
+            }
           }
         }));
       };
 
       dc.onmessage = handleDataChannelMessage;
-
-      // Create and set up audio context
-      const audioContext = new AudioContext({
-        sampleRate: 16000
-      });
-      audioContextRef.current = audioContext;
 
       // Get user media
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -282,7 +247,7 @@ Let's start with a warm greeting and dive into a real conversation. I'm curious 
       await pc.setLocalDescription(offer);
 
       // Send SDP offer through our secure backend
-      const sdpResponse = await fetch(`/api/openai-session/sdp?session_id=${sessionData.session_id}`, {
+      const sdpResponse = await fetch("/api/openai-session/sdp", {
         method: "POST",
         headers: {
           "Content-Type": "application/sdp"
@@ -319,57 +284,19 @@ Let's start with a warm greeting and dive into a real conversation. I'm curious 
 
       switch (msg.type) {
         case "input_audio_buffer.speech_started": {
-          // Clear any existing timeout when speech starts
-          if (speechTimeoutRef.current) {
-            clearTimeout(speechTimeoutRef.current);
-            speechTimeoutRef.current = null;
-          }
           getOrCreateEphemeralUserId();
           updateEphemeralUserMessage({ status: "speaking" });
           break;
         }
 
         case "input_audio_buffer.speech_stopped": {
-          // Instead of immediately stopping, set a timeout
-          if (speechTimeoutRef.current) {
-            clearTimeout(speechTimeoutRef.current);
-          }
-          
-          speechTimeoutRef.current = setTimeout(() => {
-            updateEphemeralUserMessage({ status: "processing" });
-            if (dataChannelRef.current) {
-              dataChannelRef.current.send(JSON.stringify({
-                type: "input_audio_buffer.commit"
-              }));
-            }
-          }, SPEECH_DELAY);
-
-          // Keep the status as speaking during the delay
-          updateEphemeralUserMessage({ status: "speaking" });
+          updateEphemeralUserMessage({ status: "processing" });
           break;
         }
 
-        case "input_audio_buffer.committed": {
-          // Clear any existing timeout as the buffer was committed
-          if (speechTimeoutRef.current) {
-            clearTimeout(speechTimeoutRef.current);
-            speechTimeoutRef.current = null;
-          }
-          updateEphemeralUserMessage({
-            text: "Processing speech...",
-            status: "processing"
-          });
+        case "conversation.item.input_audio_transcription.delta": {
+          appendEphemeralUserMessageDelta(msg.delta || "");
           break;
-        }
-
-        case "conversation.item.input_audio_transcription": {
-          const partialText = msg.transcript ?? msg.text ?? "User is speaking...";
-          updateEphemeralUserMessage({
-            text: partialText,
-            status: "speaking",
-            isFinal: false
-          });
-            break;
         }
 
         case "conversation.item.input_audio_transcription.completed": {
@@ -378,31 +305,24 @@ Let's start with a warm greeting and dive into a real conversation. I'm curious 
             isFinal: true,
             status: "final"
           });
-          clearEphemeralUserMessage();
+          ephemeralUserMessageIdRef.current = null;
           break;
         }
 
-        case "response.audio_transcript.delta": {
-          const newMessage: Message = {
-            id: uuidv4(),
-            role: "assistant",
-            text: msg.delta,
-            timestamp: new Date().toISOString(),
-            isFinal: false
-          };
+        case "response.output_audio_transcript.delta":
+        case "response.output_text.delta": {
+          appendAssistantMessageDelta(msg.delta || "");
+          break;
+        }
 
-          setMessages(prev => {
-            const lastMsg = prev[prev.length - 1];
-            if (lastMsg && lastMsg.role === "assistant" && !lastMsg.isFinal) {
-              const updated = [...prev];
-              updated[updated.length - 1] = {
-                ...lastMsg,
-                text: lastMsg.text + msg.delta
-              };
-              return updated;
-            }
-            return [...prev, newMessage];
-          });
+        case "response.output_audio_transcript.done":
+        case "response.output_text.done": {
+          finalizeAssistantMessage(msg.transcript || msg.text || "");
+          break;
+        }
+
+        case "error": {
+          onRealtimeError(msg.error?.message || "Realtime session error");
           break;
         }
       }
@@ -445,8 +365,93 @@ Let's start with a warm greeting and dive into a real conversation. I'm curious 
     );
   };
 
-  const clearEphemeralUserMessage = () => {
-    ephemeralUserMessageIdRef.current = null;
+  const appendEphemeralUserMessageDelta = (delta: string) => {
+    if (!delta) {
+      return;
+    }
+
+    const ephemeralId = getOrCreateEphemeralUserId();
+    setMessages(prev =>
+      prev.map((message) =>
+        message.id === ephemeralId
+          ? {
+              ...message,
+              text: message.text + delta,
+              status: "speaking",
+              isFinal: false
+            }
+          : message
+      )
+    );
+  };
+
+  const appendAssistantMessageDelta = (delta: string) => {
+    if (!delta) {
+      return;
+    }
+
+    let assistantId = assistantMessageIdRef.current;
+    if (!assistantId) {
+      assistantId = uuidv4();
+      assistantMessageIdRef.current = assistantId;
+
+      const newMessage: Message = {
+        id: assistantId,
+        role: "assistant",
+        text: delta,
+        timestamp: new Date().toISOString(),
+        isFinal: false
+      };
+
+      setMessages(prev => [...prev, newMessage]);
+      return;
+    }
+
+    setMessages(prev =>
+      prev.map((message) =>
+        message.id === assistantId
+          ? { ...message, text: message.text + delta }
+          : message
+      )
+    );
+  };
+
+  const finalizeAssistantMessage = (finalText: string) => {
+    const assistantId = assistantMessageIdRef.current;
+    if (!assistantId) {
+      if (finalText) {
+        setMessages(prev => [
+          ...prev,
+          {
+            id: uuidv4(),
+            role: "assistant",
+            text: finalText,
+            timestamp: new Date().toISOString(),
+            isFinal: true
+          }
+        ]);
+      }
+      return;
+    }
+
+    setMessages(prev =>
+      prev.map((message) =>
+        message.id === assistantId
+          ? {
+              ...message,
+              text: finalText || message.text,
+              isFinal: true
+            }
+          : message
+      )
+    );
+
+    assistantMessageIdRef.current = null;
+  };
+
+  const onRealtimeError = (message: string) => {
+    setError(message);
+    setStatus("Error");
   };
 
   const getModeDisplayName = () => {

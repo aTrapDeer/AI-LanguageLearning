@@ -8,12 +8,13 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "test:redis": "cross-env NODE_ENV=development node --loader ts-node/esm --experimental-specifier-resolution=node src/scripts/test-redis.ts",
-    "agent": "cross-env NODE_ENV=development node --loader ts-node/esm --experimental-specifier-resolution=node src/scripts/run-livekit-agent.ts dev",
-    "agent:prod": "cross-env NODE_ENV=production node --loader ts-node/esm --experimental-specifier-resolution=node src/scripts/run-livekit-agent.ts start",
-    "dev:all": "cross-env NODE_ENV=development node --loader ts-node/esm --experimental-specifier-resolution=node src/scripts/start-all.ts",
-    "start:all": "cross-env NODE_ENV=production node --loader ts-node/esm --experimental-specifier-resolution=node src/scripts/start-all.ts",
-    "test:user-creation": "cross-env NODE_ENV=development node --loader ts-node/esm --experimental-specifier-resolution=node src/scripts/test-user-creation.ts"
+    "test:redis": "cross-env NODE_ENV=development tsx src/scripts/test-redis.ts",
+    "agent": "cross-env NODE_ENV=development tsx src/scripts/run-livekit-agent.ts dev",
+    "agent:prod": "cross-env NODE_ENV=production tsx src/scripts/run-livekit-agent.ts start",
+    "dev:all": "cross-env NODE_ENV=development tsx src/scripts/start-all.ts",
+    "start:all": "cross-env NODE_ENV=production tsx src/scripts/start-all.ts",
+    "test:user-creation": "cross-env NODE_ENV=development tsx src/scripts/test-user-creation.ts",
+    "db:init": "cross-env NODE_ENV=development tsx src/scripts/init-turso.ts"
   },
   "dependencies": {
     "@libsql/client": "^0.17.0",
@@ -81,6 +82,7 @@
     "postcss": "^8",
     "tailwindcss": "^3.4.1",
     "ts-node": "^10.9.2",
+    "tsx": "^4.21.0",
     "typescript": "^5"
   }
 }

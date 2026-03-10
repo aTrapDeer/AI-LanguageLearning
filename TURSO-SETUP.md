@@ -35,4 +35,10 @@ GOOGLE_CLIENT_SECRET=""
 
 ## Schema management
 
-The app creates its required tables automatically when it first connects to Turso, so there is no separate SQL bootstrap step required for local development.
+The app creates its required tables automatically when it first connects to Turso, and you can also bootstrap them explicitly with:
+
+```bash
+npm run db:init
+```
+
+This will connect using `.env.local`, create any missing tables/indexes, and print current row counts for the main application tables.

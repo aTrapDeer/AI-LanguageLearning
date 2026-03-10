@@ -384,6 +384,10 @@ async function ensureDatabaseSchema() {
   await schemaPromise;
 }
 
+export async function initializeDatabaseSchema() {
+  await ensureDatabaseSchema();
+}
+
 async function execute(sql: string, args: InArgs = []) {
   await ensureDatabaseSchema();
   return getTursoClient().execute({ sql, args });
@@ -397,6 +401,20 @@ async function getFirstRow(sql: string, args: InArgs = []) {
 async function getRows(sql: string, args: InArgs = []) {
   const result = await execute(sql, args);
   return result.rows as DbRow[];
+}
+
+export async function getDatabaseTableCounts() {
+  await ensureDatabaseSchema();
+
+  const tableNames = ["users", "accounts", "sessions", "verification_tokens", "progress", "learning", "chats"] as const;
+  const counts: Record<string, number> = {};
+
+  for (const tableName of tableNames) {
+    const row = await getFirstRow(`SELECT COUNT(*) AS count FROM ${tableName}`);
+    counts[tableName] = asNumber(row?.count, 0);
+  }
+
+  return counts;
 }
 
 export async function getUserById(id: string) {
@@ -751,7 +769,7 @@ export async function getAdapterUserByAccount(provider: string, providerAccountI
     [provider, providerAccountId]
   );
 
-  return row ? mapAdapterUser(row) : null;
+  return row ? mapAdapterUser(mapUser(row)) : null;
 }
 
 export async function updateAdapterUser(user: Partial<AdapterUser> & { id: string }) {
