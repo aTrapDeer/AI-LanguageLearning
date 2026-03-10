@@ -49,10 +49,12 @@ function Header1() {
     ];
 
     const [isOpen, setOpen] = useState(false);
-    const { data: session } = useSession();
+    const { status } = useSession();
 
     // Determine the home link based on authentication
-    const homeLink = session ? "/dashboard" : "/";
+    const isAuthenticated = status === "authenticated";
+    const isSessionLoading = status === "loading";
+    const homeLink = isAuthenticated ? "/dashboard" : "/";
 
     return (
         <header className="w-full z-40 fixed top-0 left-0 bg-background">
@@ -128,7 +130,7 @@ function Header1() {
                 <div className="flex justify-end w-full gap-2 md:gap-4 items-center">
                     <LanguageSelect />
                     <div className="border-r hidden md:inline"></div>
-                    {session ? (
+                    {isSessionLoading ? null : isAuthenticated ? (
                         <>
                             <Button variant="outline" onClick={() => signOut()} size="sm" className="hidden md:flex">
                                 Sign Out
@@ -156,7 +158,7 @@ function Header1() {
                         <div className="absolute top-16 md:top-20 border-t flex flex-col w-full right-0 bg-background shadow-lg py-3 container gap-4">
                             {/* Authentication buttons for mobile */}
                             <div className="flex flex-col gap-3 border-b pb-3">
-                                {session ? (
+                                {isSessionLoading ? null : isAuthenticated ? (
                                     <>
                                         <Link
                                             href="/dashboard"

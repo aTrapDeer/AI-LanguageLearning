@@ -33,7 +33,9 @@ const itemVariants = {
 };
 
 export default function Home() {
-  const { data: session } = useSession();
+  const { status } = useSession();
+  const isAuthenticated = status === "authenticated";
+  const isSessionLoading = status === "loading";
 
   return (
     <div className="flex flex-col min-h-screen bg-slate-50 dark:bg-slate-950 selection:bg-indigo-500/30">
@@ -99,7 +101,7 @@ export default function Home() {
               transition={{ delay: 0.8, duration: 0.5 }}
               className="flex flex-col sm:flex-row justify-center gap-4 pt-8"
             >
-              {session ? (
+              {isSessionLoading ? null : isAuthenticated ? (
                 <>
                   <Link
                     href="/dashboard"
@@ -319,10 +321,10 @@ export default function Home() {
               Join thousands of learners who are mastering new languages with the power of AI.
             </p>
             <Link
-              href={session ? "/dashboard" : "/register"}
+              href={isAuthenticated ? "/dashboard" : "/register"}
               className="inline-flex items-center gap-2 px-10 py-5 bg-white text-indigo-600 rounded-full font-bold text-xl hover:scale-105 transition-all shadow-xl hover:shadow-2xl hover:shadow-white/20"
             >
-              {session ? "Continue Your Journey" : "Start Learning Now"}
+              {isAuthenticated ? "Continue Your Journey" : "Start Learning Now"}
               <ArrowRight className="w-6 h-6" />
             </Link>
           </motion.div>
