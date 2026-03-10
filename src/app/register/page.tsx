@@ -1,3 +1,4 @@
+import { Suspense } from "react"
 import { AuthForm } from "@/components/auth/auth-form"
 import { BackgroundGradientAnimation } from '@/components/ui/background-gradient-animation';
 
@@ -20,9 +21,11 @@ export default function RegisterPage() {
       />
       <div className="relative flex min-h-screen items-center justify-center px-4">
         <div className="w-full max-w-md">
-          <AuthForm mode="register" />
+          <Suspense fallback={<div className="text-center text-sm text-muted-foreground">Loading...</div>}>
+            <AuthForm mode="register" />
+          </Suspense>
         </div>
       </div>
     </div>
   )
-} 
+}
