@@ -201,7 +201,7 @@ export default function Home() {
               </div>
               <h3 className="text-2xl font-bold mb-4 text-slate-900 dark:text-white">Personalized Journeys</h3>
               <p className="text-slate-600 dark:text-slate-400">
-                Whether you're traveling to Tokyo or closing a deal in Berlin, our AI generates custom learning paths tailored to your exact goals.
+                Whether you&apos;re traveling to Tokyo or closing a deal in Berlin, our AI generates custom learning paths tailored to your exact goals.
               </p>
             </motion.div>
 

@@ -916,7 +916,7 @@ function JourneyPageContent() {
     if (!round.missingWordIndices || !round.correctWords) return
     
     // Create a copy of the options array
-    let options = [...round.options];
+    const options = [...round.options];
 
     // Get all tokens from the sentence using language-aware tokenization
     const words = tokenizeExerciseText(round.sentence, lang);
@@ -1128,7 +1128,7 @@ function JourneyPageContent() {
           <div className="mb-6 md:mb-8">
             <p className="text-base md:text-lg mb-2">Available Words:</p>
             <div className="flex flex-wrap gap-2">
-              {words.map((word, i) => (
+              {words.map((word) => (
                 <button
                   key={word.id}
                   onClick={() => handleWordClick(word)}
@@ -1269,7 +1269,7 @@ function JourneyPageContent() {
               <div className="mb-6">
                 <p className="text-base md:text-lg mb-3">Available Words:</p>
                 <div className="grid grid-cols-2 md:flex md:flex-wrap gap-2 md:gap-3 mt-4">
-                  {availableWords.map((word, i) => (
+                  {availableWords.map((word) => (
                     <button
                       key={word.id}
                       draggable
