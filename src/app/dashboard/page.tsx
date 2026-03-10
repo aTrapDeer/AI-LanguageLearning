@@ -69,9 +69,14 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (status === "unauthenticated") {
-      router.push("/login")
+      router.replace("/login?callbackUrl=/dashboard")
+      return
     }
-  }, [status, router])
+
+    if (status === "authenticated" && session?.user?.accountSetup === false) {
+      router.replace("/account-setup")
+    }
+  }, [session?.user?.accountSetup, status, router])
 
   if (status === "loading") {
     return (
@@ -82,6 +87,10 @@ export default function DashboardPage() {
   }
 
   if (!session) {
+    return null
+  }
+
+  if (session.user.accountSetup === false) {
     return null
   }
 

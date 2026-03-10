@@ -11,9 +11,14 @@ export default function AccountSetupPage() {
 
   useEffect(() => {
     if (status === "unauthenticated") {
-      router.push("/login")
+      router.replace("/login?callbackUrl=/account-setup")
+      return
     }
-  }, [status, router])
+
+    if (status === "authenticated" && session?.user?.accountSetup) {
+      router.replace("/dashboard")
+    }
+  }, [session?.user?.accountSetup, status, router])
 
   if (status === "loading") {
     return (
@@ -24,6 +29,10 @@ export default function AccountSetupPage() {
   }
 
   if (!session) {
+    return null
+  }
+
+  if (session.user.accountSetup) {
     return null
   }
 
