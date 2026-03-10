@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import * as fs from 'fs';
 import * as path from 'path';
-import { arraysEqual, findTokenIndicesForWords, tokenizeExerciseText } from '@/lib/exercise-text';
+import { arraysEqual, findTokenIndicesForWords, normalizeTokenForComparison, tokenizeExerciseText } from '@/lib/exercise-text';
 
 // Configure route segment - extends timeout for complex AI operations
 export const maxDuration = 60; // 60 seconds for Vercel Pro (5 seconds for Hobby plan)
@@ -62,6 +62,38 @@ type JourneyData = {
   summaryTest: Round[];
 };
 
+function dedupeWordOptions(options: string[]) {
+  const seen = new Set<string>();
+  const uniqueOptions: string[] = [];
+
+  for (const option of options) {
+    const normalized = normalizeTokenForComparison(option);
+    if (!normalized || seen.has(normalized)) {
+      continue;
+    }
+
+    seen.add(normalized);
+    uniqueOptions.push(option);
+  }
+
+  return uniqueOptions;
+}
+
+function buildLegacyOptions(correctWord: string, options: string[]) {
+  const uniqueOptions = dedupeWordOptions([correctWord, ...options]);
+  const correctWordKey = normalizeTokenForComparison(correctWord);
+
+  if (!uniqueOptions.some((option) => normalizeTokenForComparison(option) === correctWordKey)) {
+    uniqueOptions.unshift(correctWord);
+  }
+
+  return uniqueOptions.slice(0, 4);
+}
+
+function buildMultiWordOptions(correctWords: string[], options: string[]) {
+  return dedupeWordOptions([...correctWords, ...options]);
+}
+
 function normalizeRound(round: Round, language: string): Round {
   if (round.type === 'matching') {
     const normalizedWords = tokenizeExerciseText(round.translatedSentence, language);
@@ -82,7 +114,7 @@ function normalizeRound(round: Round, language: string): Round {
       ...multiWordRound,
       missingWordIndices: recovered.indices,
       correctWords: recovered.matchedWords,
-      options: [...recovered.matchedWords, ...multiWordRound.options],
+      options: buildMultiWordOptions(recovered.matchedWords, multiWordRound.options),
     };
   }
 
@@ -97,7 +129,7 @@ function normalizeRound(round: Round, language: string): Round {
       ...legacyRound,
       missingWordIndex: recovered.indices[0],
       correctWord: recovered.matchedWords[0],
-      options: [recovered.matchedWords[0], ...legacyRound.options],
+      options: buildLegacyOptions(recovered.matchedWords[0], legacyRound.options),
     };
   }
 
@@ -884,7 +916,7 @@ function fixMissingWordExercises(journeyData: JourneyData, level: number): Journ
           sentence: multiWordRound.sentence,
           missingWordIndex: firstIndex,
           correctWord: firstCorrectWord,
-          options: multiWordRound.options.slice(0, 4) // Ensure exactly 4 options
+          options: buildLegacyOptions(firstCorrectWord, multiWordRound.options),
         };
         
         return legacyRound;
@@ -912,7 +944,7 @@ function fixMissingWordExercises(journeyData: JourneyData, level: number): Journ
           sentence: multiWordRound.sentence,
           missingWordIndex: firstIndex,
           correctWord: firstCorrectWord,
-          options: multiWordRound.options.slice(0, 4) // Ensure exactly 4 options
+          options: buildLegacyOptions(firstCorrectWord, multiWordRound.options),
         };
         
         return legacyRound;

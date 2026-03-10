@@ -41,6 +41,10 @@ function Header1() {
                     href: "/learn/conversation",
                 },
                 {
+                    title: "Travel",
+                    href: "/travel",
+                },
+                {
                     title: "Visual Learning",
                     href: "/learn/visual",
                 },

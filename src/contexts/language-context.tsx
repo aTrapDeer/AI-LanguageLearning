@@ -25,6 +25,33 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const { data: session } = useSession();
 
+  const getCurrentLocation = () => {
+    const { pathname, search } = window.location;
+    return `${pathname}${search}`;
+  };
+
+  const routeWithLanguage = (languageCode: string) => {
+    const url = new URL(window.location.href);
+
+    if (url.pathname.startsWith('/learn/')) {
+      const segments = url.pathname.split('/').filter(Boolean);
+      if (segments.length === 2 && languages.some((lang) => lang.code === segments[1])) {
+        url.pathname = `/learn/${languageCode}`;
+      } else {
+        url.searchParams.set('lang', languageCode);
+      }
+
+      return `${url.pathname}${url.search}`;
+    }
+
+    if (url.pathname === '/flashcards' || url.pathname === '/travel') {
+      url.searchParams.set('lang', languageCode);
+      return `${url.pathname}${url.search}`;
+    }
+
+    return null;
+  };
+
   useEffect(() => {
     const initializeLanguage = async () => {
       // Try to get the language from localStorage first
@@ -56,26 +83,50 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     initializeLanguage();
   }, [session]);
 
+  useEffect(() => {
+    const syncSelectedLanguage = () => {
+      const savedLanguage = localStorage.getItem('selectedLanguage');
+      if (!savedLanguage) {
+        return;
+      }
+
+      try {
+        setSelectedLanguage(JSON.parse(savedLanguage));
+      } catch (error) {
+        console.error('Failed to sync selected language from storage:', error);
+      }
+    };
+
+    window.addEventListener('storage', syncSelectedLanguage);
+    window.addEventListener('selected-language-updated', syncSelectedLanguage);
+
+    return () => {
+      window.removeEventListener('storage', syncSelectedLanguage);
+      window.removeEventListener('selected-language-updated', syncSelectedLanguage);
+    };
+  }, []);
+
   const setLanguage = async (language: Language) => {
-    setSelectedLanguage(language);
-    localStorage.setItem('selectedLanguage', JSON.stringify(language));
-    
-    // If user is authenticated, check if they have progress for this language
     if (session?.user) {
       try {
         // Check if user has progress for this language
         const progressResponse = await fetch(`/api/user/progress/check?language=${language.code}`);
-        
+
         if (progressResponse.status === 404 || progressResponse.status === 406) {
           // No progress found for this language - redirect to account setup
           console.log(`No progress found for language ${language.code}, redirecting to setup`);
-          
+
           // Set a flag to indicate this is for language setup, not initial account setup
           localStorage.setItem('setupLanguage', language.code);
+          localStorage.setItem('setupRedirect', getCurrentLocation());
           router.push('/account-setup');
           return;
         }
-        
+
+        setSelectedLanguage(language);
+        localStorage.setItem('selectedLanguage', JSON.stringify(language));
+        window.dispatchEvent(new Event('selected-language-updated'));
+
         // Update their active language in the database
         await fetch('/api/user/active-language', {
           method: 'PUT',
@@ -87,14 +138,19 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
       } catch (error) {
         console.error('Failed to check progress or update active language:', error);
         // Continue anyway, let the journey page handle the missing progress
+        setSelectedLanguage(language);
+        localStorage.setItem('selectedLanguage', JSON.stringify(language));
+        window.dispatchEvent(new Event('selected-language-updated'));
       }
+    } else {
+      setSelectedLanguage(language);
+      localStorage.setItem('selectedLanguage', JSON.stringify(language));
+      window.dispatchEvent(new Event('selected-language-updated'));
     }
-    
-    // Update URL if we're in a learning route
-    const path = window.location.pathname;
-    if (path.startsWith('/learn/')) {
-      const route = path.split('/')[2]; // Get the route after /learn/
-      router.push(`/learn/${route}?lang=${language.code}`);
+
+    const nextRoute = routeWithLanguage(language.code);
+    if (nextRoute) {
+      router.push(nextRoute);
     }
   };
 

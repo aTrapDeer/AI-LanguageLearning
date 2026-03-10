@@ -14,3 +14,11 @@ export const SUPPORTED_LANGUAGES = [
 export function isSupportedLanguageCode(value: string): value is SupportedLanguageCode {
   return SUPPORTED_LANGUAGE_CODES.includes(value as SupportedLanguageCode);
 }
+
+export function getSupportedLanguage(code: string) {
+  return SUPPORTED_LANGUAGES.find((language) => language.code === code) ?? null;
+}
+
+export function getSupportedLanguageName(code: string) {
+  return getSupportedLanguage(code)?.name ?? code;
+}

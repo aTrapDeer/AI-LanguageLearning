@@ -1,6 +1,5 @@
 import { ReactNode } from "react";
 import { ArrowRightIcon } from "@radix-ui/react-icons";
-import { IconProps } from "@radix-ui/react-icons/dist/types";
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -28,7 +27,7 @@ type BentoCardProps = {
   name: string;
   className: string;
   background: ReactNode;
-  Icon: React.ComponentType<IconProps>;
+  Icon: React.ComponentType<{ className?: string }>;
   description: string;
   href: string;
   cta: string;

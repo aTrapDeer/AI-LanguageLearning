@@ -594,6 +594,20 @@ function JourneyPageContent() {
     }
   }
 
+  const dedupeOptions = (options: string[]) => {
+    const seen = new Set<string>()
+
+    return options.filter((option) => {
+      const normalized = normalizeTokenForComparison(option)
+      if (!normalized || seen.has(normalized)) {
+        return false
+      }
+
+      seen.add(normalized)
+      return true
+    })
+  }
+
   const createWordChoices = (words: string[], prefix: string): WordChoice[] =>
     words.map((word, index) => ({
       id: `${prefix}-${index}-${word}`,
@@ -952,7 +966,7 @@ function JourneyPageContent() {
     });
     
     // Remove any duplicates that might still exist in distractors
-    const uniqueDistractors = Array.from(new Set(distractors));
+    const uniqueDistractors = dedupeOptions(distractors);
     
     // Combine correct words with distractors, preserving duplicate correct words when needed
     const finalOptions = [...round.correctWords, ...uniqueDistractors];
@@ -1326,7 +1340,7 @@ function JourneyPageContent() {
       const sentence = legacyRound.sentence || '';
       const missingWordIndex = typeof legacyRound.missingWordIndex === 'number' ? legacyRound.missingWordIndex : 0;
       const correctWord = legacyRound.correctWord || '';
-      const options = legacyRound.options || [];
+      const options = dedupeOptions(legacyRound.options || []);
       
       // Create sentence with blank
       const words = tokenizeExerciseText(sentence, lang);
