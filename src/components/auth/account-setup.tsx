@@ -88,6 +88,31 @@ export function AccountSetup({ userId }: { userId: string }) {
   const [isLanguageSetup, setIsLanguageSetup] = useState(false)
   const [setupLanguageCode, setSetupLanguageCode] = useState<string | null>(null)
 
+  const buildLanguageRedirect = (languageCode: string, rawRedirect: string | null) => {
+    const fallbackRedirect = '/dashboard'
+    const redirectTarget = rawRedirect || fallbackRedirect
+
+    try {
+      const redirectUrl = new URL(redirectTarget, window.location.origin)
+
+      if (redirectUrl.pathname.startsWith('/learn/')) {
+        const segments = redirectUrl.pathname.split('/').filter(Boolean)
+        if (segments.length === 2 && SUPPORTED_LANGUAGES.some((language) => language.code === segments[1])) {
+          redirectUrl.pathname = `/learn/${languageCode}`
+        } else {
+          redirectUrl.searchParams.set('lang', languageCode)
+        }
+      } else if (redirectUrl.pathname === '/flashcards' || redirectUrl.pathname === '/travel') {
+        redirectUrl.searchParams.set('lang', languageCode)
+      }
+
+      return `${redirectUrl.pathname}${redirectUrl.search}${redirectUrl.hash}`
+    } catch (error) {
+      console.warn('Failed to build setup redirect target:', error)
+      return fallbackRedirect
+    }
+  }
+
   // Check if this is language setup (user selected a new language they haven't learned)
   useEffect(() => {
     const setupLanguage = localStorage.getItem('setupLanguage');
@@ -242,10 +267,19 @@ export function AccountSetup({ userId }: { userId: string }) {
       
       // Redirect based on setup type
       if (isLanguageSetup && setupLanguageCode) {
-        // Redirect back to the journey page for the new language
-        router.push(`/learn/journey?lang=${setupLanguageCode}`);
+        const selectedLanguageConfig = SUPPORTED_LANGUAGES.find((language) => language.code === setupLanguageCode)
+        if (selectedLanguageConfig) {
+          localStorage.setItem('selectedLanguage', JSON.stringify(selectedLanguageConfig))
+          window.dispatchEvent(new Event('selected-language-updated'))
+        }
+
+        const setupRedirect = localStorage.getItem('setupRedirect')
+        localStorage.removeItem('setupRedirect')
+
+        router.push(buildLanguageRedirect(setupLanguageCode, setupRedirect))
       } else {
         // Initial account setup - redirect to dashboard
+        localStorage.removeItem('setupRedirect')
         router.push("/dashboard");
       }
       router.refresh()
