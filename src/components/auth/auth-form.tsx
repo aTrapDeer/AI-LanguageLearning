@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { useSearchParams } from "next/navigation"
 import { getProviders, signIn } from "next-auth/react"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
@@ -23,7 +24,25 @@ interface AuthFormProps {
   mode: "login" | "register"
 }
 
+function getAuthErrorMessage(error: string) {
+  switch (error) {
+    case "OAuthSignin":
+    case "OAuthCallback":
+    case "Callback":
+      return "Google sign-in failed during the callback. Check the deployed Google OAuth redirect URI and NextAuth environment variables."
+    case "OAuthAccountNotLinked":
+      return "That email is already attached to another sign-in method. Try the original login method for that account."
+    case "CredentialsSignin":
+      return "Invalid email or password"
+    case "AccessDenied":
+      return "Access was denied during sign-in."
+    default:
+      return `Authentication failed: ${error}`
+  }
+}
+
 export function AuthForm({ mode }: AuthFormProps) {
+  const searchParams = useSearchParams()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isManualExpanded, setIsManualExpanded] = useState(false)
@@ -42,6 +61,13 @@ export function AuthForm({ mode }: AuthFormProps) {
 
     loadProviders()
   }, [])
+
+  useEffect(() => {
+    const authError = searchParams.get("error")
+    if (authError) {
+      setError(getAuthErrorMessage(authError))
+    }
+  }, [searchParams])
 
   async function handleGoogleSignIn() {
     try {
