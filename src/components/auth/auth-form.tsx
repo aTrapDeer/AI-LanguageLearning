@@ -47,6 +47,10 @@ export function AuthForm({ mode }: AuthFormProps) {
   const [error, setError] = useState<string | null>(null)
   const [isManualExpanded, setIsManualExpanded] = useState(false)
   const [googleAvailable, setGoogleAvailable] = useState(false)
+  const requestedCallbackUrl = searchParams.get("callbackUrl")
+  const postLoginPath = requestedCallbackUrl
+    ? `/auth/post-login?callbackUrl=${encodeURIComponent(requestedCallbackUrl)}`
+    : "/auth/post-login"
 
   useEffect(() => {
     const loadProviders = async () => {
@@ -85,8 +89,8 @@ export function AuthForm({ mode }: AuthFormProps) {
       }
       
       // Try to sign in with Google with explicit options
-      const result = await signIn("google", { 
-        callbackUrl: window.location.origin + "/dashboard",
+      const result = await signIn("google", {
+        callbackUrl: new URL(postLoginPath, window.location.origin).toString(),
         redirect: true,
         prompt: "select_account"
       })
@@ -146,7 +150,7 @@ export function AuthForm({ mode }: AuthFormProps) {
         email,
         password,
         redirect: true,
-        callbackUrl: "/dashboard"
+        callbackUrl: postLoginPath
       })
 
       if (result?.error) {
