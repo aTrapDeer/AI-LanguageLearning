@@ -7,7 +7,6 @@ import { useSession } from "next-auth/react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Image from "next/image"
 import { BackgroundGradientAnimation } from '@/components/ui/background-gradient-animation'
-import { getProgress, createProgress } from "@/lib/supabase-db"
 import { Button } from "@/components/ui/button"
 
 // Types for the different round types
@@ -67,12 +66,12 @@ type Journey = {
 // Type for user progress from database
 type UserProgress = {
   id: string
-  user_id: string
+  userId: string
   language: string
   level: number
   xp: number
-  created_at: string
-  updated_at: string
+  createdAt: string
+  updatedAt: string
 }
 
 // Create sentence with blanks
@@ -248,33 +247,52 @@ function JourneyPageContent() {
             generateJourney(lang, 1)
             return
           }
-          
-          // Supabase expects user_id, not userId - make sure the correct field is used
-          const progress = await getProgress(session.user.id, lang)
-          console.log("Progress data received:", progress)
-          
-          if (progress) {
-            setUserProgress(progress)
-            // Make sure we use level from the progress data
-            generateJourney(lang, progress.level || 1)
-          } else {
-            // If no progress data found, create a new progress entry for this user/language
+
+          const progressResponse = await fetch(`/api/user/progress/check?language=${encodeURIComponent(lang)}`)
+
+          if (progressResponse.ok) {
+            const progressData = await progressResponse.json()
+            console.log("Progress data received:", progressData)
+
+            const existingProgress: UserProgress = {
+              id: progressData.progress.id,
+              userId: session.user.id,
+              language: lang,
+              level: progressData.progress.level,
+              xp: progressData.progress.xp,
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+            }
+
+            setUserProgress(existingProgress)
+            generateJourney(lang, existingProgress.level || 1)
+          } else if (progressResponse.status === 404) {
             console.log("No progress found, creating entry with default level 1")
             try {
-              // Create initial progress record for this language if it doesn't exist
-              await createProgress({
-                userId: session.user.id,
-                language: lang,
-                level: 1,
-                xp: 0
+              const createResponse = await fetch("/api/user/progress", {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                  language: lang,
+                  level: 1,
+                  xp: 0,
+                }),
               })
-              
-              // Start with level 1
+
+              if (createResponse.ok) {
+                const createdProgress = await createResponse.json()
+                setUserProgress(createdProgress)
+              }
+
               generateJourney(lang, 1)
             } catch (createError) {
               console.error("Error creating progress entry:", createError)
               generateJourney(lang, 1)
             }
+          } else {
+            throw new Error(`Failed to fetch progress: ${progressResponse.status}`)
           }
         } catch (error) {
           console.error("Error fetching user progress:", error)

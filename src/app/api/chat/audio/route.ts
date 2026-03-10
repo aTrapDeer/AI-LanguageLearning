@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
 import S3 from "aws-sdk/clients/s3";
-import { createChatMessage } from "@/lib/supabase-db";
+import { createChatMessage } from "@/lib/database";
 import { extractFollowUpQuestion, extractLanguageText, OpenAIVoice } from "../chat-utils";
 
 // Language configurations (same as in chat/route.ts)

@@ -1,9 +1,15 @@
 import { NextResponse } from 'next/server';
 import OpenAI from 'openai';
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+function getOpenAIClient() {
+  if (!process.env.OPENAI_API_KEY) {
+    throw new Error("OPENAI_API_KEY is not set");
+  }
+
+  return new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY,
+  });
+}
 
 export async function GET() {
   const results: {
@@ -20,6 +26,7 @@ export async function GET() {
 
   // Test 1: GPT-3.5-turbo (cheaper model)
   try {
+    const openai = getOpenAIClient();
     console.log('Testing GPT-3.5-turbo...');
     const gpt35Response = await openai.chat.completions.create({
       model: "gpt-3.5-turbo",
@@ -46,6 +53,7 @@ export async function GET() {
 
   // Test 2: GPT-4o-mini (mid-tier model)
   try {
+    const openai = getOpenAIClient();
     console.log('Testing GPT-4o-mini...');
     const gpt4miniResponse = await openai.chat.completions.create({
       model: "gpt-4o-mini",
@@ -72,6 +80,7 @@ export async function GET() {
 
   // Test 3: GPT-4o (premium model - the one failing)
   try {
+    const openai = getOpenAIClient();
     console.log('Testing GPT-4o...');
     const gpt4Response = await openai.chat.completions.create({
       model: "gpt-4o",

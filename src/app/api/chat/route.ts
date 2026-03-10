@@ -1,8 +1,8 @@
-import { NextResponse } from 'next/server';
-import OpenAI from 'openai';
-import { createChatMessage } from '@/lib/supabase-db';
-import S3 from 'aws-sdk/clients/s3';
-import { extractFollowUpQuestion, extractLanguageText, OpenAIVoice, LanguageCodeMapping } from './chat-utils';
+import { NextResponse } from "next/server";
+import OpenAI from "openai";
+import { createChatMessage } from "@/lib/database";
+import S3 from "aws-sdk/clients/s3";
+import { extractFollowUpQuestion, extractLanguageText, OpenAIVoice, LanguageCodeMapping } from "./chat-utils";
 
 // Language configurations
 const LANGUAGE_CONFIGS: Record<string, { instructions: string, voice: string }> = {
@@ -120,19 +120,22 @@ const s3 = new S3({
   region: process.env.AWS_REGION || 'us-east-1',
 });
 
-// Initialize OpenAI client
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+function getOpenAIClient() {
+  if (!process.env.OPENAI_API_KEY) {
+    throw new Error("OPENAI_API_KEY is not set");
+  }
+
+  return new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY,
+  });
+}
 
 export async function POST(req: Request) {
   try {
     const body = await req.json();
     const { message, language, userId } = body;
     
-    if (!process.env.OPENAI_API_KEY) {
-      throw new Error('OPENAI_API_KEY is not set');
-    }
+    const openai = getOpenAIClient();
 
     // Convert language to code
     const languageMapping: LanguageCodeMapping = {
