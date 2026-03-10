@@ -22,6 +22,7 @@ type MatchingRound = {
 type MissingWordRound = {
   type: 'missing_word'
   sentence: string
+  englishTranslation?: string
   missingWordIndices: number[]
   correctWords: string[]
   options: string[]
@@ -32,6 +33,7 @@ type MissingWordRound = {
 interface LegacyMissingWordRound {
   type: 'missing_word'
   sentence: string
+  englishTranslation?: string
   missingWordIndex: number
   correctWord: string
   options: string[]
@@ -88,6 +90,62 @@ type WordChoice = {
 // Fix for Vercel deployment - create a type guard for checking blank items
 function isBlankItem(item: SentenceItem): item is { isBlank: true; index: number; word: WordChoice | null } {
   return item.isBlank === true;
+}
+
+function buildSingleWordOptions(correctWord: string, options: string[]) {
+  const seen = new Set<string>()
+  const normalizedOptions: string[] = []
+
+  for (const option of [correctWord, ...options]) {
+    const normalized = normalizeTokenForComparison(option)
+    if (!normalized || seen.has(normalized)) {
+      continue
+    }
+
+    seen.add(normalized)
+    normalizedOptions.push(option)
+  }
+
+  return normalizedOptions.slice(0, 4)
+}
+
+function normalizeMissingWordRoundForClient(
+  round: MissingWordRound | LegacyMissingWordRound
+): LegacyMissingWordRound {
+  if ('missingWordIndices' in round) {
+    const missingWordIndex = round.missingWordIndices[0] ?? 0
+    const correctWord = round.correctWords[0] ?? ''
+
+    return {
+      type: 'missing_word',
+      sentence: round.sentence,
+      englishTranslation: round.englishTranslation,
+      missingWordIndex,
+      correctWord,
+      options: buildSingleWordOptions(correctWord, round.options || []),
+    }
+  }
+
+  return {
+    ...round,
+    options: buildSingleWordOptions(round.correctWord, round.options || []),
+  }
+}
+
+function normalizeJourneyForClient(journey: Journey): Journey {
+  const normalizeRound = (round: Round): Round => {
+    if (round.type !== 'missing_word') {
+      return round
+    }
+
+    return normalizeMissingWordRoundForClient(round as MissingWordRound | LegacyMissingWordRound)
+  }
+
+  return {
+    ...journey,
+    rounds: journey.rounds.map(normalizeRound),
+    summaryTest: journey.summaryTest.map(normalizeRound),
+  }
 }
 
 function JourneyPageContent() {
@@ -168,7 +226,7 @@ function JourneyPageContent() {
       }
       
       console.log('Restoring journey state from sessionStorage')
-      setJourney(parsedState.journey)
+      setJourney(normalizeJourneyForClient(parsedState.journey))
       setCurrentRound(parsedState.currentRound || 0)
       setIsTestMode(parsedState.isTestMode || false)
       setUserProgress(parsedState.userProgress || null)
@@ -350,7 +408,7 @@ function JourneyPageContent() {
       }
       
       console.log(`Journey successfully generated with ${data.rounds.length} rounds and ${data.summaryTest.length} test rounds`)
-      setJourney(data)
+      setJourney(normalizeJourneyForClient(data))
     } catch (error) {
       console.error("Error generating journey:", error)
       
@@ -379,6 +437,7 @@ function JourneyPageContent() {
         {
           type: 'missing_word',
           sentence: 'Simple sentence with a missing word',
+          englishTranslation: 'Simple sentence with a missing word',
           missingWordIndex: 2,
           correctWord: 'missing',
           options: ['missing', 'table', 'chair', 'blue'] // Exactly 4 options
@@ -409,6 +468,7 @@ function JourneyPageContent() {
       // Update missing word round
       const missingWordRound = fallback.rounds[1] as LegacyMissingWordRound;
       missingWordRound.sentence = 'Ich trinke gerne Kaffee am Morgen';
+      missingWordRound.englishTranslation = 'I like drinking coffee in the morning';
       missingWordRound.missingWordIndex = 2;
       missingWordRound.correctWord = 'gerne';
       missingWordRound.options = ['gerne', 'Schlüssel', 'Fenster', 'rot'];
@@ -430,6 +490,7 @@ function JourneyPageContent() {
       // Update missing word round
       const missingWordRound = fallback.rounds[1] as LegacyMissingWordRound;
       missingWordRound.sentence = 'Eu gosto de tomar café de manhã';
+      missingWordRound.englishTranslation = 'I like to drink coffee in the morning';
       missingWordRound.missingWordIndex = 3;
       missingWordRound.correctWord = 'tomar';
       missingWordRound.options = ['tomar', 'mesa', 'janela', 'azul'];
@@ -451,6 +512,7 @@ function JourneyPageContent() {
       // Update missing word round
       const missingWordRound = fallback.rounds[1] as LegacyMissingWordRound;
       missingWordRound.sentence = '我喜欢早上喝咖啡';
+      missingWordRound.englishTranslation = 'I like drinking coffee in the morning';
       missingWordRound.missingWordIndex = 2;
       missingWordRound.correctWord = '早上';
       missingWordRound.options = ['早上', '桌子', '窗户', '蓝色'];
@@ -472,6 +534,7 @@ function JourneyPageContent() {
       // Update missing word round
       const missingWordRound = fallback.rounds[1] as LegacyMissingWordRound;
       missingWordRound.sentence = '저는 아침에 커피 마시는 것을 좋아해요';
+      missingWordRound.englishTranslation = 'I like drinking coffee in the morning';
       missingWordRound.missingWordIndex = 3;
       missingWordRound.correctWord = '커피';
       missingWordRound.options = ['커피', '테이블', '창문', '파란색'];
@@ -493,6 +556,7 @@ function JourneyPageContent() {
       // Update missing word round
       const missingWordRound = fallback.rounds[1] as LegacyMissingWordRound;
       missingWordRound.sentence = 'Jeg liker å drikke kaffe om morgenen';
+      missingWordRound.englishTranslation = 'I like drinking coffee in the morning';
       missingWordRound.missingWordIndex = 4;
       missingWordRound.correctWord = 'drikke';
       missingWordRound.options = ['drikke', 'bord', 'vindu', 'blå'];
@@ -514,6 +578,7 @@ function JourneyPageContent() {
       // Update missing word round
       const missingWordRound = fallback.rounds[1] as LegacyMissingWordRound;
       missingWordRound.sentence = 'أحب شرب القهوة في الصباح';
+      missingWordRound.englishTranslation = 'I like drinking coffee in the morning';
       missingWordRound.missingWordIndex = 2;
       missingWordRound.correctWord = 'شرب';
       missingWordRound.options = ['شرب', 'طاولة', 'نافذة', 'أزرق'];
@@ -535,6 +600,7 @@ function JourneyPageContent() {
       // Update missing word round
       const missingWordRound = fallback.rounds[1] as LegacyMissingWordRound;
       missingWordRound.sentence = 'Me gusta tomar café por la mañana';
+      missingWordRound.englishTranslation = 'I like drinking coffee in the morning';
       missingWordRound.missingWordIndex = 2;
       missingWordRound.correctWord = 'tomar';
       missingWordRound.options = ['tomar', 'puerta', 'casa', 'verde'];
@@ -556,6 +622,7 @@ function JourneyPageContent() {
       // Update missing word round
       const missingWordRound = fallback.rounds[1] as LegacyMissingWordRound;
       missingWordRound.sentence = "J'aime boire du café le matin";
+      missingWordRound.englishTranslation = 'I like drinking coffee in the morning';
       missingWordRound.missingWordIndex = 2;
       missingWordRound.correctWord = 'boire';
       missingWordRound.options = ['boire', 'fenêtre', 'chaise', 'jaune'];
@@ -583,7 +650,7 @@ function JourneyPageContent() {
       }
     });
     
-    setJourney(fallback);
+    setJourney(normalizeJourneyForClient(fallback));
   }
   
   // Fisher-Yates shuffle algorithm
@@ -1201,6 +1268,7 @@ function JourneyPageContent() {
       const sentence = multiWordRound.sentence || '';
       const missingWordIndices = multiWordRound.missingWordIndices || [];
       const correctWords = multiWordRound.correctWords || [];
+      const englishTranslation = multiWordRound.englishTranslation?.trim() || 'English meaning unavailable for this round.';
       
       // Create sentence with blanks
       const words = tokenizeExerciseText(sentence, lang);
@@ -1306,7 +1374,13 @@ function JourneyPageContent() {
             {showFeedback ? (
               <div className={`p-3 md:p-4 rounded-lg mb-4 md:mb-6 ${isCorrect ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200' : 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200'}`}>
                 {isCorrect ? (
-                  <p className="text-base md:text-lg font-medium">Great job! That&apos;s correct!</p>
+                  <div>
+                    <p className="text-base md:text-lg font-medium">Great job! That&apos;s correct!</p>
+                    <div className="mt-3 rounded-md bg-white/70 p-3 text-left dark:bg-zinc-900/40">
+                      <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">English meaning</div>
+                      <p className="mt-1 text-sm leading-6 text-foreground">{englishTranslation}</p>
+                    </div>
+                  </div>
                 ) : (
                   <div>
                     <p className="text-base md:text-lg font-medium mb-2">Not quite right. The correct placement is:</p>
@@ -1316,6 +1390,10 @@ function JourneyPageContent() {
                           <span className="font-bold">{word}</span>
                         </span>
                       ))}
+                    </div>
+                    <div className="mb-4 rounded-md bg-white/70 p-3 text-left dark:bg-zinc-900/40">
+                      <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">English meaning</div>
+                      <p className="mt-1 text-sm leading-6 text-foreground">{englishTranslation}</p>
                     </div>
                     <Button onClick={handleRetry} className="min-h-12 touch-manipulation">Retry</Button>
                   </div>
@@ -1340,6 +1418,7 @@ function JourneyPageContent() {
       const sentence = legacyRound.sentence || '';
       const missingWordIndex = typeof legacyRound.missingWordIndex === 'number' ? legacyRound.missingWordIndex : 0;
       const correctWord = legacyRound.correctWord || '';
+      const englishTranslation = legacyRound.englishTranslation?.trim() || 'English meaning unavailable for this round.';
       const options = dedupeOptions(legacyRound.options || []);
       
       // Create sentence with blank
@@ -1416,10 +1495,20 @@ function JourneyPageContent() {
             {showFeedback ? (
               <div className={`p-3 md:p-4 rounded-lg mb-4 md:mb-6 ${isCorrect ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200' : 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200'}`}>
                 {isCorrect ? (
-                  <p className="text-base md:text-lg font-medium">Great job! That&apos;s correct!</p>
+                  <div>
+                    <p className="text-base md:text-lg font-medium">Great job! That&apos;s correct!</p>
+                    <div className="mt-3 rounded-md bg-white/70 p-3 text-left dark:bg-zinc-900/40">
+                      <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">English meaning</div>
+                      <p className="mt-1 text-sm leading-6 text-foreground">{englishTranslation}</p>
+                    </div>
+                  </div>
                 ) : (
                   <div>
                     <p className="text-base md:text-lg font-medium mb-2">Not quite right. The correct answer is: <span className="font-bold">{correctWord}</span></p>
+                    <div className="mb-4 rounded-md bg-white/70 p-3 text-left dark:bg-zinc-900/40">
+                      <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">English meaning</div>
+                      <p className="mt-1 text-sm leading-6 text-foreground">{englishTranslation}</p>
+                    </div>
                     <Button onClick={handleRetry} className="min-h-12 touch-manipulation">Retry</Button>
                   </div>
                 )}

@@ -11,6 +11,7 @@
     {
       "type": "missing_word",
       "sentence": "Eu gosto de tomar café de manhã",
+      "englishTranslation": "I like to drink coffee in the morning",
       "missingWordIndex": 3,
       "correctWord": "tomar",
       "options": ["tomar", "mesa", "janela", "azul"]
@@ -29,6 +30,7 @@
     {
       "type": "missing_word",
       "sentence": "Hoje o tempo está muito bonito",
+      "englishTranslation": "The weather is very nice today",
       "missingWordIndex": 4,
       "correctWord": "bonito",
       "options": ["bonito", "cadeira", "maçã", "preto"]
@@ -47,6 +49,7 @@
     {
       "type": "missing_word",
       "sentence": "Eu sou do Brasil",
+      "englishTranslation": "I am from Brazil",
       "missingWordIndex": 2,
       "correctWord": "do",
       "options": ["do", "cachorro", "mesa", "azul"]
@@ -73,6 +76,7 @@
     {
       "type": "missing_word",
       "sentence": "Eu moro no Rio de Janeiro",
+      "englishTranslation": "I live in Rio de Janeiro",
       "missingWordIndex": 2,
       "correctWord": "no",
       "options": ["no", "gato", "verde", "grande"]

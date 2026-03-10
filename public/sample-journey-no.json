@@ -11,6 +11,7 @@
     {
       "type": "missing_word",
       "sentence": "Jeg liker å drikke kaffe om morgenen",
+      "englishTranslation": "I like drinking coffee in the morning",
       "missingWordIndex": 4,
       "correctWord": "drikke",
       "options": ["drikke", "bord", "vindu", "blå"]
@@ -29,6 +30,7 @@
     {
       "type": "missing_word",
       "sentence": "I dag er været veldig fint",
+      "englishTranslation": "The weather is very nice today",
       "missingWordIndex": 4,
       "correctWord": "fint",
       "options": ["fint", "stol", "eple", "svart"]
@@ -47,6 +49,7 @@
     {
       "type": "missing_word",
       "sentence": "Jeg kommer fra Norge",
+      "englishTranslation": "I come from Norway",
       "missingWordIndex": 2,
       "correctWord": "fra",
       "options": ["fra", "katt", "bord", "blå"]
@@ -73,6 +76,7 @@
     {
       "type": "missing_word",
       "sentence": "Jeg bor i Oslo",
+      "englishTranslation": "I live in Oslo",
       "missingWordIndex": 2,
       "correctWord": "i",
       "options": ["i", "hund", "grønn", "stor"]
