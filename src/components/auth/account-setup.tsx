@@ -1,7 +1,7 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
+import { useState, useEffect, useCallback } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
@@ -78,6 +78,10 @@ const PROFICIENCY_LEVELS = [
 
 export function AccountSetup({ userId }: { userId: string }) {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const isAddLanguageFlow = searchParams.get("mode") === "add-language"
+  const requestedSetupLanguage = isAddLanguageFlow ? searchParams.get("lang") : null
+  const requestedSetupRedirect = searchParams.get("redirect")
   const [selectedLanguages, setSelectedLanguages] = useState<string[]>([])
   const [activeLanguage, setActiveLanguage] = useState<string>("")
   const [proficiencyLevels, setProficiencyLevels] = useState<Record<string, string>>({})
@@ -87,6 +91,7 @@ export function AccountSetup({ userId }: { userId: string }) {
   const [error, setError] = useState<string | null>(null)
   const [isLanguageSetup, setIsLanguageSetup] = useState(false)
   const [setupLanguageCode, setSetupLanguageCode] = useState<string | null>(null)
+  const [setupRedirect, setSetupRedirect] = useState<string | null>(null)
 
   const buildLanguageRedirect = (languageCode: string, rawRedirect: string | null) => {
     const fallbackRedirect = '/dashboard'
@@ -113,31 +118,40 @@ export function AccountSetup({ userId }: { userId: string }) {
     }
   }
 
+  const initializeAddLanguageSetup = useCallback((languageCode: string, redirectTarget: string | null) => {
+    const language = LANGUAGES.find((entry) => entry.value === languageCode)
+    if (!language) {
+      return
+    }
+
+    setIsLanguageSetup(true)
+    setSetupLanguageCode(languageCode)
+    setSetupRedirect(redirectTarget)
+    setSelectedLanguages([languageCode])
+    setActiveLanguage(languageCode)
+    setStep("proficiency")
+    setCurrentLanguageIndex(0)
+    setProficiencyLevels({ [languageCode]: "1" })
+  }, [])
+
   // Check if this is language setup (user selected a new language they haven't learned)
   useEffect(() => {
-    const setupLanguage = localStorage.getItem('setupLanguage');
-    if (setupLanguage) {
-      // This is language setup, not initial account setup
-      setIsLanguageSetup(true);
-      setSetupLanguageCode(setupLanguage);
-      
-      // Find the language object
-      const language = LANGUAGES.find(l => l.value === setupLanguage);
-      if (language) {
-        // Pre-select this language and skip to proficiency step
-        setSelectedLanguages([setupLanguage]);
-        setActiveLanguage(setupLanguage);
-        setStep("proficiency");
-        setCurrentLanguageIndex(0);
-        
-        // Initialize proficiency level
-        setProficiencyLevels({ [setupLanguage]: "1" });
+    const storedLanguage = localStorage.getItem("setupLanguage")
+    const storedRedirect = localStorage.getItem("setupRedirect")
+    const pendingLanguage = requestedSetupLanguage || storedLanguage
+    const pendingRedirect = requestedSetupRedirect || storedRedirect
+
+    if (pendingLanguage) {
+      initializeAddLanguageSetup(pendingLanguage, pendingRedirect)
+      localStorage.removeItem("setupLanguage")
+
+      if (pendingRedirect) {
+        localStorage.setItem("setupRedirect", pendingRedirect)
+      } else {
+        localStorage.removeItem("setupRedirect")
       }
-      
-      // Clear the setup flag
-      localStorage.removeItem('setupLanguage');
     }
-  }, []);
+  }, [initializeAddLanguageSetup, requestedSetupLanguage, requestedSetupRedirect])
 
   // Get current language we're asking proficiency for
   const currentLanguage = selectedLanguages[currentLanguageIndex] || "";
@@ -273,10 +287,10 @@ export function AccountSetup({ userId }: { userId: string }) {
           window.dispatchEvent(new Event('selected-language-updated'))
         }
 
-        const setupRedirect = localStorage.getItem('setupRedirect')
+        const redirectTarget = setupRedirect || localStorage.getItem('setupRedirect')
         localStorage.removeItem('setupRedirect')
 
-        router.push(buildLanguageRedirect(setupLanguageCode, setupRedirect))
+        router.push(buildLanguageRedirect(setupLanguageCode, redirectTarget))
       } else {
         // Initial account setup - redirect to dashboard
         localStorage.removeItem('setupRedirect')

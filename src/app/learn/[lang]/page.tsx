@@ -52,7 +52,7 @@ export default function LanguagePage({ params }: LanguagePageProps) {
   const resolvedParams = use(params);
   const languageCode = isValidLanguageCode(resolvedParams.lang) ? resolvedParams.lang : 'en';
   const currentLanguage: SupportedLanguage = languageMap[languageCode];
-  const [activeLanguage, setActiveLanguage] = useState<SupportedLanguage>(currentLanguage);
+  const activeLanguage: SupportedLanguage = currentLanguage;
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   
   const chatContainerRef = useRef<HTMLDivElement>(null);
@@ -67,25 +67,6 @@ export default function LanguagePage({ params }: LanguagePageProps) {
     currentAudioUrl: null,
     playbackRate: 1.0
   });
-
-  // Fetch active language from the database
-  useEffect(() => {
-    const fetchActiveLanguage = async () => {
-      try {
-        const response = await fetch('/api/user/active-language');
-        if (response.ok) {
-          const data = await response.json();
-          if (data.activeLanguage && isValidLanguageCode(data.activeLanguage)) {
-            setActiveLanguage(languageMap[data.activeLanguage as LanguageCode]);
-          }
-        }
-      } catch (error) {
-        console.error('Error fetching active language:', error);
-      }
-    };
-
-    fetchActiveLanguage();
-  }, []);
 
   // Add debug logging
   useEffect(() => {
@@ -112,7 +93,7 @@ export default function LanguagePage({ params }: LanguagePageProps) {
       
       const chatMessage: ChatMessage = {
         message,
-        language: activeLanguage // Use the active language from database
+        language: activeLanguage
       };
 
       try {
@@ -199,7 +180,7 @@ export default function LanguagePage({ params }: LanguagePageProps) {
     try {
       const formData = new FormData();
       formData.append('audio', audioBlob);
-      formData.append('language', activeLanguage); // Use the active language from database
+      formData.append('language', activeLanguage);
 
       try {
       const result = await ApiService.sendAudio(formData);
