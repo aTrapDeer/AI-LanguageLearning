@@ -3,11 +3,12 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { z } from "zod";
 import { completeAccountSetup } from "@/lib/database";
+import { SUPPORTED_LANGUAGE_CODES } from "@/lib/language-config";
 
 const AccountSetupSchema = z.object({
   userId: z.string().optional(),
-  learningLanguages: z.array(z.string()),
-  activeLanguage: z.string().optional(),
+  learningLanguages: z.array(z.enum(SUPPORTED_LANGUAGE_CODES)).min(1, "Please select at least one language"),
+  activeLanguage: z.enum(SUPPORTED_LANGUAGE_CODES).optional(),
   proficiencyLevels: z.record(z.string(), z.string()).optional(),
 });
 
@@ -28,8 +29,19 @@ export async function POST(req: Request) {
       );
     }
 
-    const userId = requestBody.userId || session.user.id;
+    const userId = validationResult.data.userId || session.user.id;
+    if (userId !== session.user.id) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
     const { learningLanguages, activeLanguage, proficiencyLevels = {} } = validationResult.data;
+
+    if (activeLanguage && !learningLanguages.includes(activeLanguage)) {
+      return NextResponse.json(
+        { error: "Active language must be one of the selected learning languages" },
+        { status: 400 }
+      );
+    }
 
     const user = await completeAccountSetup(userId, {
       learningLanguages,

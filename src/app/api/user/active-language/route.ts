@@ -2,6 +2,7 @@ import { getServerSession } from "next-auth";
 import { NextResponse } from "next/server";
 import { authOptions } from "@/lib/auth";
 import { getUserById, setActiveLanguage } from "@/lib/database";
+import { isSupportedLanguageCode } from "@/lib/language-config";
 
 export async function PUT(req: Request) {
   try {
@@ -15,6 +16,22 @@ export async function PUT(req: Request) {
 
     if (!language) {
       return new NextResponse("Language is required", { status: 400 });
+    }
+
+    if (!isSupportedLanguageCode(language)) {
+      return NextResponse.json({ error: "Unsupported language" }, { status: 400 });
+    }
+
+    const existingUser = await getUserById(session.user.id);
+    if (!existingUser) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
+    }
+
+    if (!existingUser.learningLanguages.includes(language)) {
+      return NextResponse.json(
+        { error: "Language has not been added to this account" },
+        { status: 400 }
+      );
     }
 
     const user = await setActiveLanguage(session.user.id, language);

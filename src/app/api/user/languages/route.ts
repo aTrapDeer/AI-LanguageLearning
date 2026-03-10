@@ -2,6 +2,7 @@ import { getServerSession } from "next-auth"
 import { NextResponse } from "next/server"
 import { authOptions } from "@/lib/auth"
 import { db } from "@/lib/db"
+import { isSupportedLanguageCode } from "@/lib/language-config"
 
 export async function POST(req: Request) {
   try {
@@ -15,6 +16,10 @@ export async function POST(req: Request) {
 
     if (!language) {
       return new NextResponse("Language is required", { status: 400 })
+    }
+
+    if (!isSupportedLanguageCode(language)) {
+      return NextResponse.json({ error: "Unsupported language" }, { status: 400 })
     }
 
     // Check if user already has this language

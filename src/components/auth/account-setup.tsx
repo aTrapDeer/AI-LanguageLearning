@@ -8,20 +8,24 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { motion, AnimatePresence } from "framer-motion"
 import { ChevronRight, Check, Languages, Star, Trophy, Sparkles, Brain, BookOpen } from "lucide-react"
+import { SUPPORTED_LANGUAGES } from "@/lib/language-config"
 
 // Available languages with their icon colors
-const LANGUAGES = [
-  { value: "es", label: "Spanish", emoji: "🇪🇸", color: "bg-red-50 border-red-200 hover:bg-red-100" },
-  { value: "fr", label: "French", emoji: "🇫🇷", color: "bg-blue-50 border-blue-200 hover:bg-blue-100" },
-  { value: "de", label: "German", emoji: "🇩🇪", color: "bg-yellow-50 border-yellow-200 hover:bg-yellow-100" },
-  { value: "it", label: "Italian", emoji: "🇮🇹", color: "bg-green-50 border-green-200 hover:bg-green-100" },
-  { value: "pt", label: "Portuguese", emoji: "🇵🇹", color: "bg-emerald-50 border-emerald-200 hover:bg-emerald-100" },
-  { value: "ru", label: "Russian", emoji: "🇷🇺", color: "bg-indigo-50 border-indigo-200 hover:bg-indigo-100" },
-  { value: "zh", label: "Chinese", emoji: "🇨🇳", color: "bg-red-50 border-red-200 hover:bg-red-100" },
-  { value: "ja", label: "Japanese", emoji: "🇯🇵", color: "bg-pink-50 border-pink-200 hover:bg-pink-100" },
-  { value: "ko", label: "Korean", emoji: "🇰🇷", color: "bg-purple-50 border-purple-200 hover:bg-purple-100" },
-  { value: "ar", label: "Arabic", emoji: "🇸🇦", color: "bg-teal-50 border-teal-200 hover:bg-teal-100" },
-]
+const LANGUAGE_CARD_STYLES: Record<string, string> = {
+  de: "bg-yellow-50 border-yellow-200 hover:bg-yellow-100",
+  "pt-BR": "bg-emerald-50 border-emerald-200 hover:bg-emerald-100",
+  zh: "bg-red-50 border-red-200 hover:bg-red-100",
+  no: "bg-blue-50 border-blue-200 hover:bg-blue-100",
+  ko: "bg-purple-50 border-purple-200 hover:bg-purple-100",
+  ar: "bg-teal-50 border-teal-200 hover:bg-teal-100",
+};
+
+const LANGUAGES = SUPPORTED_LANGUAGES.map((language) => ({
+  value: language.code,
+  label: language.name,
+  emoji: language.flag,
+  color: LANGUAGE_CARD_STYLES[language.code],
+}));
 
 // Proficiency levels with engaging descriptions and visuals
 const PROFICIENCY_LEVELS = [

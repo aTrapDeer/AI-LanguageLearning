@@ -8,6 +8,7 @@ import { useRouter, useSearchParams } from "next/navigation"
 import Image from "next/image"
 import { BackgroundGradientAnimation } from '@/components/ui/background-gradient-animation'
 import { Button } from "@/components/ui/button"
+import { arraysEqual, joinExerciseTokens, normalizeTokenForComparison, tokenizeExerciseText } from "@/lib/exercise-text"
 
 // Types for the different round types
 type MatchingRound = {
@@ -76,11 +77,16 @@ type UserProgress = {
 
 // Create sentence with blanks
 type SentenceItem = 
-  | { isBlank: true; index: number; word: string | null }
+  | { isBlank: true; index: number; word: WordChoice | null }
   | { isBlank: false; word: string };
 
+type WordChoice = {
+  id: string;
+  text: string;
+};
+
 // Fix for Vercel deployment - create a type guard for checking blank items
-function isBlankItem(item: SentenceItem): item is { isBlank: true; index: number; word: string | null } {
+function isBlankItem(item: SentenceItem): item is { isBlank: true; index: number; word: WordChoice | null } {
   return item.isBlank === true;
 }
 
@@ -97,7 +103,7 @@ function JourneyPageContent() {
   const [userProgress, setUserProgress] = useState<UserProgress | null>(null)
   
   // UI states
-  const [selectedWords, setSelectedWords] = useState<string[]>([])
+  const [selectedWords, setSelectedWords] = useState<WordChoice[]>([])
   const [selectedOption, setSelectedOption] = useState<string | null>(null)
   const [spellingInput, setSpellingInput] = useState('')
   const [showFeedback, setShowFeedback] = useState(false)
@@ -106,8 +112,8 @@ function JourneyPageContent() {
   const [journeyComplete, setJourneyComplete] = useState(false)
   
   // New state for multi-word exercises
-  const [filledWords, setFilledWords] = useState<(string | null)[]>([])
-  const [availableWords, setAvailableWords] = useState<string[]>([])
+  const [filledWords, setFilledWords] = useState<(WordChoice | null)[]>([])
+  const [availableWords, setAvailableWords] = useState<WordChoice[]>([])
   const [isDragging, setIsDragging] = useState<string | null>(null)
 
   // State persistence helpers
@@ -588,13 +594,22 @@ function JourneyPageContent() {
     }
   }
 
+  const createWordChoices = (words: string[], prefix: string): WordChoice[] =>
+    words.map((word, index) => ({
+      id: `${prefix}-${index}-${word}`,
+      text: word,
+    }))
+
+  const rebuildMatchingChoices = (round: MatchingRound) =>
+    createWordChoices(round.words || [], `matching-${isTestMode ? 'test' : 'main'}-${currentRound}`)
+
   // Handle word selection for matching rounds
-  const handleWordClick = (word: string) => {
+  const handleWordClick = (word: WordChoice) => {
     if (showFeedback) return; // Don't allow changes after feedback is shown
     
-    if (selectedWords.includes(word)) {
+    if (selectedWords.some((selectedWord) => selectedWord.id === word.id)) {
       // Remove word if already selected
-      setSelectedWords(selectedWords.filter(w => w !== word))
+      setSelectedWords(selectedWords.filter((selectedWord) => selectedWord.id !== word.id))
     } else {
       // Add word to selected words
       setSelectedWords([...selectedWords, word])
@@ -619,7 +634,7 @@ function JourneyPageContent() {
   }
 
   // Improved mobile-friendly word placement for multi-word exercises
-  const handleWordPlacement = (word: string, blankIndex?: number) => {
+  const handleWordPlacement = (word: WordChoice, blankIndex?: number) => {
     // If specific blank index provided, use it
     if (blankIndex !== undefined) {
       // If blank is already filled, swap the words
@@ -634,7 +649,7 @@ function JourneyPageContent() {
       setFilledWords(newFilledWords)
       
       // Remove word from available options
-      setAvailableWords(prev => prev.filter(w => w !== word))
+      setAvailableWords(prev => prev.filter((availableWord) => availableWord.id !== word.id))
     } else {
       // Find first empty blank and place word there
       const emptyIndex = filledWords.findIndex(w => w === null)
@@ -645,15 +660,21 @@ function JourneyPageContent() {
   }
 
   // Handle word drag start for multi-word exercises
-  const handleDragStart = (word: string) => {
-    setIsDragging(word)
+  const handleDragStart = (wordId: string) => {
+    setIsDragging(wordId)
   }
 
   // Handle word drop for multi-word exercises
   const handleDrop = (blankIndex: number) => {
     if (!isDragging) return
-    
-    handleWordPlacement(isDragging, blankIndex)
+
+    const draggedWord = availableWords.find((word) => word.id === isDragging)
+    if (!draggedWord) {
+      setIsDragging(null)
+      return
+    }
+
+    handleWordPlacement(draggedWord, blankIndex)
     
     // Reset dragging state
     setIsDragging(null)
@@ -696,9 +717,11 @@ function JourneyPageContent() {
           setShowFeedback(true)
           return
         }
-        const correctWords = matchingRound.translatedSentence.split(' ')
-        correct = selectedWords.length === correctWords.length && 
-          selectedWords.every((word, i) => word === correctWords[i])
+        const correctWords = tokenizeExerciseText(matchingRound.translatedSentence, lang)
+        correct = arraysEqual(
+          selectedWords.map((word) => word.text),
+          correctWords
+        )
         break
       }
       case 'missing_word': {
@@ -718,7 +741,7 @@ function JourneyPageContent() {
             correct = false
           } else {
             // Check if all words match their expected positions
-            correct = filledWords.every((word, i) => word === multiWordRound.correctWords[i])
+            correct = filledWords.every((word, i) => word?.text === multiWordRound.correctWords[i])
           }
         } else if ('missingWordIndex' in currentRoundData) {
           // Legacy single-word format
@@ -855,7 +878,13 @@ function JourneyPageContent() {
     setSelectedWords([])
     setSelectedOption(null)
     setSpellingInput('')
-    setFilledWords(Array(filledWords.length).fill(null))
+    const currentRoundData = getRoundData()
+    if (currentRoundData?.type === 'missing_word' && 'missingWordIndices' in currentRoundData) {
+      initializeMultiWordExercise(currentRoundData as MissingWordRound)
+    } else {
+      setFilledWords(Array(filledWords.length).fill(null))
+      setAvailableWords([])
+    }
     setIsDragging(null)
   }
 
@@ -888,15 +917,9 @@ function JourneyPageContent() {
     
     // Create a copy of the options array
     let options = [...round.options];
-    
-    // Remove duplicates from options
-    options = Array.from(new Set(options));
-    
-    // Get all words from the sentence
-    const words = round.sentence.split(' ');
-    
-    // Get the words that are being removed (the missing words)
-    const wordsToRemove = round.missingWordIndices.map(index => words[index]);
+
+    // Get all tokens from the sentence using language-aware tokenization
+    const words = tokenizeExerciseText(round.sentence, lang);
     
     // Get words that will remain in the sentence (non-missing words)
     const remainingWords = words.filter((word, index) => !round.missingWordIndices.includes(index));
@@ -906,31 +929,16 @@ function JourneyPageContent() {
       word.replace(/[.,!?;:]$/g, '').toLowerCase().trim()
     );
     
-    // Deduplicate correct words while maintaining order
-    const correctWordsDeduped: string[] = [];
-    round.correctWords.forEach(word => {
-      // Only add if it's not already in the array or if it's needed for a duplicate position
-      const alreadyUsedCount = correctWordsDeduped.filter(w => w === word).length;
-      const totalNeededCount = round.correctWords.filter(w => w === word).length;
-      
-      if (alreadyUsedCount < totalNeededCount) {
-        correctWordsDeduped.push(word);
-      }
-    });
-    
-    // Ensure each correct word appears exactly once in the options
-    const uniqueCorrectWords = Array.from(new Set([...correctWordsDeduped]));
-    
     // Filter out distractors that:
     // 1. Already appear in the remaining sentence text
     // 2. Are duplicates of correct words
     // 3. Are case-insensitive matches of remaining words
     const distractors = options.filter(word => {
-      const cleanWord = word.replace(/[.,!?;:]$/g, '').toLowerCase().trim();
+      const cleanWord = normalizeTokenForComparison(word);
       
       // Don't include if it's already a correct word
-      if (uniqueCorrectWords.some(correctWord => 
-        correctWord.toLowerCase().trim() === cleanWord
+      if (round.correctWords.some(correctWord => 
+        normalizeTokenForComparison(correctWord) === cleanWord
       )) {
         return false;
       }
@@ -940,26 +948,17 @@ function JourneyPageContent() {
         return false;
       }
       
-      // Don't include if it's one of the words being removed (but not a correct answer)
-      if (wordsToRemove.some(removedWord => 
-        removedWord.replace(/[.,!?;:]$/g, '').toLowerCase().trim() === cleanWord
-      ) && !uniqueCorrectWords.some(correctWord => 
-        correctWord.toLowerCase().trim() === cleanWord
-      )) {
-        return false;
-      }
-      
       return true;
     });
     
     // Remove any duplicates that might still exist in distractors
     const uniqueDistractors = Array.from(new Set(distractors));
     
-    // Combine correct words with distractors
-    const finalOptions = [...uniqueCorrectWords, ...uniqueDistractors];
+    // Combine correct words with distractors, preserving duplicate correct words when needed
+    const finalOptions = [...round.correctWords, ...uniqueDistractors];
     
     // Ensure we have enough options but not too many (minimum 3, maximum 8)
-    const minOptions = Math.max(3, uniqueCorrectWords.length);
+    const minOptions = Math.max(3, round.correctWords.length);
     const maxOptions = 8;
     const limitedOptions = finalOptions.slice(0, Math.min(maxOptions, Math.max(minOptions, finalOptions.length)));
     
@@ -973,9 +972,11 @@ function JourneyPageContent() {
     }
     
     shuffleArray(limitedOptions);
-    
+
     setFilledWords(Array(round.missingWordIndices.length).fill(null));
-    setAvailableWords(limitedOptions);
+    setAvailableWords(
+      createWordChoices(limitedOptions, `missing-${isTestMode ? 'test' : 'main'}-${currentRound}`)
+    );
     
     // DISABLED: No longer generating images for missing word sentences
     // We now have dedicated image exercises instead
@@ -1042,7 +1043,7 @@ function JourneyPageContent() {
   if (roundData.type === 'matching') {
     const matchingRound = roundData as MatchingRound;
     // Add defensive check to ensure words array exists
-    const words = matchingRound.words || [];
+    const words = rebuildMatchingChoices(matchingRound);
     const englishSentence = matchingRound.englishSentence || '';
     const translatedSentence = matchingRound.translatedSentence || '';
 
@@ -1082,7 +1083,7 @@ function JourneyPageContent() {
             <div className="flex flex-wrap gap-2 p-3 md:p-4 min-h-16 bg-gray-100 dark:bg-zinc-800 rounded-lg border-2 border-dashed border-gray-300 dark:border-zinc-700">
               {selectedWords.map((word, i) => (
                 <button 
-                  key={i} 
+                  key={word.id} 
                   className="min-h-10 px-3 py-2 bg-blue-100 dark:bg-blue-900 rounded-md shadow-sm animate-bounce-in cursor-pointer hover:bg-blue-200 dark:hover:bg-blue-800 active:bg-blue-300 dark:active:bg-blue-700 relative group transition-all touch-manipulation select-none text-sm md:text-base" 
                   onClick={() => handleRemoveTranslationWord(i)}
                   onTouchEnd={(e) => {
@@ -1093,7 +1094,7 @@ function JourneyPageContent() {
                   disabled={showFeedback}
                   title="Tap to remove this word"
                 >
-                  {word}
+                  {word.text}
                   {!showFeedback && (
                     <span className="absolute -top-1 -right-1 opacity-0 group-hover:opacity-100 group-active:opacity-100 transition-opacity bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs">
                       ×
@@ -1129,23 +1130,23 @@ function JourneyPageContent() {
             <div className="flex flex-wrap gap-2">
               {words.map((word, i) => (
                 <button
-                  key={i}
+                  key={word.id}
                   onClick={() => handleWordClick(word)}
                   onTouchEnd={(e) => {
                     e.preventDefault();
-                    if (!selectedWords.includes(word) && !showFeedback) {
+                    if (!selectedWords.some((selectedWord) => selectedWord.id === word.id) && !showFeedback) {
                       handleWordClick(word);
                     }
                   }}
-                  disabled={selectedWords.includes(word) || showFeedback}
+                  disabled={selectedWords.some((selectedWord) => selectedWord.id === word.id) || showFeedback}
                   type="button"
                   className={`min-h-10 px-3 py-2 rounded-md transition-all touch-manipulation select-none text-sm md:text-base ${
-                    selectedWords.includes(word)
+                    selectedWords.some((selectedWord) => selectedWord.id === word.id)
                       ? 'opacity-50 bg-gray-200 dark:bg-zinc-700 cursor-not-allowed'
                       : 'bg-white dark:bg-zinc-800 hover:bg-blue-50 dark:hover:bg-blue-900 active:bg-blue-100 dark:active:bg-blue-800 shadow-sm cursor-pointer border border-gray-200 dark:border-gray-700'
                   }`}
                 >
-                  {word}
+                  {word.text}
                 </button>
               ))}
             </div>
@@ -1188,7 +1189,7 @@ function JourneyPageContent() {
       const correctWords = multiWordRound.correctWords || [];
       
       // Create sentence with blanks
-      const words = sentence.split(' ');
+      const words = tokenizeExerciseText(sentence, lang);
       const sentenceWithBlanks: SentenceItem[] = words.map((word, i) => {
         if (missingWordIndices.includes(i)) {
           const blankIndex = missingWordIndices.indexOf(i);
@@ -1255,7 +1256,7 @@ function JourneyPageContent() {
                           : 'border-dashed border-gray-400 dark:border-gray-600 hover:border-blue-300 dark:hover:border-blue-600'
                       } rounded-md mx-1 transition-all touch-manipulation select-none text-sm md:text-base`}
                     >
-                      {item.word || '_____'}
+                      {item.word?.text || '_____'}
                     </button>
                   ) : (
                     <div key={i} className="inline-flex items-center mx-1 text-sm md:text-base">
@@ -1270,9 +1271,9 @@ function JourneyPageContent() {
                 <div className="grid grid-cols-2 md:flex md:flex-wrap gap-2 md:gap-3 mt-4">
                   {availableWords.map((word, i) => (
                     <button
-                      key={i}
+                      key={word.id}
                       draggable
-                      onDragStart={() => handleDragStart(word)}
+                      onDragStart={() => handleDragStart(word.id)}
                       onClick={() => handleWordPlacement(word)}
                       onTouchEnd={(e) => {
                         e.preventDefault();
@@ -1281,7 +1282,7 @@ function JourneyPageContent() {
                       type="button"
                       className="min-h-12 px-3 py-2 bg-white dark:bg-zinc-800 border border-gray-200 dark:border-gray-700 rounded-md shadow-sm cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/20 active:bg-blue-100 dark:active:bg-blue-900/40 transition-all touch-manipulation select-none text-sm md:text-base"
                     >
-                      {word}
+                      {word.text}
                     </button>
                   ))}
                 </div>
@@ -1328,11 +1329,11 @@ function JourneyPageContent() {
       const options = legacyRound.options || [];
       
       // Create sentence with blank
-      const words = sentence.split(' ');
+      const words = tokenizeExerciseText(sentence, lang);
       if (words.length > missingWordIndex) {
         words[missingWordIndex] = '______';
       }
-      const sentenceWithBlank = words.join(' ');
+      const sentenceWithBlank = joinExerciseTokens(words, lang);
 
       return (
         <div className="relative min-h-screen flex flex-col items-center p-4">

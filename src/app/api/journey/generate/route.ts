@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import * as fs from 'fs';
 import * as path from 'path';
+import { arraysEqual, findTokenIndicesForWords, tokenizeExerciseText } from '@/lib/exercise-text';
 
 // Configure route segment - extends timeout for complex AI operations
 export const maxDuration = 60; // 60 seconds for Vercel Pro (5 seconds for Hobby plan)
@@ -60,6 +61,48 @@ type JourneyData = {
   rounds: Round[];
   summaryTest: Round[];
 };
+
+function normalizeRound(round: Round, language: string): Round {
+  if (round.type === 'matching') {
+    const normalizedWords = tokenizeExerciseText(round.translatedSentence, language);
+    return {
+      ...round,
+      words: normalizedWords.length > 0 ? normalizedWords : round.words,
+    };
+  }
+
+  if (round.type === 'missing_word' && 'missingWordIndices' in round) {
+    const multiWordRound = round as MissingWordRound;
+    const recovered = findTokenIndicesForWords(multiWordRound.sentence, multiWordRound.correctWords, language);
+    if (!recovered) {
+      return round;
+    }
+
+    return {
+      ...multiWordRound,
+      missingWordIndices: recovered.indices,
+      correctWords: recovered.matchedWords,
+      options: [...recovered.matchedWords, ...multiWordRound.options],
+    };
+  }
+
+  if (round.type === 'missing_word' && 'missingWordIndex' in round) {
+    const legacyRound = round as LegacyMissingWordRound;
+    const recovered = findTokenIndicesForWords(legacyRound.sentence, [legacyRound.correctWord], language);
+    if (!recovered) {
+      return round;
+    }
+
+    return {
+      ...legacyRound,
+      missingWordIndex: recovered.indices[0],
+      correctWord: recovered.matchedWords[0],
+      options: [recovered.matchedWords[0], ...legacyRound.options],
+    };
+  }
+
+  return round;
+}
 
 function getOpenAIClient() {
   if (!process.env.OPENAI_API_KEY) {
@@ -436,6 +479,9 @@ MISSING WORD QUALITY CONTROL:
       try {
         journeyData = JSON.parse(cleanedJson);
         console.log('✅ Successfully parsed OpenAI response');
+
+        journeyData.rounds = journeyData.rounds.map((round) => normalizeRound(round, journeyData.language));
+        journeyData.summaryTest = journeyData.summaryTest.map((round) => normalizeRound(round, journeyData.language));
         
         // Validate structure
         if (!journeyData.rounds || !Array.isArray(journeyData.rounds) || journeyData.rounds.length === 0) {
@@ -457,22 +503,24 @@ MISSING WORD QUALITY CONTROL:
               if (!round.englishSentence || !round.translatedSentence || !Array.isArray(round.words)) {
                 return false;
               }
-              // Check if words array contains all words from translatedSentence
-              const translatedWords = round.translatedSentence.split(' ');
+              // Check if words array contains all tokens from translatedSentence
+              const translatedWords = tokenizeExerciseText(round.translatedSentence, journeyData.language);
               const words = round.words as string[];
-              const hasAllWords = translatedWords.every(word => words.includes(word));
+              const hasAllWords = arraysEqual(translatedWords, words);
               if (!hasAllWords) {
                 console.warn(`⚠️ Matching exercise missing words. Expected: ${translatedWords.join(' ')}, Got: ${words.join(' ')}`);
               }
-              return true;
+              return translatedWords.length > 0;
             case 'missing_word':
               // Support both new multi-word format and legacy single-word format
               if ('missingWordIndices' in round && Array.isArray(round.missingWordIndices)) {
                 const multiWordRound = round as MissingWordRound;
+                const tokenizedSentence = tokenizeExerciseText(round.sentence ?? "", journeyData.language);
                 const isValid = !!round.sentence && 
                        Array.isArray(round.missingWordIndices) && 
                        Array.isArray(multiWordRound.correctWords) && 
-                       Array.isArray(round.options);
+                       Array.isArray(round.options) &&
+                       multiWordRound.missingWordIndices.every((index) => index >= 0 && index < tokenizedSentence.length);
                 
                 // Validate that the number of missing words matches the level requirement
                 if (isValid && userLevel <= 4 && multiWordRound.missingWordIndices.length > 1) {
@@ -482,10 +530,13 @@ MISSING WORD QUALITY CONTROL:
                 return isValid;
               } else if ('missingWordIndex' in round && 'correctWord' in round) {
                 // Handle legacy format
+                const tokenizedSentence = tokenizeExerciseText(round.sentence ?? "", journeyData.language);
                 return !!round.sentence && 
                        typeof (round as LegacyMissingWordRound).missingWordIndex === 'number' && 
                        !!(round as LegacyMissingWordRound).correctWord && 
-                       Array.isArray(round.options);
+                       Array.isArray(round.options) &&
+                       (round as LegacyMissingWordRound).missingWordIndex >= 0 &&
+                       (round as LegacyMissingWordRound).missingWordIndex < tokenizedSentence.length;
               }
               return false;
             case 'spelling':

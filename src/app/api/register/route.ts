@@ -2,6 +2,7 @@ import { hash } from "bcryptjs"
 import { NextResponse } from "next/server"
 import { db } from "@/lib/db"
 import { z } from "zod"
+import { SUPPORTED_LANGUAGE_CODES } from "@/lib/language-config"
 
 // Validation schema
 const registerSchema = z.object({
@@ -14,8 +15,8 @@ const registerSchema = z.object({
       /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/,
       "Password must contain at least one uppercase letter, one lowercase letter, and one number"
     ),
-  nativeLanguage: z.string().optional().default("English"),
-  learningLanguages: z.array(z.string()).optional().default([]),
+  nativeLanguage: z.string().optional().default("en"),
+  learningLanguages: z.array(z.enum(SUPPORTED_LANGUAGE_CODES)).optional().default([]),
   accountSetup: z.boolean().optional().default(false),
 })
 
@@ -32,7 +33,7 @@ export async function POST(req: Request) {
       )
     }
 
-    const { name, email, password, nativeLanguage, learningLanguages, accountSetup } = body
+    const { name, email, password, nativeLanguage, learningLanguages, accountSetup } = result.data
 
     // Check if email already exists
     const existingUser = await db.user.findUnique({
@@ -50,7 +51,7 @@ export async function POST(req: Request) {
     const hashedPassword = await hash(password, 12)
 
     // Determine active language (first learning language or native language)
-    const activeLanguage = learningLanguages?.length > 0 ? learningLanguages[0] : nativeLanguage
+    const activeLanguage = learningLanguages.length > 0 ? learningLanguages[0] : "en"
 
     // Create the user first, then handle related records
     // Note: Without transactions, this is not atomic, but we'll handle it sequentially

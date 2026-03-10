@@ -703,8 +703,15 @@ export async function completeAccountSetup(userId: string, input: AccountSetupIn
   }
 
   const requestedLanguages = normalizeLanguages(input.learningLanguages);
+  if (requestedLanguages.length === 0) {
+    throw new Error("At least one learning language is required");
+  }
+
   const mergedLanguages = normalizeLanguages([...user.learningLanguages, ...requestedLanguages]);
-  const activeLanguage = input.activeLanguage ?? user.activeLanguage ?? requestedLanguages[0] ?? "en";
+  const preferredActiveLanguage = input.activeLanguage ?? user.activeLanguage ?? requestedLanguages[0] ?? "en";
+  const activeLanguage = mergedLanguages.includes(preferredActiveLanguage)
+    ? preferredActiveLanguage
+    : mergedLanguages[0] ?? "en";
 
   await updateUser(userId, {
     learningLanguages: mergedLanguages,

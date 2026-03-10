@@ -3,6 +3,7 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
+import { SUPPORTED_LANGUAGES } from '@/lib/language-config';
 
 type Language = {
   code: string;
@@ -17,14 +18,7 @@ type LanguageContextType = {
 
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
 
-export const languages: Language[] = [
-  { code: 'de', name: 'German', flag: '🇩🇪' },
-  { code: 'pt-BR', name: 'Portuguese (Brazilian)', flag: '🇧🇷' },
-  { code: 'zh', name: 'Chinese', flag: '🇨🇳' },
-  { code: 'no', name: 'Norwegian', flag: '🇳🇴' },
-  { code: 'ko', name: 'Korean', flag: '🇰🇷' },
-  { code: 'ar', name: 'Arabic', flag: '🇸🇦' },
-];
+export const languages: Language[] = [...SUPPORTED_LANGUAGES];
 
 export function LanguageProvider({ children }: { children: React.ReactNode }) {
   const [selectedLanguage, setSelectedLanguage] = useState<Language | null>(null);

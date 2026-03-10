@@ -130,6 +130,7 @@ const ConversationSessionPage = () => {
       ko: "Korean (한국어)",
       zh: "Chinese (中文)",
       pt: "Portuguese (Português)",
+      "pt-BR": "Portuguese (Brazilian Portuguese)",
       ru: "Russian (Русский)",
       ar: "Arabic (العربية)",
       hi: "Hindi (हिन्दी)",
