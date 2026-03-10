@@ -52,6 +52,16 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     return null;
   };
 
+  const buildAccountSetupUrl = (languageCode: string) => {
+    const params = new URLSearchParams({
+      mode: 'add-language',
+      lang: languageCode,
+      redirect: getCurrentLocation(),
+    });
+
+    return `/account-setup?${params.toString()}`;
+  };
+
   useEffect(() => {
     const initializeLanguage = async () => {
       // Try to get the language from localStorage first
@@ -116,10 +126,10 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
           // No progress found for this language - redirect to account setup
           console.log(`No progress found for language ${language.code}, redirecting to setup`);
 
-          // Set a flag to indicate this is for language setup, not initial account setup
+          // Keep legacy storage flags as a fallback while using an explicit add-language route.
           localStorage.setItem('setupLanguage', language.code);
           localStorage.setItem('setupRedirect', getCurrentLocation());
-          router.push('/account-setup');
+          router.push(buildAccountSetupUrl(language.code));
           return;
         }
 

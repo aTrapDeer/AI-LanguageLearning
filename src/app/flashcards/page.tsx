@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import { useLanguage } from '@/contexts/language-context';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
+import { isSupportedLanguageCode } from '@/lib/language-config';
 
 type FlashcardWord = {
   word: string;
@@ -39,7 +40,10 @@ function FlashcardsContent() {
 
   // Get language from URL params or context
   const langParam = searchParams.get('lang');
-  const currentLanguage = selectedLanguage?.code || langParam || 'de';
+  const currentLanguage =
+    langParam && isSupportedLanguageCode(langParam)
+      ? langParam
+      : selectedLanguage?.code || 'de';
 
   const generateFlashcards = useCallback(async (level?: number) => {
     setLoading(true);
