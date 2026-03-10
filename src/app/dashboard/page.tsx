@@ -13,6 +13,7 @@ import {
   ImageIcon,
   LayersIcon,
 } from "@radix-ui/react-icons";
+import { Plane } from "lucide-react";
 
 export default function DashboardPage() {
   const { data: session, status } = useSession()
@@ -21,13 +22,22 @@ export default function DashboardPage() {
 
   const features = [
     {
+      Icon: Plane,
+      name: "Travel",
+      description: "Use live push-to-talk translation to understand what people are saying around you and get multiple AI-crafted ways to respond back instantly.",
+      href: `/travel?lang=${selectedLanguage?.code || 'de'}`,
+      cta: "Open Travel Mode",
+      background: <div className="absolute inset-0 bg-gradient-to-br from-sky-100 to-transparent dark:from-sky-900/30" />,
+      className: "md:col-span-2 lg:col-span-3 h-[160px]",
+    },
+    {
       Icon: LayersIcon,
       name: "Journey Mode",
       description: "Follow a structured path tailored to your level with matching, missing word, and spelling exercises.",
       href: `/learn/journey?lang=${selectedLanguage?.code || 'en'}`,
       cta: "Start Journey",
       background: <div className="absolute inset-0 bg-gradient-to-br from-purple-100 to-transparent dark:from-purple-900/30" />,
-      className: "md:col-span-2 lg:col-span-3 h-[140px]",
+      className: "md:col-span-2",
     },
     {
       Icon: ChatBubbleIcon,
