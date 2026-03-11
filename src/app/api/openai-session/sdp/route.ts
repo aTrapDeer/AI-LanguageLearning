@@ -1,11 +1,20 @@
 import { NextResponse } from "next/server";
-import { buildOpenAIRealtimeSession } from "@/lib/openai-realtime";
+import { buildOpenAIRealtimeSession, buildTravelRealtimeSession } from "@/lib/openai-realtime";
+import { isSupportedLanguageCode } from "@/lib/language-config";
 
 export async function POST(request: Request) {
   try {
     if (!process.env.OPENAI_API_KEY) {
       throw new Error("OPENAI_API_KEY is not set");
     }
+
+    const { searchParams } = new URL(request.url);
+    const mode = searchParams.get("mode");
+    const requestedLanguage = searchParams.get("language");
+    const sessionConfig =
+      mode === "travel" && requestedLanguage && isSupportedLanguageCode(requestedLanguage)
+        ? buildTravelRealtimeSession(requestedLanguage)
+        : buildOpenAIRealtimeSession();
 
     const sdpOffer = await request.text();
     if (!sdpOffer) {
@@ -14,7 +23,7 @@ export async function POST(request: Request) {
 
     const formData = new FormData();
     formData.set("sdp", sdpOffer);
-    formData.set("session", JSON.stringify(buildOpenAIRealtimeSession()));
+    formData.set("session", JSON.stringify(sessionConfig));
 
     const response = await fetch("https://api.openai.com/v1/realtime/calls", {
       method: "POST",

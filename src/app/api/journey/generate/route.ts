@@ -21,6 +21,7 @@ type MatchingRound = {
 type MissingWordRound = {
   type: 'missing_word';
   sentence: string;
+  englishTranslation?: string;
   missingWordIndices: number[];
   correctWords: string[];
   options: string[];
@@ -31,6 +32,7 @@ type MissingWordRound = {
 interface LegacyMissingWordRound {
   type: 'missing_word';
   sentence: string;
+  englishTranslation?: string;
   missingWordIndex: number;
   correctWord: string;
   options: string[];
@@ -90,8 +92,36 @@ function buildLegacyOptions(correctWord: string, options: string[]) {
   return uniqueOptions.slice(0, 4);
 }
 
-function buildMultiWordOptions(correctWords: string[], options: string[]) {
-  return dedupeWordOptions([...correctWords, ...options]);
+function normalizeMissingWordRound(
+  round: MissingWordRound | LegacyMissingWordRound,
+  language: string
+): LegacyMissingWordRound {
+  if ('missingWordIndices' in round) {
+    const recovered = findTokenIndicesForWords(round.sentence, round.correctWords, language);
+    const correctWord = recovered?.matchedWords[0] ?? round.correctWords[0] ?? "";
+    const missingWordIndex = recovered?.indices[0] ?? round.missingWordIndices[0] ?? 0;
+
+    return {
+      type: 'missing_word',
+      sentence: round.sentence,
+      englishTranslation: round.englishTranslation,
+      missingWordIndex,
+      correctWord,
+      options: buildLegacyOptions(correctWord, round.options),
+    };
+  }
+
+  const recovered = findTokenIndicesForWords(round.sentence, [round.correctWord], language);
+  const correctWord = recovered?.matchedWords[0] ?? round.correctWord;
+  const missingWordIndex = recovered?.indices[0] ?? round.missingWordIndex;
+
+  return {
+    ...round,
+    englishTranslation: round.englishTranslation,
+    missingWordIndex,
+    correctWord,
+    options: buildLegacyOptions(correctWord, round.options),
+  };
 }
 
 function normalizeRound(round: Round, language: string): Round {
@@ -103,34 +133,8 @@ function normalizeRound(round: Round, language: string): Round {
     };
   }
 
-  if (round.type === 'missing_word' && 'missingWordIndices' in round) {
-    const multiWordRound = round as MissingWordRound;
-    const recovered = findTokenIndicesForWords(multiWordRound.sentence, multiWordRound.correctWords, language);
-    if (!recovered) {
-      return round;
-    }
-
-    return {
-      ...multiWordRound,
-      missingWordIndices: recovered.indices,
-      correctWords: recovered.matchedWords,
-      options: buildMultiWordOptions(recovered.matchedWords, multiWordRound.options),
-    };
-  }
-
-  if (round.type === 'missing_word' && 'missingWordIndex' in round) {
-    const legacyRound = round as LegacyMissingWordRound;
-    const recovered = findTokenIndicesForWords(legacyRound.sentence, [legacyRound.correctWord], language);
-    if (!recovered) {
-      return round;
-    }
-
-    return {
-      ...legacyRound,
-      missingWordIndex: recovered.indices[0],
-      correctWord: recovered.matchedWords[0],
-      options: buildLegacyOptions(recovered.matchedWords[0], legacyRound.options),
-    };
+  if (round.type === 'missing_word') {
+    return normalizeMissingWordRound(round as MissingWordRound | LegacyMissingWordRound, language);
   }
 
   return round;
@@ -202,6 +206,7 @@ const FALLBACK_DATA: Record<string, JourneyData | null> = {
       {
         type: 'missing_word',
         sentence: "I like to drink coffee in the morning",
+        englishTranslation: "I like to drink coffee in the morning",
         missingWordIndex: 4,
         correctWord: "coffee",
         options: ["coffee", "table", "window", "blue"]
@@ -249,7 +254,6 @@ function getRandomThemes(level: number): string[] {
 
 function createDynamicPrompt(languageName: string, languageCode: string, level: number, levelDescription: string, theme: string): string {
   const complexity = level <= 3 ? 'simple' : level <= 6 ? 'intermediate' : 'advanced';
-  const multiWordCount = level <= 4 ? 1 : level <= 7 ? 2 : level <= 9 ? 3 : 4;
   
   return `Create a ${languageName} learning journey (level ${level}/10: ${levelDescription}) focused on "${theme}".
 
@@ -269,16 +273,14 @@ MATCHING: {"type":"matching", "englishSentence":"...", "translatedSentence":"...
 - Example: translatedSentence "Was studierst du?" → words ["Was","studierst","du?"]
 
 MISSING_WORD: 
-- Levels 1-4 (ALWAYS SINGLE WORD): {"type":"missing_word", "sentence":"...", "missingWordIndices":[index], "correctWords":["word"], "options":["correct","wrong1","wrong2","wrong3"], "isSingleWord":true}
-- Levels 5+ (CAN BE MULTIPLE): {"type":"missing_word", "sentence":"...", "missingWordIndices":[i1,i2,...], "correctWords":["word1","word2",...], "options":["all","correct","words","plus","distractors"], "isSingleWord":false}
-
-FOR LEVEL ${level} (${level <= 4 ? 'SINGLE WORD ONLY' : 'MULTIPLE WORDS ALLOWED'}):
-${level <= 4 ? 
-  '- MUST have exactly ONE missing word per exercise\n- Use missingWordIndices with exactly ONE index\n- Use correctWords with exactly ONE word\n- Example: "Ich trinke _____ Kaffee" → missingWordIndices:[2], correctWords:["gerne"]' :
-  `- Can have ${multiWordCount} missing words per exercise\n- Use missingWordIndices with ${multiWordCount} indices\n- Use correctWords with ${multiWordCount} words\n- Example: "Ich _____ es, im _____ zu gehen" → missingWordIndices:[1,4], correctWords:["liebe","Kino"]`
-}
+- ALWAYS use exactly ONE missing word: {"type":"missing_word", "sentence":"...", "englishTranslation":"...", "missingWordIndices":[index], "correctWords":["word"], "options":["correct","wrong1","wrong2","wrong3"], "isSingleWord":true}
+- Include "englishTranslation" for every missing word exercise
+- Use missingWordIndices with exactly ONE index
+- Use correctWords with exactly ONE word
+- Example: "Ich trinke _____ Kaffee" → missingWordIndices:[2], correctWords:["gerne"], englishTranslation:"I like drinking coffee"
 
 CRITICAL FOR MISSING_WORD EXERCISES:
+- There must be exactly ONE blank in every missing word exercise
 - There must be ONLY ONE grammatically and contextually correct answer
 - Wrong options must be CLEARLY wrong (different parts of speech, nonsensical in context)
 - Avoid interchangeable options like numbers, colors, or synonyms
@@ -290,7 +292,7 @@ SPELLING: {"type":"spelling", "englishWord":"...", "correctSpelling":"..."}
 IMAGE: {"type":"image", "englishPrompt":"A clear, simple image of [object/scene]", "targetLanguageWord":"${languageName} word for what's shown", "options":["correct_word","wrong1","wrong2","wrong3"], "imageUrl":"", "description":"Brief description for accessibility"}
 
 GUIDELINES:
-- For MISSING_WORD exercises at level ${level}: ${level <= 4 ? 'EXACTLY 1 missing word per exercise' : `${multiWordCount} missing words per exercise`}
+- For MISSING_WORD exercises at level ${level}: EXACTLY 1 missing word per exercise
 - Make wrong options completely unrelated (not synonyms or valid alternatives)
 - CRITICAL: Each missing word exercise must have exactly ONE correct answer
 - Wrong options should be from different word categories (noun vs verb vs adjective vs adverb)
@@ -549,14 +551,14 @@ MISSING WORD QUALITY CONTROL:
                 const multiWordRound = round as MissingWordRound;
                 const tokenizedSentence = tokenizeExerciseText(round.sentence ?? "", journeyData.language);
                 const isValid = !!round.sentence && 
+                       !!multiWordRound.englishTranslation &&
                        Array.isArray(round.missingWordIndices) && 
                        Array.isArray(multiWordRound.correctWords) && 
                        Array.isArray(round.options) &&
                        multiWordRound.missingWordIndices.every((index) => index >= 0 && index < tokenizedSentence.length);
-                
-                // Validate that the number of missing words matches the level requirement
-                if (isValid && userLevel <= 4 && multiWordRound.missingWordIndices.length > 1) {
-                  console.warn(`⚠️ Level ${userLevel} should have only 1 missing word, but got ${multiWordRound.missingWordIndices.length}. This will be fixed automatically.`);
+
+                if (isValid && multiWordRound.missingWordIndices.length !== 1) {
+                  console.warn(`⚠️ Missing word exercise should have exactly 1 blank, but got ${multiWordRound.missingWordIndices.length}. It will be fixed automatically.`);
                 }
                 
                 return isValid;
@@ -564,6 +566,7 @@ MISSING WORD QUALITY CONTROL:
                 // Handle legacy format
                 const tokenizedSentence = tokenizeExerciseText(round.sentence ?? "", journeyData.language);
                 return !!round.sentence && 
+                       !!(round as LegacyMissingWordRound).englishTranslation &&
                        typeof (round as LegacyMissingWordRound).missingWordIndex === 'number' && 
                        !!(round as LegacyMissingWordRound).correctWord && 
                        Array.isArray(round.options) &&
@@ -745,6 +748,7 @@ function getFallbackJourney(language: string, level: number): JourneyData {
     fallback.rounds[1] = {
       type: 'missing_word',
       sentence: 'Eu gosto de tomar café de manhã',
+      englishTranslation: 'I like to drink coffee in the morning',
       missingWordIndex: 3,
       correctWord: 'tomar',
       options: ['tomar', 'mesa', 'janela', 'azul']
@@ -775,6 +779,7 @@ function getFallbackJourney(language: string, level: number): JourneyData {
     fallback.rounds[1] = {
       type: 'missing_word',
       sentence: '我喜欢早上喝咖啡',
+      englishTranslation: 'I like drinking coffee in the morning',
       missingWordIndex: 2,
       correctWord: '早上',
       options: ['早上', '桌子', '窗户', '蓝色']
@@ -804,6 +809,7 @@ function getFallbackJourney(language: string, level: number): JourneyData {
     fallback.rounds[1] = {
       type: 'missing_word',
       sentence: '저는 아침에 커피 마시는 것을 좋아해요',
+      englishTranslation: 'I like drinking coffee in the morning',
       missingWordIndex: 3,
       correctWord: '커피',
       options: ['커피', '테이블', '창문', '파란색']
@@ -833,6 +839,7 @@ function getFallbackJourney(language: string, level: number): JourneyData {
     fallback.rounds[1] = {
       type: 'missing_word',
       sentence: 'Jeg liker å drikke kaffe om morgenen',
+      englishTranslation: 'I like drinking coffee in the morning',
       missingWordIndex: 4,
       correctWord: 'drikke',
       options: ['drikke', 'bord', 'vindu', 'blå']
@@ -862,6 +869,7 @@ function getFallbackJourney(language: string, level: number): JourneyData {
     fallback.rounds[1] = {
       type: 'missing_word',
       sentence: 'أحب شرب القهوة في الصباح',
+      englishTranslation: 'I like drinking coffee in the morning',
       missingWordIndex: 2,
       correctWord: 'شرب',
       options: ['شرب', 'طاولة', 'نافذة', 'أزرق']
@@ -895,60 +903,20 @@ function getFallbackJourney(language: string, level: number): JourneyData {
 
 // Fix missing word exercises to match level requirements
 function fixMissingWordExercises(journeyData: JourneyData, level: number): JourneyData {
-  console.log(`🔧 Fixing missing word exercises for level ${level}`);
+  console.log(`🔧 Normalizing missing word exercises for level ${level}`);
   
   // Fix regular rounds
   journeyData.rounds = journeyData.rounds.map(round => {
-    if (round.type === 'missing_word' && 'missingWordIndices' in round) {
-      const multiWordRound = round as MissingWordRound;
-      
-      // For levels 1-4, convert multi-word exercises to single-word
-      if (level <= 4 && multiWordRound.missingWordIndices.length > 1) {
-        console.log(`🔧 Converting multi-word exercise to single-word for level ${level}`);
-        
-        // Take only the first missing word
-        const firstIndex = multiWordRound.missingWordIndices[0];
-        const firstCorrectWord = multiWordRound.correctWords[0];
-        
-        // Convert to legacy format for consistency
-        const legacyRound: LegacyMissingWordRound = {
-          type: 'missing_word',
-          sentence: multiWordRound.sentence,
-          missingWordIndex: firstIndex,
-          correctWord: firstCorrectWord,
-          options: buildLegacyOptions(firstCorrectWord, multiWordRound.options),
-        };
-        
-        return legacyRound;
-      }
+    if (round.type === 'missing_word') {
+      return normalizeMissingWordRound(round as MissingWordRound | LegacyMissingWordRound, journeyData.language);
     }
     return round;
   });
   
   // Fix summary test rounds
   journeyData.summaryTest = journeyData.summaryTest.map(round => {
-    if (round.type === 'missing_word' && 'missingWordIndices' in round) {
-      const multiWordRound = round as MissingWordRound;
-      
-      // For levels 1-4, convert multi-word exercises to single-word
-      if (level <= 4 && multiWordRound.missingWordIndices.length > 1) {
-        console.log(`🔧 Converting multi-word test exercise to single-word for level ${level}`);
-        
-        // Take only the first missing word
-        const firstIndex = multiWordRound.missingWordIndices[0];
-        const firstCorrectWord = multiWordRound.correctWords[0];
-        
-        // Convert to legacy format for consistency
-        const legacyRound: LegacyMissingWordRound = {
-          type: 'missing_word',
-          sentence: multiWordRound.sentence,
-          missingWordIndex: firstIndex,
-          correctWord: firstCorrectWord,
-          options: buildLegacyOptions(firstCorrectWord, multiWordRound.options),
-        };
-        
-        return legacyRound;
-      }
+    if (round.type === 'missing_word') {
+      return normalizeMissingWordRound(round as MissingWordRound | LegacyMissingWordRound, journeyData.language);
     }
     return round;
   });
@@ -958,6 +926,9 @@ function fixMissingWordExercises(journeyData: JourneyData, level: number): Journ
 
 // Process the journey data, scrambling words for matching rounds
 function processJourneyData(journeyData: JourneyData): JourneyData {
+  journeyData.rounds = journeyData.rounds.map((round) => normalizeRound(round, journeyData.language));
+  journeyData.summaryTest = journeyData.summaryTest.map((round) => normalizeRound(round, journeyData.language));
+
   // Process regular rounds
   journeyData.rounds = journeyData.rounds.map(round => {
     if (round.type === 'matching') {

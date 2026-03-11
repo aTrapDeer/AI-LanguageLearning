@@ -11,6 +11,7 @@
     {
       "type": "missing_word",
       "sentence": "Ich trinke gerne Kaffee am Morgen",
+      "englishTranslation": "I like drinking coffee in the morning",
       "missingWordIndex": 2,
       "correctWord": "gerne",
       "options": ["gerne", "Schlüssel", "Fenster", "rot"]
@@ -29,6 +30,7 @@
     {
       "type": "missing_word",
       "sentence": "Heute ist das Wetter sehr schön",
+      "englishTranslation": "The weather is very nice today",
       "missingWordIndex": 4,
       "correctWord": "schön",
       "options": ["schön", "Stuhl", "Apfel", "schwarz"]
@@ -47,6 +49,7 @@
     {
       "type": "missing_word",
       "sentence": "Ich komme aus Deutschland",
+      "englishTranslation": "I come from Germany",
       "missingWordIndex": 2,
       "correctWord": "aus",
       "options": ["aus", "Hund", "Tisch", "blau"]
@@ -73,6 +76,7 @@
     {
       "type": "missing_word",
       "sentence": "Ich spreche ein bisschen Deutsch",
+      "englishTranslation": "I speak a little German",
       "missingWordIndex": 3,
       "correctWord": "bisschen",
       "options": ["bisschen", "Katze", "Haus", "gelb"]

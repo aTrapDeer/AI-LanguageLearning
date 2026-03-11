@@ -11,6 +11,7 @@
     {
       "type": "missing_word",
       "sentence": "أحب شرب القهوة في الصباح",
+      "englishTranslation": "I like drinking coffee in the morning",
       "missingWordIndex": 2,
       "correctWord": "شرب",
       "options": ["شرب", "طاولة", "نافذة", "أزرق"]
@@ -29,6 +30,7 @@
     {
       "type": "missing_word",
       "sentence": "اليوم الطقس جميل جداً",
+      "englishTranslation": "The weather is very nice today",
       "missingWordIndex": 3,
       "correctWord": "جداً",
       "options": ["جداً", "كرسي", "تفاحة", "أسود"]
@@ -47,6 +49,7 @@
     {
       "type": "missing_word",
       "sentence": "أنا من مصر",
+      "englishTranslation": "I am from Egypt",
       "missingWordIndex": 1,
       "correctWord": "من",
       "options": ["من", "قط", "طاولة", "أزرق"]
@@ -73,6 +76,7 @@
     {
       "type": "missing_word",
       "sentence": "أعيش في القاهرة",
+      "englishTranslation": "I live in Cairo",
       "missingWordIndex": 1,
       "correctWord": "في",
       "options": ["في", "كلب", "أخضر", "كبير"]

@@ -11,6 +11,7 @@
     {
       "type": "missing_word",
       "sentence": "저는 아침에 커피를 마셔요",
+      "englishTranslation": "I drink coffee in the morning",
       "missingWordIndex": 3,
       "correctWord": "커피를",
       "options": ["커피를", "테이블", "창문", "파란색"]
@@ -29,6 +30,7 @@
     {
       "type": "missing_word",
       "sentence": "오늘 날씨가 정말 좋아요",
+      "englishTranslation": "The weather is really nice today",
       "missingWordIndex": 3,
       "correctWord": "좋아요",
       "options": ["좋아요", "의자", "사과", "검은색"]
@@ -47,6 +49,7 @@
     {
       "type": "missing_word",
       "sentence": "저는 한국에서 왔어요",
+      "englishTranslation": "I come from Korea",
       "missingWordIndex": 1,
       "correctWord": "한국에서",
       "options": ["한국에서", "고양이", "책상", "파란색"]
@@ -73,6 +76,7 @@
     {
       "type": "missing_word",
       "sentence": "저는 서울에 살아요",
+      "englishTranslation": "I live in Seoul",
       "missingWordIndex": 2,
       "correctWord": "살아요",
       "options": ["살아요", "개", "초록색", "큰"]

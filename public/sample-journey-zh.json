@@ -11,6 +11,7 @@
     {
       "type": "missing_word",
       "sentence": "我喜欢早上喝咖啡",
+      "englishTranslation": "I like drinking coffee in the morning",
       "missingWordIndex": 2,
       "correctWord": "早上",
       "options": ["早上", "桌子", "窗户", "蓝色"]
@@ -29,6 +30,7 @@
     {
       "type": "missing_word",
       "sentence": "今天天气很好",
+      "englishTranslation": "The weather is very nice today",
       "missingWordIndex": 3,
       "correctWord": "好",
       "options": ["好", "椅子", "苹果", "黑色"]
@@ -47,6 +49,7 @@
     {
       "type": "missing_word",
       "sentence": "我来自中国",
+      "englishTranslation": "I come from China",
       "missingWordIndex": 1,
       "correctWord": "来自",
       "options": ["来自", "猫", "桌子", "蓝色"]
@@ -73,6 +76,7 @@
     {
       "type": "missing_word",
       "sentence": "我住在北京",
+      "englishTranslation": "I live in Beijing",
       "missingWordIndex": 1,
       "correctWord": "住在",
       "options": ["住在", "狗", "绿色", "大"]
