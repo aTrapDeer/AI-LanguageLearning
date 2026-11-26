@@ -80,9 +80,10 @@ export function LessonShell({
         {topBarEnd && <div className="flex shrink-0 items-center gap-2">{topBarEnd}</div>}
       </header>
 
-      <main className={cn("mx-auto flex w-full max-w-2xl flex-1 flex-col overflow-y-auto px-4 py-4 sm:px-6", contentClassName)}>
+      {/* A div, not <main>: the root layout already provides the page's main landmark. */}
+      <div className={cn("mx-auto flex w-full max-w-2xl flex-1 flex-col overflow-y-auto px-4 py-4 sm:px-6", contentClassName)}>
         {children}
-      </main>
+      </div>
 
       {footer && <div className="shrink-0 pb-[env(safe-area-inset-bottom)]">{footer}</div>}
     </div>

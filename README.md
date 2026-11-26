@@ -8,15 +8,21 @@ Languages: German, Brazilian Portuguese, Chinese (Mandarin), Norwegian, Korean a
 
 ## What's in the app today
 
-- **Onboarding** – pick languages and a starting level; levels use one 1–10 scale mapped to CEFR bands.
-- **Journey mode** – generated exercise rounds (sentence building, fill-in-the-blank, vocabulary).
-- **Flashcards** – generated vocabulary decks for your level.
-- **Conversation practice** – text and voice chat with an AI tutor, with spoken replies.
-- **Travel mode** – live speech translation and reply suggestions for real-world situations.
+- **Onboarding** – pick languages and a starting level; levels use one 1–10 scale mapped to CEFR bands (A1–C2).
+- **Lesson path** (`/learn/journey`) – 60 curriculum units, six per level. Each lesson teaches new words,
+  then tests them with choice, listening, matching, fill-in, sentence-building and typed-recall exercises.
+  Missed exercises come back at the end; finishing awards stars and XP and adds the words to your review deck.
+- **Review** (`/flashcards`) – spaced repetition over your own words (Again / Hard / Good / Easy), plus a
+  "My words" view to search, add and remove vocabulary.
+- **Chat tutor** (`/learn/<language>`) – remembers the conversation, adapts to your level and current unit,
+  corrects mistakes gently, suggests replies, and lets you save words to the deck. Audio is generated on demand.
+- **Voice conversation** (`/learn/conversation`) – live speech practice over the OpenAI Realtime API, with
+  instructions built from your level and weak words.
+- **Travel mode** (`/travel`) – live speech translation and reply suggestions for real-world situations.
+- **Dashboard** – streak, daily XP goal, level progress, reviews due and the next lesson.
 
-The data layer also contains the foundations for a structured curriculum, spaced-repetition review,
-XP/streaks and tutor memory (`src/lib/curriculum.ts`, `src/lib/srs.ts`, `src/lib/gamification.ts`,
-`src/lib/db/*`), which the learning screens are being moved onto.
+Without an `OPENAI_API_KEY` the first lesson of each language still works from built-in starter content;
+other AI features show an "unavailable" state.
 
 ## Tech stack
 
@@ -25,7 +31,6 @@ XP/streaks and tutor memory (`src/lib/curriculum.ts`, `src/lib/srs.ts`, `src/lib
 - NextAuth v4 (credentials, optional Google OAuth) with JWT sessions
 - Turso / libSQL via `@libsql/client` (hand-written queries, schema auto-migrated)
 - OpenAI (chat completions, text-to-speech, transcription, Realtime API for voice)
-- AWS S3 for storing generated chat audio
 - Vitest for unit and database tests
 
 ## Getting started
@@ -39,7 +44,6 @@ XP/streaks and tutor memory (`src/lib/curriculum.ts`, `src/lib/srs.ts`, `src/lib
      `TURSO_DATABASE_URL="file:/absolute/path/to/dev.db"` (no token needed)
    - `AUTH_SECRET` and `NEXTAUTH_SECRET` (same value), `NEXTAUTH_URL`
    - `OPENAI_API_KEY` for any AI feature
-   - `AWS_*` variables if you want spoken chat replies stored in S3
 3. Start the dev server:
    ```bash
    npm run dev
