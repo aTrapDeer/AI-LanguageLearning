@@ -38,8 +38,8 @@ function describeSpokenStyle(level: number): string {
 function describeMode(mode: VoiceMode, languageName: string, level: number): string {
   if (mode === "native") {
     return [
-      `Speak ONLY ${languageName}. Never switch to English, even if the learner does.`,
-      `If the learner is lost, slow down and rephrase with simpler ${languageName} words, gestures in words ("for example…"), or a choice between two answers.`,
+      `Speak ONLY ${languageName}. Never switch to English, even if the learner does. This overrides any mention of English support above.`,
+      `If the learner is lost, slow down and rephrase with simpler ${languageName} words, a quick example, or a choice between two answers.`,
       `When the learner makes a mistake, recast it: repeat what they meant correctly, naturally, in your reply (no grammar lectures).`,
     ].join("\n");
   }

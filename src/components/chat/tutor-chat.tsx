@@ -151,7 +151,13 @@ export function TutorChat({ language: languageCode, initialScenarioId, initialUn
   }, [initialScenarioId, initialUnitId, languageCode, router, startConversation, state]);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "end" });
+    // Scroll LessonShell's scrolling <main> directly: scrollIntoView's smooth scroll gets cancelled when
+    // several messages arrive in quick succession.
+    const frame = window.requestAnimationFrame(() => {
+      const scroller = bottomRef.current?.closest("main");
+      scroller?.scrollTo({ top: scroller.scrollHeight, behavior: reduceMotion ? "auto" : "smooth" });
+    });
+    return () => window.cancelAnimationFrame(frame);
   }, [messages, sending, reduceMotion, view]);
 
   const onActivity = useCallback(
@@ -160,7 +166,7 @@ export function TutorChat({ language: languageCode, initialScenarioId, initialUn
       if (activity.xpGained > 0 || activity.goalJustReached) notifyLearnSummaryChanged();
 
       if (activity.goalJustReached) {
-        showToast(`🎯 Daily goal reached! ${activity.dailyXp}/${activity.dailyGoal} XP`);
+        showToast(`🎯 Daily goal reached! +${activity.xpGained} XP`);
       } else if (activity.xpGained > 0) {
         showToast(`+${activity.xpGained} XP`);
       } else if (activity.capReached && !capNotifiedRef.current) {
@@ -302,21 +308,23 @@ export function TutorChat({ language: languageCode, initialScenarioId, initialUn
 
   return (
     <LessonShell exitHref="/dashboard" exitLabel="Back to dashboard" topBarCenter={topBarCenter} topBarEnd={topBarEnd} footer={footer}>
-      <AnimatePresence>
-        {toast && (
-          <motion.div
-            key={toast.id}
-            role="status"
-            aria-live="polite"
-            initial={reduceMotion ? { opacity: 0 } : { opacity: 0, y: -12, scale: 0.9 }}
-            animate={reduceMotion ? { opacity: 1 } : { opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0 }}
-            className="pointer-events-none fixed left-1/2 top-[calc(env(safe-area-inset-top)+4rem)] z-50 -translate-x-1/2 whitespace-nowrap rounded-full bg-amber-300 px-4 py-1.5 text-sm font-bold text-slate-900 shadow-lg"
-          >
-            {toast.text}
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <div className="pointer-events-none fixed inset-x-0 top-[calc(env(safe-area-inset-top)+4rem)] z-50 flex justify-center px-4">
+        <AnimatePresence>
+          {toast && (
+            <motion.div
+              key={toast.id}
+              role="status"
+              aria-live="polite"
+              initial={reduceMotion ? { opacity: 0 } : { opacity: 0, y: -12, scale: 0.9 }}
+              animate={reduceMotion ? { opacity: 1 } : { opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0 }}
+              className="max-w-full rounded-full bg-amber-300 px-4 py-1.5 text-center text-sm font-bold text-slate-900 shadow-lg"
+            >
+              {toast.text}
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
 
       {loading && (
         <div className="flex flex-1 items-center justify-center" role="status">
