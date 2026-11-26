@@ -24,6 +24,7 @@ import {
 } from "@/lib/database";
 import { clampLevel } from "@/lib/levels";
 import { generateJson, isOpenAIConfigured, StructuredOutputError } from "@/lib/openai";
+import { normalizeVocabularyKey } from "@/lib/exercise-text";
 import { gradeFromOutcome } from "@/lib/srs";
 import type {
   CompleteLessonRequest,
@@ -47,7 +48,7 @@ import { buildLessonPrompt } from "./prompt";
 import { randomSeed, pickSome, createRng } from "./rng";
 import { sanitizeProgress, type LessonProgress } from "./session";
 import { getStarterContent } from "./starter-content";
-import { findAnyLessonForUnit, listInProgressUnits } from "./store";
+import { findAnyLessonForUnit, listInProgressUnits, saveFinalOutcome } from "./store";
 import { isGradedStep, type GradedStep, type LessonPlan, type PlanWord } from "./types";
 
 /** Lesson orchestration for the /api/lessons routes. Server-only. */
@@ -314,12 +315,13 @@ function mistakeFor(step: GradedStep, expected: string, given: string, language:
   }
 }
 
-function wordsResult(plan: LessonPlan, missedKeys: Set<string>): LessonWordResult[] {
+function wordsResult(plan: LessonPlan, missedKeys: Set<string>, newKeys: Set<string>): LessonWordResult[] {
   return plan.newWords.map((word: PlanWord) => ({
     word: word.word,
     translation: word.translation,
     romanization: word.romanization,
     missed: missedKeys.has(word.key),
+    isNew: newKeys.has(normalizeVocabularyKey(word.word)),
   }));
 }
 
@@ -401,7 +403,6 @@ export async function completeLesson(params: {
   const missedKeys = new Set(
     outcomes.filter((outcome) => !outcome.result.correct && outcome.step.ref.kind === "word").map((outcome) => (outcome.step.ref as { key: string }).key)
   );
-  const words = wordsResult(plan, missedKeys);
   const reviewOutcomes = outcomes.filter((outcome) => outcome.step.ref.kind === "review");
 
   const finalProgress = sanitizeProgress(plan, state.progress);
@@ -411,7 +412,7 @@ export async function completeLesson(params: {
     correctCount,
     totalCount: graded.length,
     localDate: params.body.localDate,
-    finalState: { ...state, progress: finalProgress, outcome: { words, reviewedCount: reviewOutcomes.length } } satisfies AttemptState,
+    finalState: { ...state, progress: finalProgress } satisfies AttemptState,
     now,
   });
 
@@ -421,6 +422,11 @@ export async function completeLesson(params: {
   }
 
   // XP is recorded; the learning side effects below should not fail the response.
+  const newKeys = new Set<string>();
+  const createdAt = now.toISOString();
+  const collectNew = (items: Array<{ word: string; createdAt: string }>) => {
+    for (const item of items) if (item.createdAt === createdAt) newKeys.add(normalizeVocabularyKey(item.word));
+  };
   try {
     const missed = plan.newWords.filter((word) => missedKeys.has(word.key));
     const learned = plan.newWords.filter((word) => !missedKeys.has(word.key));
@@ -434,11 +440,11 @@ export async function completeLesson(params: {
       tags: [plan.unitId],
     });
     if (missed.length > 0) {
-      await upsertVocabulary({ userId, language, source: "journey", items: missed.map(toInput), now });
+      collectNew((await upsertVocabulary({ userId, language, source: "journey", items: missed.map(toInput), now })).items);
     }
     if (learned.length > 0) {
       // Words answered right first time were just practised; the first review is tomorrow.
-      await upsertVocabulary({
+      const result = await upsertVocabulary({
         userId,
         language,
         source: "journey",
@@ -446,6 +452,7 @@ export async function completeLesson(params: {
         now,
         firstReviewAt: new Date(now.getTime() + 24 * 60 * 60 * 1000),
       });
+      collectNew(result.items);
     }
 
     for (const { step, result } of reviewOutcomes) {
@@ -463,6 +470,13 @@ export async function completeLesson(params: {
     }
   } catch (error) {
     console.error("[LESSON_COMPLETE_SIDE_EFFECTS]", error);
+  }
+
+  const words = wordsResult(plan, missedKeys, newKeys);
+  try {
+    await saveFinalOutcome(userId, attemptId, { ...state, progress: finalProgress, outcome: { words, reviewedCount: reviewOutcomes.length } });
+  } catch (error) {
+    console.error("[LESSON_COMPLETE_OUTCOME]", error);
   }
 
   return {

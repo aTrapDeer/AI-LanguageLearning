@@ -59,11 +59,13 @@ export function applyStepOutcome(progress: LessonProgress, outcome: StepOutcome)
   }
 
   const correct = Boolean(outcome.correct);
-  if (!(outcome.stepId in progress.results) && outcome.answer) {
+  const firstTry = !(outcome.stepId in progress.results);
+  if (firstTry && outcome.answer) {
     next.results = { ...progress.results, [outcome.stepId]: { correct, answer: outcome.answer, note: outcome.note ?? null } };
   }
 
-  next.combo = correct ? progress.combo + 1 : 0;
+  // Combos reward first-try answers; getting a re-queued item right keeps the combo but doesn't grow it.
+  next.combo = !correct ? 0 : firstTry ? progress.combo + 1 : progress.combo;
   next.bestCombo = Math.max(progress.bestCombo, next.combo);
 
   if (!correct) {

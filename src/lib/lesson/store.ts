@@ -1,4 +1,4 @@
-import { asNumber, getFirstRow, getRows, parseJson } from "@/lib/db/client";
+import { asNumber, execute, getFirstRow, getRows, nowIso, parseJson, toJson } from "@/lib/db/client";
 import { getLessonById, type StoredLesson } from "@/lib/db/lessons";
 
 /** Lesson queries the shared data layer does not have. Server-only. */
@@ -33,4 +33,14 @@ export async function listInProgressUnits(userId: string, language: string): Pro
     result[String(row.unit_id)] = done + remaining > 0 ? done / (done + remaining) : 0;
   }
   return result;
+}
+
+/** Stores the end-of-lesson summary on a completed attempt so a repeated completion can show it again. */
+export async function saveFinalOutcome(userId: string, attemptId: string, state: unknown): Promise<void> {
+  await execute("UPDATE lesson_attempts SET state = ?, updated_at = ? WHERE id = ? AND user_id = ? AND status = 'completed'", [
+    toJson(state),
+    nowIso(),
+    attemptId,
+    userId,
+  ]);
 }

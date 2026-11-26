@@ -16,6 +16,12 @@ export interface LessonCompleteProps {
   onReplay: () => void;
 }
 
+function wordsHeading(total: number, added: number) {
+  if (added === total) return `${total} word${total === 1 ? "" : "s"} added to your review deck`;
+  if (added === 0) return `${total} words practised — all already in your review deck`;
+  return `${total} words practised · ${added} new in your review deck`;
+}
+
 /** End-of-lesson screen: stars, XP, streak, celebrations, the words added to the deck and what's next. */
 export function LessonComplete({ language, lesson, result, bestCombo, pathHref, onReplay }: LessonCompleteProps) {
   const activity = result.activity;
@@ -23,6 +29,7 @@ export function LessonComplete({ language, lesson, result, bestCombo, pathHref, 
   const unitHref = (unitId: string) => `/learn/journey?lang=${encodeURIComponent(language)}&unit=${encodeURIComponent(unitId)}`;
   const chatHref = `/learn/${encodeURIComponent(language)}?unit=${encodeURIComponent(lesson.unit.id)}`;
   const missed = result.words.filter((word) => word.missed).length;
+  const newCount = result.words.filter((word) => word.isNew).length;
 
   const primary: SessionSummaryAction = !passed
     ? { label: "Try again", onClick: onReplay }
@@ -57,9 +64,7 @@ export function LessonComplete({ language, lesson, result, bestCombo, pathHref, 
       >
         {result.words.length > 0 && (
           <div>
-            <h3 className="text-sm font-bold text-slate-700">
-              {result.words.length} words added to your review deck
-            </h3>
+            <h3 className="text-sm font-bold text-slate-700">{wordsHeading(result.words.length, newCount)}</h3>
             <ul className="mt-2 flex flex-wrap gap-2">
               {result.words.map((word) => (
                 <li

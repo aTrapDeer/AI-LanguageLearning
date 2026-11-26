@@ -55,7 +55,7 @@ export function PathView({ language, notice }: { language: string; notice?: stri
   const { path, error: pathError } = usePath(language, viewLevel);
   const units = useMemo(() => path?.units ?? [], [path]);
   const current = useMemo(() => pickCurrent(units), [units]);
-  const selected = units.find((unit) => unit.id === selectedId) ?? current ?? units[units.length - 1] ?? null;
+  const selected = units.find((unit) => unit.id === selectedId) ?? current ?? units[0] ?? null;
 
   useEffect(() => setSelectedId(null), [viewLevel]);
 

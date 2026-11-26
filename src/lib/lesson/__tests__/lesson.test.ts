@@ -397,7 +397,8 @@ describe("lesson session", () => {
     expect(stats.correct).toBe(stats.total - 1);
     expect(progress.results[missed].correct).toBe(false);
     expect(progressRatio(progress)).toBe(1);
-    expect(progress.bestCombo).toBe(stats.total);
+    // The retried item doesn't extend the combo.
+    expect(progress.bestCombo).toBe(stats.total - 1);
   });
 
   it("stops re-queuing after the retry cap", () => {

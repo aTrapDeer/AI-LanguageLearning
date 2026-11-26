@@ -54,6 +54,8 @@ export interface LessonWordResult {
   romanization: string | null;
   /** Missed on the first try: due for review right away. */
   missed: boolean;
+  /** Newly added to the review deck by this lesson (false when the learner already had it). */
+  isNew: boolean;
 }
 
 export interface CompleteLessonResponse {

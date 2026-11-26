@@ -54,7 +54,7 @@ const ERROR_COPY: Partial<Record<LessonErrorCode, { title: string; body: string;
     body: "Something went wrong while preparing this lesson. Give it another try.",
   },
   ai_quota_exceeded: { emoji: "⏳", title: "That's all for today", body: "" },
-  unit_locked: { emoji: "🔒", title: "This unit is locked", body: "Finish the earlier units on your path to unlock it." },
+  unit_locked: { emoji: "🔒", title: "This unit is locked", body: "" },
   unit_not_found: { emoji: "🧭", title: "Unit not found", body: "That unit doesn't exist. Head back to your path to pick one." },
   language_not_setup: { emoji: "🌍", title: "Add this language first", body: "Set up this language on your account to start its lessons." },
 };

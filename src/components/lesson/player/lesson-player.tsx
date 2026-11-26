@@ -93,10 +93,10 @@ export function LessonPlayer({ language, unitId }: LessonPlayerProps) {
       const graded = gradeStep(step, submitted, language);
       setAnswer(submitted);
       setResult(graded);
-      if (graded.correct) {
+      if (graded.correct && !isRetry(playing.progress, step.id)) {
         const nextCombo = playing.progress.combo + 1;
         if (isComboMilestone(nextCombo)) setComboShown(nextCombo);
-      } else if (!reduceMotion) {
+      } else if (!graded.correct && !reduceMotion) {
         void shake.start({ x: [0, -10, 10, -6, 6, 0], transition: { duration: 0.4 } });
       }
     },
@@ -268,29 +268,29 @@ export function LessonPlayer({ language, unitId }: LessonPlayerProps) {
       <ComboBurst combo={comboShown} />
       {/* Enter-only transition: exit animations can stall on exercises that use shared layout animations. */}
       <motion.div
-          key={stepKey}
-          initial={reduceMotion ? { opacity: 0 } : { opacity: 0, x: 40 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: reduceMotion ? 0.1 : 0.22, ease: "easeOut" }}
-          className="flex flex-1 flex-col"
-        >
-          <motion.div animate={shake} className="flex flex-1 flex-col">
-            {isRetry(playing.progress, step.id) && !result && (
-              <p className="mb-3 inline-flex w-fit items-center gap-1 rounded-full bg-amber-300/20 px-3 py-1 text-xs font-bold uppercase tracking-wide text-amber-200">
-                Let&apos;s try that again
-              </p>
-            )}
-            <StepView
-              step={step}
-              language={language}
-              showRomanization={showRomanization}
-              revealed={result}
-              retry={retry}
-              onDraft={setDraft}
-              onSubmit={submit}
-            />
-          </motion.div>
+        key={stepKey}
+        initial={reduceMotion ? { opacity: 0 } : { opacity: 0, x: 40 }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={{ duration: reduceMotion ? 0.1 : 0.22, ease: "easeOut" }}
+        className="flex flex-1 flex-col"
+      >
+        <motion.div animate={shake} className="flex flex-1 flex-col">
+          {isRetry(playing.progress, step.id) && !result && (
+            <p className="mb-3 inline-flex w-fit items-center gap-1 rounded-full bg-amber-300/20 px-3 py-1 text-xs font-bold uppercase tracking-wide text-amber-200">
+              Let&apos;s try that again
+            </p>
+          )}
+          <StepView
+            step={step}
+            language={language}
+            showRomanization={showRomanization}
+            revealed={result}
+            retry={retry}
+            onDraft={setDraft}
+            onSubmit={submit}
+          />
         </motion.div>
+      </motion.div>
     </LessonShell>
   );
 }
