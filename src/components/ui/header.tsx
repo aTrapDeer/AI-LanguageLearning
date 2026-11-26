@@ -1,249 +1,178 @@
 "use client";
 
-import { Button } from "@/components/ui/button";
-import {
-    NavigationMenu,
-    NavigationMenuContent,
-    NavigationMenuItem,
-    NavigationMenuLink,
-    NavigationMenuList,
-    NavigationMenuTrigger,
-} from "@/components/ui/navigation-menu";
-import { Menu, MoveRight, X } from "lucide-react";
-import { useState } from "react";
-import Link from "next/link";
 import Image from "next/image";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { signOut, useSession } from "next-auth/react";
+import { useEffect, useState } from "react";
+import { Menu, X } from "lucide-react";
+import { DailyGoalRing, StreakBadge } from "@/components/learn";
 import { LanguageSelect } from "@/components/ui/language-select";
-import { useSession, signOut } from "next-auth/react";
+import { useLanguage } from "@/contexts/language-context";
+import { useLearnSummary } from "@/hooks/use-learn-summary";
+import { cn } from "@/lib/utils";
 
-function Header1() {
-    const navigationItems = [
-        {
-            title: "",
-            href: "/",
-            description: "",
-            isLogo: true,
-        },
-        {
-            title: "Learn",
-            description: "Start your language learning journey with AI-powered tools.",
-            items: [
-                {
-                    title: "Chat",
-                    href: "/learn/chat",
-                },
-                {
-                    title: "Flashcards",
-                    href: "/learn/flashcards",
-                },
-                {
-                    title: "Conversation",
-                    href: "/learn/conversation",
-                },
-                {
-                    title: "Travel",
-                    href: "/travel",
-                },
-                {
-                    title: "Visual Learning",
-                    href: "/learn/visual",
-                },
-            ],
-        },
-    ];
-
-    const [isOpen, setOpen] = useState(false);
-    const { status } = useSession();
-
-    // Determine the home link based on authentication
-    const isAuthenticated = status === "authenticated";
-    const isSessionLoading = status === "loading";
-    const homeLink = isAuthenticated ? "/dashboard" : "/";
-
-    return (
-        <header className="w-full z-40 fixed top-0 left-0 bg-background">
-            <div className="container relative mx-auto min-h-16 md:min-h-20 flex gap-4 flex-row lg:grid lg:grid-cols-3 items-center">
-                <div className="justify-start items-center gap-4 lg:flex hidden flex-row">
-                    <NavigationMenu className="flex justify-start items-start">
-                        <NavigationMenuList className="flex justify-start gap-4 flex-row">
-                            {navigationItems.map((item) => (
-                                <NavigationMenuItem key={item.title || 'home'}>
-                                    {item.href ? (
-                                        item.isLogo ? (
-                                            <Link href={homeLink} legacyBehavior passHref>
-                                                <NavigationMenuLink className="flex items-center">
-                                                    <Image
-                                                        src="/favicon/LOGO1.png"
-                                                        alt="Laingfy Logo"
-                                                        width={32}
-                                                        height={32}
-                                                        className="hover:opacity-90 transition-opacity"
-                                                    />
-                                                </NavigationMenuLink>
-                                            </Link>
-                                        ) : (
-                                            <Link href={item.href} legacyBehavior passHref>
-                                                <NavigationMenuLink>
-                                                    <Button variant="ghost">{item.title}</Button>
-                                                </NavigationMenuLink>
-                                            </Link>
-                                        )
-                                    ) : (
-                                        <>
-                                            <NavigationMenuTrigger className="font-medium text-sm">
-                                                {item.title}
-                                            </NavigationMenuTrigger>
-                                            <NavigationMenuContent className="!w-[450px] p-4">
-                                                <div className="flex flex-col lg:grid grid-cols-2 gap-4">
-                                                    <div className="flex flex-col h-full justify-between">
-                                                        <div className="flex flex-col">
-                                                            <p className="text-base">{item.title}</p>
-                                                            <p className="text-muted-foreground text-sm">
-                                                                {item.description}
-                                                            </p>
-                                                        </div>
-                                                    </div>
-                                                    <div className="flex flex-col text-sm h-full justify-end">
-                                                        {item.items?.map((subItem) => (
-                                                            <NavigationMenuLink
-                                                                href={subItem.href}
-                                                                key={subItem.title}
-                                                                className="flex flex-row justify-between items-center hover:bg-muted py-2 px-4 rounded"
-                                                            >
-                                                                <span>{subItem.title}</span>
-                                                                <MoveRight className="w-4 h-4 text-muted-foreground" />
-                                                            </NavigationMenuLink>
-                                                        ))}
-                                                    </div>
-                                                </div>
-                                            </NavigationMenuContent>
-                                        </>
-                                    )}
-                                </NavigationMenuItem>
-                            ))}
-                        </NavigationMenuList>
-                    </NavigationMenu>
-                </div>
-                <div className="flex lg:justify-center">
-                    <Link href={homeLink} className="font-bold text-xl md:text-2xl">
-                        <span className="bg-gradient-to-r from-indigo-600 to-rose-500 bg-clip-text text-transparent hover:from-indigo-500 hover:to-rose-400 transition-all">L</span>
-                        <span className="bg-gradient-to-r from-rose-500 to-violet-500 bg-clip-text text-transparent hover:from-rose-400 hover:to-violet-400 transition-all">AI</span>
-                        <span className="bg-gradient-to-r from-violet-500 to-indigo-600 bg-clip-text text-transparent hover:from-violet-400 hover:to-indigo-500 transition-all">GNFY</span>
-                    </Link>
-                </div>
-                <div className="flex justify-end w-full gap-2 md:gap-4 items-center">
-                    <LanguageSelect />
-                    <div className="border-r hidden md:inline"></div>
-                    {isSessionLoading ? null : isAuthenticated ? (
-                        <>
-                            <Button variant="outline" onClick={() => signOut()} size="sm" className="hidden md:flex">
-                                Sign Out
-                            </Button>
-                            <Button asChild size="sm">
-                                <Link href="/dashboard">Dashboard</Link>
-                            </Button>
-                        </>
-                    ) : (
-                        <>
-                            <Button variant="outline" asChild size="sm" className="hidden md:flex">
-                                <Link href="/login">Sign In</Link>
-                            </Button>
-                            <Button asChild size="sm">
-                                <Link href="/register">Get Started</Link>
-                            </Button>
-                        </>
-                    )}
-                </div>
-                <div className="flex w-8 shrink lg:hidden items-end justify-end">
-                    <Button variant="ghost" size="sm" onClick={() => setOpen(!isOpen)}>
-                        {isOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
-                    </Button>
-                    {isOpen && (
-                        <div className="absolute top-16 md:top-20 border-t flex flex-col w-full right-0 bg-background shadow-lg py-3 container gap-4">
-                            {/* Authentication buttons for mobile */}
-                            <div className="flex flex-col gap-3 border-b pb-3">
-                                {isSessionLoading ? null : isAuthenticated ? (
-                                    <>
-                                        <Link
-                                            href="/dashboard"
-                                            className="flex justify-between items-center py-2"
-                                            onClick={() => setOpen(false)}
-                                        >
-                                            <span className="text-base font-medium">Dashboard</span>
-                                            <MoveRight className="w-4 h-4 stroke-1 text-muted-foreground" />
-                                        </Link>
-                                        <button
-                                            onClick={() => {
-                                                signOut();
-                                                setOpen(false);
-                                            }}
-                                            className="flex justify-between items-center py-2 text-left"
-                                        >
-                                            <span className="text-base">Sign Out</span>
-                                        </button>
-                                    </>
-                                ) : (
-                                    <>
-                                        <Link
-                                            href="/login"
-                                            className="flex justify-between items-center py-2"
-                                            onClick={() => setOpen(false)}
-                                        >
-                                            <span className="text-base font-medium">Sign In</span>
-                                            <MoveRight className="w-4 h-4 stroke-1 text-muted-foreground" />
-                                        </Link>
-                                        <Link
-                                            href="/register"
-                                            className="flex justify-between items-center py-2"
-                                            onClick={() => setOpen(false)}
-                                        >
-                                            <span className="text-base font-medium">Get Started</span>
-                                            <MoveRight className="w-4 h-4 stroke-1 text-muted-foreground" />
-                                        </Link>
-                                    </>
-                                )}
-                            </div>
-                            {/* Navigation items */}
-                            {navigationItems.map((item) => (
-                                <div key={item.title}>
-                                    <div className="flex flex-col gap-2">
-                                        {item.href ? (
-                                            !item.isLogo && (
-                                                <Link
-                                                    href={item.href}
-                                                    className="flex justify-between items-center py-1"
-                                                    onClick={() => setOpen(false)}
-                                                >
-                                                    <span className="text-base">{item.title}</span>
-                                                    <MoveRight className="w-4 h-4 stroke-1 text-muted-foreground" />
-                                                </Link>
-                                            )
-                                        ) : (
-                                            <p className="text-base font-medium">{item.title}</p>
-                                        )}
-                                        {item.items &&
-                                            item.items.map((subItem) => (
-                                                <Link
-                                                    key={subItem.title}
-                                                    href={subItem.href}
-                                                    className="flex justify-between items-center py-1 pl-4"
-                                                    onClick={() => setOpen(false)}
-                                                >
-                                                    <span className="text-muted-foreground text-sm">
-                                                        {subItem.title}
-                                                    </span>
-                                                    <MoveRight className="w-3 h-3 stroke-1" />
-                                                </Link>
-                                            ))}
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-                </div>
-            </div>
-        </header>
-    );
+interface NavItem {
+  href: string;
+  label: string;
+  /** Pathname prefix that marks this item active. */
+  match: (pathname: string) => boolean;
+  badge?: number;
 }
 
-export { Header1 }; 
+function buildNav(lang: string, dueCount: number): NavItem[] {
+  const code = encodeURIComponent(lang);
+  return [
+    { href: "/dashboard", label: "Home", match: (path) => path === "/dashboard" },
+    { href: `/learn/journey?lang=${code}`, label: "Path", match: (path) => path.startsWith("/learn/journey") },
+    { href: `/flashcards?lang=${code}`, label: "Review", match: (path) => path.startsWith("/flashcards"), badge: dueCount },
+    {
+      href: `/learn/${code}`,
+      label: "Tutor",
+      match: (path) => path.startsWith("/learn/") && !path.startsWith("/learn/journey") && !path.startsWith("/learn/conversation"),
+    },
+    { href: `/learn/conversation?lang=${code}`, label: "Voice", match: (path) => path.startsWith("/learn/conversation") },
+    { href: `/travel?lang=${code}`, label: "Travel", match: (path) => path.startsWith("/travel") },
+  ];
+}
+
+function Wordmark({ href }: { href: string }) {
+  return (
+    <Link href={href} className="flex shrink-0 items-center gap-2" aria-label="Laingfy home">
+      <Image src="/favicon/LOGO1.png" alt="" width={28} height={28} />
+      <span className="bg-gradient-to-r from-indigo-600 via-rose-500 to-violet-600 bg-clip-text text-lg font-black tracking-tight text-transparent md:text-xl">
+        LAINGFY
+      </span>
+    </Link>
+  );
+}
+
+function Header1() {
+  const { status } = useSession();
+  const pathname = usePathname() ?? "/";
+  const { selectedLanguage } = useLanguage();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const isAuthenticated = status === "authenticated";
+  const lang = selectedLanguage?.code ?? "de";
+  const { summary } = useLearnSummary(selectedLanguage?.code ?? null, {
+    enabled: isAuthenticated && Boolean(selectedLanguage),
+    refreshOnFocus: true,
+  });
+
+  useEffect(() => setMenuOpen(false), [pathname]);
+
+  const nav = buildNav(lang, summary?.review.dueCount ?? 0);
+  const showProgress = isAuthenticated && summary?.hasProgress;
+
+  return (
+    <header className="fixed inset-x-0 top-0 z-30 border-b border-slate-200/70 bg-white/90 backdrop-blur supports-[backdrop-filter]:bg-white/75">
+      <div className="mx-auto flex h-14 w-full max-w-6xl items-center gap-2 px-4 md:h-16 md:gap-4">
+        <Wordmark href={isAuthenticated ? "/dashboard" : "/"} />
+
+        {isAuthenticated && (
+          <nav aria-label="Main" className="ml-2 hidden items-center gap-1 lg:flex">
+            {nav.map((item) => (
+              <Link
+                key={item.label}
+                href={item.href}
+                aria-current={item.match(pathname) ? "page" : undefined}
+                className={cn(
+                  "relative inline-flex h-9 items-center gap-1.5 rounded-lg px-3 text-sm font-semibold transition",
+                  item.match(pathname) ? "bg-indigo-50 text-indigo-700" : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                )}
+              >
+                {item.label}
+                {item.badge ? (
+                  <span className="rounded-full bg-rose-500 px-1.5 text-[11px] font-extrabold tabular-nums text-white">{item.badge}</span>
+                ) : null}
+              </Link>
+            ))}
+          </nav>
+        )}
+
+        <div className="ml-auto flex items-center gap-1.5 md:gap-2">
+          {status === "loading" ? null : isAuthenticated ? (
+            <>
+              {showProgress && summary && (
+                <Link href="/dashboard" className="flex items-center gap-1.5 rounded-full px-1 py-0.5 hover:bg-slate-100" aria-label="Your streak and daily goal">
+                  <StreakBadge
+                    streak={summary.streak.current}
+                    todayDone={summary.streak.todayDone}
+                    atRisk={summary.streak.atRisk}
+                    surface="light"
+                    size="sm"
+                  />
+                  <DailyGoalRing xp={summary.today.xp} goal={summary.today.goal} size={30} strokeWidth={4} surface="light" />
+                </Link>
+              )}
+              <LanguageSelect />
+              <button
+                type="button"
+                onClick={() => void signOut({ callbackUrl: "/" })}
+                className="hidden h-9 rounded-lg px-3 text-sm font-semibold text-slate-600 hover:bg-slate-100 lg:inline-flex lg:items-center"
+              >
+                Sign out
+              </button>
+              <button
+                type="button"
+                onClick={() => setMenuOpen((open) => !open)}
+                aria-expanded={menuOpen}
+                aria-controls="mobile-menu"
+                aria-label={menuOpen ? "Close menu" : "Open menu"}
+                className="inline-flex h-10 w-10 items-center justify-center rounded-lg text-slate-700 hover:bg-slate-100 lg:hidden"
+              >
+                {menuOpen ? <X aria-hidden className="h-5 w-5" /> : <Menu aria-hidden className="h-5 w-5" />}
+              </button>
+            </>
+          ) : (
+            <>
+              <Link href="/login" className="inline-flex h-9 items-center rounded-lg px-3 text-sm font-semibold text-slate-700 hover:bg-slate-100">
+                Sign in
+              </Link>
+              <Link
+                href="/register"
+                className="inline-flex h-9 items-center rounded-lg bg-gradient-to-r from-indigo-600 to-purple-600 px-3 text-sm font-bold text-white shadow-sm hover:from-indigo-500 hover:to-purple-500"
+              >
+                Get started
+              </Link>
+            </>
+          )}
+        </div>
+      </div>
+
+      {isAuthenticated && menuOpen && (
+        <nav id="mobile-menu" aria-label="Main" className="border-t border-slate-200 bg-white px-4 pb-4 pt-2 shadow-lg lg:hidden">
+          <ul className="grid grid-cols-2 gap-1.5">
+            {nav.map((item) => (
+              <li key={item.label}>
+                <Link
+                  href={item.href}
+                  onClick={() => setMenuOpen(false)}
+                  aria-current={item.match(pathname) ? "page" : undefined}
+                  className={cn(
+                    "flex h-11 items-center justify-between rounded-xl px-3 text-sm font-semibold",
+                    item.match(pathname) ? "bg-indigo-50 text-indigo-700" : "bg-slate-50 text-slate-700 hover:bg-slate-100"
+                  )}
+                >
+                  {item.label}
+                  {item.badge ? (
+                    <span className="rounded-full bg-rose-500 px-1.5 text-[11px] font-extrabold tabular-nums text-white">{item.badge}</span>
+                  ) : null}
+                </Link>
+              </li>
+            ))}
+          </ul>
+          <button
+            type="button"
+            onClick={() => void signOut({ callbackUrl: "/" })}
+            className="mt-2 h-11 w-full rounded-xl border-2 border-slate-200 text-sm font-semibold text-slate-600 hover:bg-slate-50"
+          >
+            Sign out
+          </button>
+        </nav>
+      )}
+    </header>
+  );
+}
+
+export { Header1 };

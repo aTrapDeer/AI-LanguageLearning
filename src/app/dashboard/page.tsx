@@ -1,132 +1,19 @@
-"use client"
+"use client";
 
-import { useSession } from "next-auth/react"
-import { useRouter } from "next/navigation"
-import { useEffect } from "react"
-import { BackgroundGradientAnimation } from '@/components/ui/background-gradient-animation';
-import { BentoCard, BentoGrid } from "@/components/ui/bento-grid";
-import { useLanguage } from "@/contexts/language-context";
-import {
-  ChatBubbleIcon,
-  CardStackIcon,
-  SpeakerLoudIcon,
-  ImageIcon,
-  LayersIcon,
-} from "@radix-ui/react-icons";
-import { Plane } from "lucide-react";
+import { Loader2 } from "lucide-react";
+import { DashboardView } from "@/components/dashboard/dashboard-view";
+import { useRequireAccount } from "@/components/dashboard/use-require-account";
 
 export default function DashboardPage() {
-  const { data: session, status } = useSession()
-  const router = useRouter()
-  const { selectedLanguage } = useLanguage();
+  const ready = useRequireAccount("/dashboard");
 
-  const features = [
-    {
-      Icon: Plane,
-      name: "Travel",
-      description: "Use live push-to-talk translation to understand what people are saying around you and get multiple AI-crafted ways to respond back instantly.",
-      href: `/travel?lang=${selectedLanguage?.code || 'de'}`,
-      cta: "Open Travel Mode",
-      background: <div className="absolute inset-0 bg-gradient-to-br from-sky-100 to-transparent dark:from-sky-900/30" />,
-      className: "md:col-span-2 lg:col-span-3 h-[160px]",
-    },
-    {
-      Icon: LayersIcon,
-      name: "Journey Mode",
-      description: "Follow a structured path tailored to your level with matching, missing word, and spelling exercises.",
-      href: `/learn/journey?lang=${selectedLanguage?.code || 'en'}`,
-      cta: "Start Journey",
-      background: <div className="absolute inset-0 bg-gradient-to-br from-purple-100 to-transparent dark:from-purple-900/30" />,
-      className: "md:col-span-2",
-    },
-    {
-      Icon: ChatBubbleIcon,
-      name: "AI Chat Assistant",
-      description: "Practice conversations with our AI language tutor that adapts to your level and provides instant feedback.",
-      href: `/learn/${selectedLanguage?.code || 'en'}`,
-      cta: "Start Chatting",
-      background: <div className="absolute inset-0 bg-gradient-to-br from-indigo-100 to-transparent dark:from-indigo-900/30" />,
-      className: "md:col-span-2",
-    },
-    {
-      Icon: ImageIcon,
-      name: "Visual Learning",
-      description: "Learn through images and visual associations to enhance memory retention.",
-      href: `/learn/visual?lang=${selectedLanguage?.code || 'en'}`,
-      cta: "Explore",
-      background: <div className="absolute inset-0 bg-gradient-to-br from-rose-100 to-transparent dark:from-rose-900/30" />,
-      className: "",
-    },
-    {
-      Icon: CardStackIcon,
-      name: "Flashcard Vocabulary",
-      description: "Interactive flashcards with 20 AI-generated words. Flip cards, track progress, and reinforce learning with spaced practice.",
-      href: `/flashcards?lang=${selectedLanguage?.code || 'en'}`,
-      cta: "Practice Vocab",
-      background: <div className="absolute inset-0 bg-gradient-to-br from-amber-100 to-transparent dark:from-amber-900/30" />,
-      className: "md:row-span-2",
-    },
-    {
-      Icon: SpeakerLoudIcon,
-      name: "Audio Conversations",
-      description: "Practice pronunciation and listening with AI-powered audio conversations. Choose between Native and Assisted modes.",
-      href: `/learn/conversation?lang=${selectedLanguage?.code || 'en'}`,
-      cta: "Start Speaking",
-      background: <div className="absolute inset-0 bg-gradient-to-br from-emerald-100 to-transparent dark:from-emerald-900/30" />,
-      className: "md:col-span-2",
-    },
-  ];
-
-  useEffect(() => {
-    if (status === "unauthenticated") {
-      router.replace("/login?callbackUrl=/dashboard")
-      return
-    }
-
-    if (status === "authenticated" && session?.user?.accountSetup === false) {
-      router.replace("/account-setup")
-    }
-  }, [session?.user?.accountSetup, status, router])
-
-  if (status === "loading") {
+  if (!ready) {
     return (
-      <div className="flex h-screen items-center justify-center">
-        <div className="text-lg">Loading...</div>
+      <div className="flex min-h-[100dvh] items-center justify-center bg-slate-50">
+        <Loader2 aria-label="Loading" className="h-8 w-8 animate-spin text-indigo-500" />
       </div>
-    )
+    );
   }
 
-  if (!session) {
-    return null
-  }
-
-  if (session.user.accountSetup === false) {
-    return null
-  }
-
-  return (
-    <div className="relative min-h-screen pb-8">
-      <BackgroundGradientAnimation
-        gradientBackgroundStart="rgb(0, 17, 82)"
-        gradientBackgroundEnd="rgb(108, 0, 162)"
-        firstColor="18, 113, 255"
-        secondColor="221, 74, 255"
-        thirdColor="100, 220, 255"
-        fourthColor="200, 50, 50"
-        fifthColor="180, 180, 50"
-        pointerColor="140, 100, 255"
-        size="100%"
-        blendingValue="soft-light"
-        interactive={false}
-        containerClassName="fixed inset-0 opacity-20"
-      />
-      <div className="relative container mx-auto px-4 py-6 mt-16">
-        <BentoGrid>
-          {features.map((feature) => (
-            <BentoCard key={feature.name} {...feature} />
-          ))}
-        </BentoGrid>
-      </div>
-    </div>
-  );
-} 
+  return <DashboardView />;
+}

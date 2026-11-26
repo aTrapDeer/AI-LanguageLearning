@@ -1,334 +1,224 @@
-"use client";
+import { BookOpenCheck, Brain, Flame, Languages, MessageCircle, Mic, Plane, RefreshCcw, Route, type LucideIcon } from "lucide-react";
+import Link from "next/link";
+import { LandingCta } from "@/components/dashboard/landing-cta";
+import { BrandBackground } from "@/components/learn";
+import { SUPPORTED_LANGUAGES } from "@/lib/language-config";
+import { LEVELS } from "@/lib/levels";
 
-import React from 'react';
-import Link from 'next/link';
-import { useSession } from 'next-auth/react';
-import { motion } from 'framer-motion';
-import { VerticalCutReveal } from '@/components/ui/vertical-cut-reveal';
-import { BackgroundGradientAnimation } from '@/components/ui/background-gradient-animation';
-import { SUPPORTED_LANGUAGES, type SupportedLanguageCode } from '@/lib/language-config';
-import { MessageCircle, Mic, Brain, Image as ImageIcon, Sparkles, Globe2, ArrowRight, Zap, Target } from 'lucide-react';
+type Icon = LucideIcon;
 
-const LANGUAGE_HOVER_STYLES: Record<SupportedLanguageCode, string> = {
-  de: 'hover:bg-amber-50 dark:hover:bg-amber-500/10 hover:border-amber-200 dark:hover:border-amber-500/30',
-  'pt-BR': 'hover:bg-emerald-50 dark:hover:bg-emerald-500/10 hover:border-emerald-200 dark:hover:border-emerald-500/30',
-  zh: 'hover:bg-red-50 dark:hover:bg-red-500/10 hover:border-red-200 dark:hover:border-red-500/30',
-  no: 'hover:bg-blue-50 dark:hover:bg-blue-500/10 hover:border-blue-200 dark:hover:border-blue-500/30',
-  ko: 'hover:bg-indigo-50 dark:hover:bg-indigo-500/10 hover:border-indigo-200 dark:hover:border-indigo-500/30',
-  ar: 'hover:bg-green-50 dark:hover:bg-green-500/10 hover:border-green-200 dark:hover:border-green-500/30',
-};
-
-const containerVariants = {
-  hidden: { opacity: 0 },
-  visible: {
-    opacity: 1,
-    transition: {
-      staggerChildren: 0.1,
-    },
+const STEPS: Array<{ icon: Icon; title: string; body: string }> = [
+  {
+    icon: Route,
+    title: "Follow a clear path",
+    body: "Ten levels mapped to the CEFR scale, from A1 to C2. Every unit has one can-do goal, like “I can order a drink and a snack”.",
   },
-};
-
-const itemVariants = {
-  hidden: { opacity: 0, y: 20 },
-  visible: {
-    opacity: 1,
-    y: 0,
-    transition: {
-      type: "spring",
-      stiffness: 100,
-      damping: 15,
-    },
+  {
+    icon: RefreshCcw,
+    title: "Lessons that adapt",
+    body: "Short lessons pitched at your level. The words and mistakes you trip over come back in later lessons until they stick.",
   },
-};
+  {
+    icon: Brain,
+    title: "Review at the right moment",
+    body: "Every word you learn joins your deck. Spaced repetition brings it back right before you'd forget it — a few minutes a day.",
+  },
+];
+
+const PRACTICE: Array<{ icon: Icon; title: string; body: string; tone: string }> = [
+  {
+    icon: MessageCircle,
+    title: "A tutor that remembers",
+    body: "Chat with a tutor that knows your level, corrects you gently and keeps track of what you're working on.",
+    tone: "bg-indigo-100 text-indigo-600",
+  },
+  {
+    icon: Mic,
+    title: "Live voice practice",
+    body: "Speak out loud in a real-time conversation and get comfortable before it counts.",
+    tone: "bg-fuchsia-100 text-fuchsia-600",
+  },
+  {
+    icon: Plane,
+    title: "Travel interpreter",
+    body: "Push to talk, hear what someone said in English, and get a few replies you can say back.",
+    tone: "bg-sky-100 text-sky-600",
+  },
+  {
+    icon: Flame,
+    title: "Streaks without guilt",
+    body: "Pick a daily goal from 10 to 50 XP, watch your streak grow and celebrate milestones. Miss a day? Just start again.",
+    tone: "bg-orange-100 text-orange-600",
+  },
+];
+
+const GRADES = [
+  { label: "Again", interval: "10 min", className: "bg-rose-500" },
+  { label: "Hard", interval: "2 d", className: "bg-amber-500" },
+  { label: "Good", interval: "3 d", className: "bg-emerald-500" },
+  { label: "Easy", interval: "4 d", className: "bg-sky-500" },
+];
+
+/** A static picture of the real review card, so visitors see what they'll actually use. */
+function ReviewCardPreview() {
+  return (
+    <div aria-hidden className="mx-auto w-full max-w-sm rotate-1 rounded-3xl bg-white p-5 text-center text-slate-900 shadow-2xl shadow-indigo-950/50">
+      <div className="flex justify-between text-[11px] font-bold uppercase tracking-wide">
+        <span className="text-indigo-500">What does this mean?</span>
+        <span className="rounded-full bg-sky-100 px-2 text-sky-700">Review</span>
+      </div>
+      <p lang="de" className="mt-5 text-4xl font-extrabold">
+        der Bahnhof
+      </p>
+      <div className="mx-auto my-4 h-px w-16 bg-slate-200" />
+      <p className="text-xl font-bold text-slate-800">train station</p>
+      <p lang="de" className="mt-3 rounded-2xl bg-slate-50 p-3 text-left text-sm text-slate-700">
+        Wo ist der Bahnhof?
+        <span className="block text-xs text-slate-500">Where is the train station?</span>
+      </p>
+      <div className="mt-4 grid grid-cols-4 gap-1.5">
+        {GRADES.map((grade) => (
+          <div key={grade.label} className={`rounded-xl py-1.5 text-white ${grade.className}`}>
+            <p className="text-sm font-extrabold">{grade.label}</p>
+            <p className="text-[11px] font-semibold text-white/85">{grade.interval}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 export default function Home() {
-  const { status } = useSession();
-  const isAuthenticated = status === "authenticated";
-  const isSessionLoading = status === "loading";
+  const bands = Array.from(new Set(LEVELS.map((level) => level.cefr)));
 
   return (
-    <div className="flex flex-col min-h-screen bg-slate-50 dark:bg-slate-950 selection:bg-indigo-500/30">
-      {/* Hero Section */}
-      <section className="relative py-20 lg:py-32 overflow-hidden min-h-[90vh] flex items-center">
-        <BackgroundGradientAnimation
-          gradientBackgroundStart="rgb(15, 23, 42)"
-          gradientBackgroundEnd="rgb(30, 27, 75)"
-          firstColor="99, 102, 241"
-          secondColor="168, 85, 247"
-          thirdColor="236, 72, 153"
-          fourthColor="56, 189, 248"
-          fifthColor="250, 204, 21"
-          pointerColor="140, 100, 255"
-          size="80%"
-          blendingValue="hard-light"
-          containerClassName="absolute inset-0"
-        />
-        
-        <div className="container relative mx-auto px-4 z-10">
-          <div className="text-center max-w-4xl mx-auto space-y-8">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.5 }}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-white text-sm font-medium mb-4"
-            >
-              <Sparkles className="w-4 h-4 text-yellow-300" />
-              <span>The future of language learning is here</span>
-            </motion.div>
+    <div className="flex min-h-screen flex-col bg-slate-50">
+      <section className="relative isolate overflow-hidden px-4 pb-16 pt-24 text-white md:pb-24 md:pt-32">
+        <BrandBackground className="-z-10" />
+        <div className="mx-auto grid max-w-6xl items-center gap-12 lg:grid-cols-[1.15fr_1fr]">
+          <div className="text-center lg:text-left">
+            <p className="inline-flex flex-wrap justify-center gap-x-2 rounded-full bg-white/10 px-4 py-1.5 text-sm font-semibold text-white/90">
+              {SUPPORTED_LANGUAGES.map((lang) => (
+                <span key={lang.code}>
+                  <span aria-hidden>{lang.flag}</span> {lang.name.replace(" (Brazilian)", "")}
+                </span>
+              ))}
+            </p>
+            <h1 className="mt-6 text-5xl font-black leading-[1.05] tracking-tight sm:text-6xl lg:text-7xl">
+              Learn a language that <span className="bg-gradient-to-r from-amber-300 via-pink-300 to-fuchsia-300 bg-clip-text text-transparent">actually sticks.</span>
+            </h1>
+            <p className="mx-auto mt-6 max-w-xl text-lg text-white/85 sm:text-xl lg:mx-0">
+              A clear path from your first “hello” to real conversations. Lessons that adapt to you, reviews timed to your memory, and a
+              tutor you can talk to out loud.
+            </p>
+            <LandingCta className="mt-8 lg:justify-start" />
+          </div>
+          <ReviewCardPreview />
+        </div>
+      </section>
 
-            <div className="flex flex-col items-center justify-center space-y-6">
-              <VerticalCutReveal
-                splitBy="characters"
-                staggerDuration={0.05}
-                staggerFrom="center"
-                transition={{
-                  type: "spring",
-                  stiffness: 200,
-                  damping: 20,
-                }}
-                containerClassName="text-7xl md:text-8xl lg:text-9xl font-black tracking-tighter text-center flex justify-center drop-shadow-2xl"
-                elementLevelClassName="text-white hover:scale-110 hover:text-indigo-300 transition-all duration-300 cursor-default"
-              >
-                LAINGFY
-              </VerticalCutReveal>
-              <motion.p 
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.5, duration: 0.8 }}
-                className="text-xl md:text-2xl text-white/90 font-medium max-w-2xl leading-relaxed"
-              >
-                Master any language naturally through immersive AI conversations, personalized journeys, and real-time feedback.
-              </motion.p>
-            </div>
+      <section className="px-4 py-16 md:py-24" aria-labelledby="how-title">
+        <div className="mx-auto max-w-6xl">
+          <h2 id="how-title" className="text-center text-3xl font-extrabold tracking-tight text-slate-900 sm:text-4xl">
+            A system, not a random word list
+          </h2>
+          <p className="mx-auto mt-3 max-w-2xl text-center text-lg text-slate-600">
+            Laingfy remembers what you know, what you&apos;re learning and what keeps tripping you up — and plans your next step around it.
+          </p>
+          <ol className="mt-10 grid gap-4 md:grid-cols-3">
+            {STEPS.map((step, index) => (
+              <li key={step.title} className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+                <div className="flex items-center gap-3">
+                  <span className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-600 to-purple-600 text-white">
+                    <step.icon aria-hidden className="h-5 w-5" />
+                  </span>
+                  <span className="text-sm font-bold uppercase tracking-wide text-indigo-500">Step {index + 1}</span>
+                </div>
+                <h3 className="mt-4 text-xl font-extrabold text-slate-900">{step.title}</h3>
+                <p className="mt-2 text-slate-600">{step.body}</p>
+              </li>
+            ))}
+          </ol>
 
-            <motion.div 
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.8, duration: 0.5 }}
-              className="flex flex-col sm:flex-row justify-center gap-4 pt-8"
-            >
-              {isSessionLoading ? null : isAuthenticated ? (
-                <>
-                  <Link
-                    href="/dashboard"
-                    className="group relative px-8 py-4 bg-white text-indigo-950 rounded-full font-bold text-lg hover:scale-105 transition-all shadow-[0_0_40px_rgba(255,255,255,0.3)] flex items-center gap-2"
-                  >
-                    Go to Dashboard
-                    <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-                  </Link>
-                </>
-              ) : (
-                <>
-                  <Link
-                    href="/register"
-                    className="group relative px-8 py-4 bg-white text-indigo-950 rounded-full font-bold text-lg hover:scale-105 transition-all shadow-[0_0_40px_rgba(255,255,255,0.3)] flex items-center gap-2"
-                  >
-                    Start Learning Free
-                    <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-                  </Link>
-                  <Link
-                    href="/login"
-                    className="px-8 py-4 bg-white/10 backdrop-blur-md border border-white/20 text-white rounded-full font-bold text-lg hover:bg-white/20 transition-all"
-                  >
-                    Log In
-                  </Link>
-                </>
-              )}
-            </motion.div>
+          <div className="mt-8 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+            <p className="flex items-center gap-2 text-sm font-bold uppercase tracking-wide text-slate-500">
+              <BookOpenCheck aria-hidden className="h-4 w-4 text-emerald-500" /> Your path
+            </p>
+            <ol className="mt-3 grid grid-cols-6 gap-1.5" aria-label="CEFR levels from A1 to C2">
+              {bands.map((band, index) => (
+                <li
+                  key={band}
+                  className="rounded-xl py-2 text-center text-sm font-extrabold text-white"
+                  style={{ backgroundColor: `hsl(${250 - index * 22} 70% ${58 - index * 3}%)` }}
+                >
+                  {band}
+                </li>
+              ))}
+            </ol>
+            <p className="mt-3 text-sm text-slate-600">
+              Start where you are: begin at A1, or tell us your level and jump ahead. You move up by passing every unit in a level.
+            </p>
           </div>
         </div>
-        
-        {/* Decorative bottom fade */}
-        <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-slate-50 dark:from-slate-950 to-transparent z-10" />
       </section>
 
-      {/* Features Bento Grid */}
-      <section className="py-24 relative z-20">
-        <div className="container mx-auto px-4">
-          <motion.div 
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true, margin: "-100px" }}
-            variants={containerVariants}
-            className="text-center max-w-3xl mx-auto mb-16"
-          >
-            <h2 className="text-4xl md:text-5xl font-extrabold mb-6 text-slate-900 dark:text-white tracking-tight">
-              Supercharge your fluency with{" "}
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500">
-                AI Magic
-              </span>
-            </h2>
-            <p className="text-lg text-slate-600 dark:text-slate-400">
-              Traditional apps teach you to memorize. Laingfy teaches you to speak, think, and connect in your new language.
-            </p>
-          </motion.div>
-
-          <motion.div 
-            variants={containerVariants}
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true, margin: "-50px" }}
-            className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-6xl mx-auto"
-          >
-            {/* Large Feature Card */}
-            <motion.div variants={itemVariants} className="md:col-span-2 group relative overflow-hidden rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-8 shadow-xl shadow-indigo-100/20 dark:shadow-none hover:border-indigo-500/50 transition-colors">
-              <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:opacity-20 transition-opacity group-hover:scale-110 duration-500">
-                <MessageCircle className="w-48 h-48 text-indigo-500" />
-              </div>
-              <div className="relative z-10">
-                <div className="w-14 h-14 bg-indigo-100 dark:bg-indigo-500/20 rounded-2xl flex items-center justify-center mb-6 text-indigo-600 dark:text-indigo-400">
-                  <MessageCircle className="w-7 h-7" />
-                </div>
-                <h3 className="text-2xl font-bold mb-4 text-slate-900 dark:text-white">Real-time AI Conversations</h3>
-                <p className="text-slate-600 dark:text-slate-400 text-lg max-w-md">
-                  Stop talking to yourself. Engage in dynamic, voice-based conversations with AI personas that adapt to your skill level, correct your mistakes gently, and keep the chat flowing naturally.
-                </p>
-              </div>
-            </motion.div>
-
-            {/* Small Feature Card */}
-            <motion.div variants={itemVariants} className="group relative overflow-hidden rounded-3xl bg-gradient-to-br from-purple-500 to-indigo-600 p-8 text-white shadow-xl hover:shadow-2xl transition-shadow">
-              <div className="absolute -right-4 -bottom-4 opacity-20 group-hover:scale-110 transition-transform duration-500">
-                <Mic className="w-32 h-32" />
-              </div>
-              <div className="relative z-10">
-                <div className="w-14 h-14 bg-white/20 rounded-2xl flex items-center justify-center mb-6 backdrop-blur-sm">
-                  <Mic className="w-7 h-7 text-white" />
-                </div>
-                <h3 className="text-2xl font-bold mb-4">Perfect Pronunciation</h3>
-                <p className="text-white/80">
-                  Advanced speech recognition listens to your accent and provides instant, actionable feedback to sound like a native.
-                </p>
-              </div>
-            </motion.div>
-
-            {/* Small Feature Card */}
-            <motion.div variants={itemVariants} className="group relative overflow-hidden rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-8 shadow-sm hover:border-pink-500/50 transition-colors">
-              <div className="w-14 h-14 bg-pink-100 dark:bg-pink-500/20 rounded-2xl flex items-center justify-center mb-6 text-pink-600 dark:text-pink-400">
-                <Target className="w-7 h-7" />
-              </div>
-              <h3 className="text-2xl font-bold mb-4 text-slate-900 dark:text-white">Personalized Journeys</h3>
-              <p className="text-slate-600 dark:text-slate-400">
-                Whether you&apos;re traveling to Tokyo or closing a deal in Berlin, our AI generates custom learning paths tailored to your exact goals.
-              </p>
-            </motion.div>
-
-            {/* Small Feature Card */}
-            <motion.div variants={itemVariants} className="group relative overflow-hidden rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-8 shadow-sm hover:border-emerald-500/50 transition-colors">
-              <div className="w-14 h-14 bg-emerald-100 dark:bg-emerald-500/20 rounded-2xl flex items-center justify-center mb-6 text-emerald-600 dark:text-emerald-400">
-                <Brain className="w-7 h-7" />
-              </div>
-              <h3 className="text-2xl font-bold mb-4 text-slate-900 dark:text-white">Smart Reinforcement</h3>
-              <p className="text-slate-600 dark:text-slate-400">
-                Never forget a word again. Our spaced repetition system identifies your weak spots and seamlessly weaves them into your next lesson.
-              </p>
-            </motion.div>
-
-            {/* Medium Feature Card */}
-            <motion.div variants={itemVariants} className="group relative overflow-hidden rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-8 shadow-sm hover:border-amber-500/50 transition-colors">
-              <div className="absolute -right-4 -bottom-4 opacity-5 group-hover:opacity-10 transition-opacity group-hover:scale-110 duration-500">
-                <ImageIcon className="w-40 h-40 text-amber-500" />
-              </div>
-              <div className="relative z-10">
-                <div className="w-14 h-14 bg-amber-100 dark:bg-amber-500/20 rounded-2xl flex items-center justify-center mb-6 text-amber-600 dark:text-amber-400">
-                  <ImageIcon className="w-7 h-7" />
-                </div>
-                <h3 className="text-2xl font-bold mb-4 text-slate-900 dark:text-white">Visual Context Learning</h3>
-                <p className="text-slate-600 dark:text-slate-400">
-                  Describe AI-generated scenes in your target language. Connect words to images, not just translations, for faster fluency.
-                </p>
-              </div>
-            </motion.div>
-          </motion.div>
-        </div>
-      </section>
-
-      {/* Languages Section */}
-      <section className="py-24 bg-slate-100 dark:bg-slate-900/50 relative overflow-hidden">
-        {/* Decorative background elements */}
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-3xl h-64 bg-indigo-500/10 blur-[100px] rounded-full pointer-events-none" />
-        
-        <div className="container mx-auto px-4 relative z-10">
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="text-center mb-16"
-          >
-            <h2 className="text-3xl md:text-4xl font-bold mb-4 text-slate-900 dark:text-white">
-              Choose Your Next Adventure
-            </h2>
-            <p className="text-slate-600 dark:text-slate-400">Immerse yourself in cultures from around the world.</p>
-          </motion.div>
-
-          <motion.div 
-            variants={containerVariants}
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true }}
-            className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 max-w-6xl mx-auto"
-          >
-            {SUPPORTED_LANGUAGES.map((lang) => (
-              <motion.div key={lang.code} variants={itemVariants}>
-                <Link 
-                  href={`/learn/${lang.code}`} 
-                  className={`flex flex-col items-center justify-center p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm transition-all duration-300 group ${LANGUAGE_HOVER_STYLES[lang.code]}`}
-                >
-                  <span className="text-5xl mb-4 transform group-hover:scale-125 group-hover:-rotate-6 transition-transform duration-300 drop-shadow-md block">
-                    {lang.flag}
-                  </span>
-                  <h3 className="font-semibold text-slate-700 dark:text-slate-300">{lang.name}</h3>
-                </Link>
-              </motion.div>
+      <section className="bg-white px-4 py-16 md:py-24" aria-labelledby="practice-title">
+        <div className="mx-auto max-w-6xl">
+          <h2 id="practice-title" className="text-center text-3xl font-extrabold tracking-tight text-slate-900 sm:text-4xl">
+            Then use it for real
+          </h2>
+          <ul className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {PRACTICE.map((item) => (
+              <li key={item.title} className="rounded-3xl border border-slate-200 bg-slate-50 p-6">
+                <span className={`inline-flex h-11 w-11 items-center justify-center rounded-2xl ${item.tone}`}>
+                  <item.icon aria-hidden className="h-5 w-5" />
+                </span>
+                <h3 className="mt-4 text-lg font-extrabold text-slate-900">{item.title}</h3>
+                <p className="mt-2 text-slate-600">{item.body}</p>
+              </li>
             ))}
-          </motion.div>
-          
-          <motion.div 
-            initial={{ opacity: 0 }}
-            whileInView={{ opacity: 1 }}
-            viewport={{ once: true }}
-            transition={{ delay: 0.5 }}
-            className="mt-12 text-center"
-          >
-            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400 text-sm font-medium">
-              <Globe2 className="w-4 h-4" />
-              <span>More languages added regularly</span>
-            </div>
-          </motion.div>
+          </ul>
         </div>
       </section>
 
-      {/* CTA Section */}
-      <section className="py-24 relative overflow-hidden">
-        <div className="absolute inset-0 bg-indigo-600 dark:bg-indigo-900" />
-        <div className="absolute inset-0 bg-[url('/noise.png')] opacity-20 mix-blend-overlay" />
-        <div className="absolute top-0 right-0 w-96 h-96 bg-pink-500/30 blur-[120px] rounded-full pointer-events-none" />
-        <div className="absolute bottom-0 left-0 w-96 h-96 bg-blue-500/30 blur-[120px] rounded-full pointer-events-none" />
-        
-        <div className="container mx-auto px-4 relative z-10 text-center">
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="max-w-3xl mx-auto"
-          >
-            <Zap className="w-16 h-16 text-yellow-300 mx-auto mb-8 drop-shadow-lg" />
-            <h2 className="text-4xl md:text-5xl font-bold text-white mb-6">
-              Ready to speak like a local?
-            </h2>
-            <p className="text-xl text-indigo-100 mb-10">
-              Join thousands of learners who are mastering new languages with the power of AI.
-            </p>
-            <Link
-              href={isAuthenticated ? "/dashboard" : "/register"}
-              className="inline-flex items-center gap-2 px-10 py-5 bg-white text-indigo-600 rounded-full font-bold text-xl hover:scale-105 transition-all shadow-xl hover:shadow-2xl hover:shadow-white/20"
-            >
-              {isAuthenticated ? "Continue Your Journey" : "Start Learning Now"}
-              <ArrowRight className="w-6 h-6" />
-            </Link>
-          </motion.div>
+      <section className="px-4 py-16 md:py-24" aria-labelledby="languages-title">
+        <div className="mx-auto max-w-6xl">
+          <h2 id="languages-title" className="flex items-center justify-center gap-2 text-center text-3xl font-extrabold tracking-tight text-slate-900">
+            <Languages aria-hidden className="h-7 w-7 text-indigo-500" /> Six languages, built for English speakers
+          </h2>
+          <ul className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+            {SUPPORTED_LANGUAGES.map((lang) => (
+              <li key={lang.code} className="flex flex-col items-center rounded-3xl border border-slate-200 bg-white p-5 text-center shadow-sm">
+                <span aria-hidden className="text-4xl">
+                  {lang.flag}
+                </span>
+                <span className="mt-2 font-bold text-slate-900">{lang.name}</span>
+                <span lang={lang.speechLocale} dir={lang.rtl ? "rtl" : "ltr"} className="text-sm text-slate-500">
+                  {lang.nativeName}
+                </span>
+                {lang.needsRomanization && <span className="mt-1 text-xs text-slate-400">with {lang.romanizationName}</span>}
+              </li>
+            ))}
+          </ul>
         </div>
       </section>
+
+      <section className="relative isolate overflow-hidden px-4 py-16 text-center text-white md:py-24">
+        <BrandBackground className="-z-10" />
+        <h2 className="text-3xl font-extrabold tracking-tight sm:text-4xl">Your first lesson is a few taps away.</h2>
+        <p className="mx-auto mt-3 max-w-xl text-lg text-white/80">Pick a language, take one short lesson, and come back tomorrow for your first review.</p>
+        <LandingCta className="mt-8" />
+      </section>
+
+      <footer className="border-t border-slate-200 bg-white px-4 py-6 text-center text-sm text-slate-500">
+        <Link href="/privacy" className="hover:text-slate-800">
+          Privacy
+        </Link>
+        <span className="mx-2">·</span>
+        <Link href="/terms" className="hover:text-slate-800">
+          Terms
+        </Link>
+      </footer>
     </div>
   );
 }

@@ -14,9 +14,33 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+/** Absolute base for Open Graph/Twitter image URLs; falls back to localhost in development. */
+function resolveSiteUrl(): URL {
+  const candidates = [
+    process.env.NEXT_PUBLIC_SITE_URL,
+    process.env.NEXTAUTH_URL,
+    process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : undefined,
+    process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : undefined,
+  ];
+
+  for (const candidate of candidates) {
+    try {
+      if (candidate) return new URL(candidate);
+    } catch {
+      // Ignore malformed values and try the next one.
+    }
+  }
+
+  return new URL("http://localhost:3000");
+}
+
+const DESCRIPTION =
+  "A structured path from A1 to C2 in German, Brazilian Portuguese, Chinese, Norwegian, Korean and Arabic: adaptive lessons, spaced-repetition review, a tutor that remembers you, and live voice practice.";
+
 export const metadata: Metadata = {
-  title: "Laingfy - AI Language Learning Platform",
-  description: "Learn languages naturally with AI-powered tutoring, real-time feedback, and interactive conversations. Master new languages with personalized practice sessions.",
+  metadataBase: resolveSiteUrl(),
+  title: "Laingfy - Learn a language that sticks",
+  description: DESCRIPTION,
   icons: {
     icon: [
       { url: "/favicon/favicon-16x16.png", sizes: "16x16", type: "image/png" },
@@ -27,14 +51,14 @@ export const metadata: Metadata = {
   },
   manifest: "/site.webmanifest",
   openGraph: {
-    title: "Laingfy - AI Language Learning Platform",
-    description: "Learn languages naturally with AI-powered tutoring and real-time feedback",
+    title: "Laingfy - Learn a language that sticks",
+    description: DESCRIPTION,
     images: [{ url: "/favicon/LOGO1.png", width: 512, height: 512 }],
   },
   twitter: {
-    card: "summary_large_image",
-    title: "Laingfy - AI Language Learning Platform",
-    description: "Learn languages naturally with AI-powered tutoring and real-time feedback",
+    card: "summary",
+    title: "Laingfy - Learn a language that sticks",
+    description: DESCRIPTION,
     images: ["/favicon/LOGO1.png"],
   },
 };
