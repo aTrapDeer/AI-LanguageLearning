@@ -9,8 +9,9 @@ import { BackgroundGradientAnimation } from "@/components/ui/background-gradient
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useLanguage } from "@/contexts/language-context";
-import { getSupportedLanguage, isSupportedLanguageCode, SUPPORTED_LANGUAGES } from "@/lib/language-config";
-import { Copy, Loader2, Mic, Radio, Sparkles, Square } from "lucide-react";
+import { getLanguageConfig, isSupportedLanguageCode, SUPPORTED_LANGUAGES } from "@/lib/language-config";
+import { BookmarkCheck, BookmarkPlus, Copy, Loader2, Mic, Radio, Sparkles, Square } from "lucide-react";
+import { describeMicError } from "@/components/chat/use-recorder";
 
 type AudioDevice = {
   deviceId: string;
@@ -57,7 +58,7 @@ function TravelPageContent() {
     return SUPPORTED_LANGUAGES[0].code;
   }, [requestedLanguage, selectedLanguage]);
 
-  const activeLanguage = getSupportedLanguage(activeLanguageCode) ?? SUPPORTED_LANGUAGES[0];
+  const activeLanguage = getLanguageConfig(activeLanguageCode) ?? SUPPORTED_LANGUAGES[0];
 
   const [connectionStatus, setConnectionStatus] = useState("Ready to connect");
   const [isSessionActive, setIsSessionActive] = useState(false);
@@ -70,6 +71,7 @@ function TravelPageContent() {
   const [replyOptions, setReplyOptions] = useState<TravelResponseOption[]>([]);
   const [isGeneratingReplies, setIsGeneratingReplies] = useState(false);
   const [copiedOption, setCopiedOption] = useState<string | null>(null);
+  const [savedOptions, setSavedOptions] = useState<Record<string, "saving" | "saved">>({});
 
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
   const dataChannelRef = useRef<RTCDataChannel | null>(null);
@@ -319,14 +321,19 @@ function TravelPageContent() {
         setConnectionStatus("Error");
       };
 
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          deviceId: selectedDevice ? { exact: selectedDevice } : undefined,
-          echoCancellation: true,
-          noiseSuppression: true,
-          channelCount: 1,
-        },
-      });
+      let stream: MediaStream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            deviceId: selectedDevice ? { exact: selectedDevice } : undefined,
+            echoCancellation: true,
+            noiseSuppression: true,
+            channelCount: 1,
+          },
+        });
+      } catch (micError) {
+        throw new Error(describeMicError(micError));
+      }
 
       audioStreamRef.current = stream;
       stream.getAudioTracks().forEach((track) => {
@@ -346,8 +353,8 @@ function TravelPageContent() {
       });
 
       if (!response.ok) {
-        const errorBody = await response.text();
-        throw new Error(errorBody || "Failed to start realtime translation");
+        const errorBody = (await response.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(errorBody?.error || "Failed to start realtime translation");
       }
 
       const answerSdp = await response.text();
@@ -404,6 +411,7 @@ function TravelPageContent() {
       }
 
       setReplyOptions(data.options || []);
+      setSavedOptions({});
     } catch (replyError) {
       console.error("Failed to generate reply options:", replyError);
       setError(replyError instanceof Error ? replyError.message : "Failed to generate reply options");
@@ -420,6 +428,35 @@ function TravelPageContent() {
     } catch (clipboardError) {
       console.error("Failed to copy translated reply:", clipboardError);
       setError("Unable to copy that translation right now.");
+    }
+  };
+
+  const saveReplyOption = async (option: TravelResponseOption) => {
+    const key = option.translation;
+    setSavedOptions((current) => ({ ...current, [key]: "saving" }));
+    try {
+      const response = await fetch("/api/travel/save-phrase", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          language: activeLanguageCode,
+          phrase: option.translation,
+          meaning: option.backTranslation,
+          pronunciation: option.pronunciation || null,
+        }),
+      });
+      if (!response.ok) {
+        const data = (await response.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(data?.error || "Couldn't save that phrase.");
+      }
+      setSavedOptions((current) => ({ ...current, [key]: "saved" }));
+    } catch (saveError) {
+      setSavedOptions((current) => {
+        const next = { ...current };
+        delete next[key];
+        return next;
+      });
+      setError(saveError instanceof Error ? saveError.message : "Couldn't save that phrase.");
     }
   };
 
@@ -697,15 +734,34 @@ function TravelPageContent() {
                           <div className="text-xs uppercase tracking-wide text-muted-foreground">{option.tone}</div>
                         </div>
 
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => void copyReplyOption(option.translation)}
-                        >
-                          <Copy className="mr-2 h-4 w-4" />
-                          {copiedOption === option.translation ? "Copied" : "Copy"}
-                        </Button>
+                        <div className="flex shrink-0 flex-wrap justify-end gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => void copyReplyOption(option.translation)}
+                          >
+                            <Copy className="mr-2 h-4 w-4" />
+                            {copiedOption === option.translation ? "Copied" : "Copy"}
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            disabled={Boolean(savedOptions[option.translation])}
+                            onClick={() => void saveReplyOption(option)}
+                            aria-label={savedOptions[option.translation] === "saved" ? "Saved to my words" : "Save to my words"}
+                          >
+                            {savedOptions[option.translation] === "saving" ? (
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            ) : savedOptions[option.translation] === "saved" ? (
+                              <BookmarkCheck className="mr-2 h-4 w-4 text-emerald-600" />
+                            ) : (
+                              <BookmarkPlus className="mr-2 h-4 w-4" />
+                            )}
+                            {savedOptions[option.translation] === "saved" ? "Saved" : "Save"}
+                          </Button>
+                        </div>
                       </div>
 
                       <div className="mt-4 space-y-3">

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { enforceAiQuota, requireUser } from "@/lib/api-auth";
-import { getOpenAIClient, getTextModel } from "@/lib/openai";
+import { getOpenAIClient, getTextModel, OpenAIConfigError } from "@/lib/openai";
 import { getSupportedLanguageName, isSupportedLanguageCode } from "@/lib/language-config";
 
 const TravelTranslateSchema = z.object({
@@ -80,10 +80,11 @@ Transcript: ${transcript}`,
 
     return NextResponse.json({ translation });
   } catch (error) {
+    if (error instanceof OpenAIConfigError) {
+      return NextResponse.json({ error: "Travel mode isn't available right now.", code: "tutor_unavailable" }, { status: 503 });
+    }
+
     console.error("[TRAVEL_TRANSLATE]", error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to translate transcript" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Failed to translate transcript. Please try again." }, { status: 502 });
   }
 }

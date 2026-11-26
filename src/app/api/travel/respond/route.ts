@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { enforceAiQuota, requireUser } from "@/lib/api-auth";
-import { getOpenAIClient, getTextModel } from "@/lib/openai";
+import { getOpenAIClient, getTextModel, OpenAIConfigError } from "@/lib/openai";
 import { getSupportedLanguageName, isSupportedLanguageCode } from "@/lib/language-config";
 
 const TravelResponseSchema = z.object({
@@ -109,10 +109,11 @@ Rules:
 
     return NextResponse.json({ options });
   } catch (error) {
+    if (error instanceof OpenAIConfigError) {
+      return NextResponse.json({ error: "Travel mode isn't available right now.", code: "tutor_unavailable" }, { status: 503 });
+    }
+
     console.error("[TRAVEL_RESPOND]", error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to generate response options" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Failed to generate response options. Please try again." }, { status: 502 });
   }
 }

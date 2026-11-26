@@ -104,3 +104,58 @@ export function buildOpenAIRealtimeSession(options: RealtimeSessionOptions = {})
     },
   };
 }
+
+export function buildVoiceTutorRealtimeSession(options: {
+  languageCode: SupportedLanguageCode;
+  instructions: string;
+  transcriptionPrompt: string;
+}) {
+  return buildOpenAIRealtimeSession({
+    instructions: options.instructions,
+    outputModalities: ["audio"],
+    transcriptionLanguage: getRealtimeTranscriptionLanguage(options.languageCode),
+    transcriptionPrompt: options.transcriptionPrompt,
+  });
+}
+
+export class RealtimeExchangeError extends Error {
+  readonly status: number;
+
+  constructor(status: number, message: string) {
+    super(message);
+    this.name = "RealtimeExchangeError";
+    this.status = status;
+  }
+}
+
+/** Server-only: trades the browser's SDP offer for OpenAI's answer, with the session config attached. */
+export async function exchangeRealtimeSdp(
+  sdpOffer: string,
+  session: ReturnType<typeof buildOpenAIRealtimeSession>
+): Promise<string> {
+  const apiKey = process.env.OPENAI_API_KEY?.trim();
+  if (!apiKey) {
+    throw new RealtimeExchangeError(503, "Voice conversations are not configured");
+  }
+
+  const baseUrl = (process.env.OPENAI_BASE_URL?.trim() || "https://api.openai.com/v1").replace(/\/+$/, "");
+  const formData = new FormData();
+  formData.set("sdp", sdpOffer);
+  formData.set("session", JSON.stringify(session));
+
+  const response = await fetch(`${baseUrl}/realtime/calls`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${apiKey}` },
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const contentType = response.headers.get("content-type") || "";
+    const detail = contentType.includes("application/json")
+      ? ((await response.json().catch(() => null)) as { error?: { message?: string } } | null)?.error?.message
+      : await response.text().catch(() => "");
+    throw new RealtimeExchangeError(response.status, detail || `Realtime connection failed (${response.status})`);
+  }
+
+  return response.text();
+}

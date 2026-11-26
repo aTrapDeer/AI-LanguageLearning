@@ -1,72 +1,39 @@
 import { NextResponse } from "next/server";
-import { buildOpenAIRealtimeSession, buildTravelRealtimeSession } from "@/lib/openai-realtime";
+import { enforceAiQuota, jsonError, requireUser } from "@/lib/api-auth";
 import { isSupportedLanguageCode } from "@/lib/language-config";
-import { enforceAiQuota, requireUser } from "@/lib/api-auth";
+import { isOpenAIConfigured } from "@/lib/openai";
+import { buildTravelRealtimeSession, exchangeRealtimeSdp, RealtimeExchangeError } from "@/lib/openai-realtime";
 
+/** Travel interpreter SDP exchange. (The voice tutor uses /api/voice/session.) */
 export async function POST(request: Request) {
   try {
     const auth = await requireUser();
     if (!auth.ok) return auth.response;
 
-    const limited = await enforceAiQuota(auth.userId, "realtime");
-    if (limited) return limited;
-
-    if (!process.env.OPENAI_API_KEY) {
-      throw new Error("OPENAI_API_KEY is not set");
+    const requestedLanguage = new URL(request.url).searchParams.get("language");
+    if (!requestedLanguage || !isSupportedLanguageCode(requestedLanguage)) {
+      return jsonError(400, "Unsupported language");
     }
-
-    const { searchParams } = new URL(request.url);
-    const mode = searchParams.get("mode");
-    const requestedLanguage = searchParams.get("language");
-    const sessionConfig =
-      mode === "travel" && requestedLanguage && isSupportedLanguageCode(requestedLanguage)
-        ? buildTravelRealtimeSession(requestedLanguage)
-        : buildOpenAIRealtimeSession();
 
     const sdpOffer = await request.text();
     if (!sdpOffer) {
-      return NextResponse.json({ error: "SDP offer is required" }, { status: 400 });
+      return jsonError(400, "SDP offer is required");
     }
 
-    const formData = new FormData();
-    formData.set("sdp", sdpOffer);
-    formData.set("session", JSON.stringify(sessionConfig));
-
-    const response = await fetch("https://api.openai.com/v1/realtime/calls", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-      },
-      body: formData,
-    });
-
-    if (!response.ok) {
-      const contentType = response.headers.get("content-type") || "";
-      if (contentType.includes("application/json")) {
-        const error = await response.json().catch(() => null);
-        return NextResponse.json(
-          { error: error?.error?.message || `Failed to exchange SDP: ${response.status}` },
-          { status: response.status }
-        );
-      }
-
-      return NextResponse.json(
-        { error: `Failed to exchange SDP: ${await response.text()}` },
-        { status: response.status }
-      );
+    if (!isOpenAIConfigured()) {
+      return jsonError(503, "Travel mode isn't available right now.", { code: "tutor_unavailable" });
     }
 
-    const sdpAnswer = await response.text();
-    return new NextResponse(sdpAnswer, {
-      headers: {
-        "Content-Type": "application/sdp",
-      },
-    });
+    const limited = await enforceAiQuota(auth.userId, "realtime");
+    if (limited) return limited;
+
+    const sdpAnswer = await exchangeRealtimeSdp(sdpOffer, buildTravelRealtimeSession(requestedLanguage));
+    return new NextResponse(sdpAnswer, { headers: { "Content-Type": "application/sdp" } });
   } catch (error) {
-    console.error("Error exchanging SDP:", error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to exchange SDP" },
-      { status: 500 }
-    );
+    console.error("[TRAVEL_SDP]", error);
+    if (error instanceof RealtimeExchangeError) {
+      return jsonError(502, "Couldn't connect to the live interpreter. Please try again.");
+    }
+    return jsonError(500, "Couldn't start Travel mode.");
   }
 }

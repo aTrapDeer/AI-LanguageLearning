@@ -1,248 +1,138 @@
 import { NextResponse } from "next/server";
-import OpenAI from "openai";
-import { createChatMessage } from "@/lib/database";
-import { enforceAiQuota, requireUser } from "@/lib/api-auth";
-import S3 from "aws-sdk/clients/s3";
-import { extractFollowUpQuestion, extractLanguageText, OpenAIVoice, LanguageCodeMapping } from "./chat-utils";
+import { z } from "zod";
+import { enforceAiQuota, jsonError, requireUser } from "@/lib/api-auth";
+import { appendChatMessage, getChatSession, listChatMessages, recordActivity, recordMistakes } from "@/lib/database";
+import { getLanguageConfig } from "@/lib/language-config";
+import { resolveLocalDate } from "@/lib/local-date";
+import { isOpenAIConfigured } from "@/lib/openai";
+import { loadLearnerTutorContext, resolveUnit } from "@/lib/tutor/context";
+import { generateTutorReply } from "@/lib/tutor/generate";
+import { toTutorMessageDto } from "@/lib/tutor/mappers";
+import { HISTORY_MESSAGE_LIMIT, MAX_LEARNER_MESSAGE_LENGTH, type HistoryEntry } from "@/lib/tutor/prompt";
+import { tutorErrorResponse, tutorUnavailableResponse } from "@/lib/tutor/route-helpers";
+import { getTutorScenario } from "@/lib/tutor/scenarios";
+import { countChatTurnsToday } from "@/lib/tutor/store";
+import type { TutorActivityDto, TutorSessionMetadata, TutorTurnResponse } from "@/lib/tutor/types";
+import { chatTurnXp, isMeaningfulTurn } from "@/lib/tutor/xp";
 
-// Language configurations
-const LANGUAGE_CONFIGS: Record<string, { instructions: string, voice: string }> = {
-  'en': {
-    instructions: `You are a friendly and engaging English language conversation partner. Your primary goal is to maintain a natural conversation while helping users improve their English. Follow these guidelines:
-1. Always respond conversationally first, keeping the dialogue flowing
-2. Then provide gentle corrections if needed, marked with 💡
-3. Use emojis and friendly language to keep the conversation engaging
-4. Ask follow-up questions to encourage more conversation
-5. Provide cultural context when relevant, marked with 🌍
-6. Keep responses concise but informative
-
-Example format:
-[Conversational response continuing the dialogue]
-💡 Corrections (if needed): [specific corrections]
-❓ [Follow-up question to keep the conversation going]`,
-    voice: 'shimmer'
-  },
-  'de': {
-    instructions: `You are a friendly and engaging German language conversation partner. Your primary goal is to maintain a natural conversation while helping users improve their German. Follow these guidelines:
-1. Always respond in German first, followed by an English translation
-2. Keep the conversation flowing naturally while providing gentle corrections
-3. Use emojis and friendly language to keep the conversation engaging
-4. Ask follow-up questions to encourage more conversation
-
-Example format:
-🇩🇪 [German response continuing the dialogue]
-🇺🇸 [English translation]
-💡 Corrections (if needed): [specific corrections]
-❓ [Follow-up question in German with translation]`,
-    voice: 'shimmer'
-  },
-  'zh': {
-    instructions: `You are a friendly and engaging Mandarin Chinese conversation partner. Your primary goal is to maintain a natural conversation while helping users improve their Mandarin. Follow these guidelines:
-1. Always respond in Chinese characters first, followed by pinyin and English translation
-2. Keep the conversation flowing naturally while providing gentle corrections
-3. Use emojis and friendly language to keep the conversation engaging
-4. Ask follow-up questions to encourage more conversation
-5. Provide cultural context about Chinese-speaking regions when relevant
-
-Example format:
-🇨🇳 [Chinese characters response]
-📝 Pinyin: [pinyin with tones]
-🇺🇸 [English translation]
-💡 Corrections (if needed): [specific corrections]
-❓ [Follow-up question in Chinese with pinyin and translation]`,
-    voice: 'shimmer'
-  },
-  'no': {
-    instructions: `You are a friendly and engaging Norwegian language conversation partner. Your primary goal is to maintain a natural conversation while helping users improve their Norwegian. Follow these guidelines:
-1. Always respond in Norwegian first, followed by an English translation
-2. Keep the conversation flowing naturally while providing gentle corrections
-3. Use emojis and friendly language to keep the conversation engaging
-4. Ask follow-up questions to encourage more conversation
-
-Example format:
-🇳🇴 [Norwegian response continuing the dialogue]
-🇺🇸 [English translation]
-💡 Corrections (if needed): [specific corrections]
-❓ [Follow-up question in Norwegian with translation]`,
-    voice: 'shimmer'
-  },
-  'pt-BR': {
-    instructions: `You are a friendly and engaging Brazilian Portuguese language conversation partner. Your primary goal is to maintain a natural conversation while helping users improve their Brazilian Portuguese. Follow these guidelines:
-1. Always respond in Brazilian Portuguese first, followed by an English translation
-2. Keep the conversation flowing naturally while providing gentle corrections
-3. Use emojis and friendly language to keep the conversation engaging
-4. Ask follow-up questions to encourage more conversation
-
-Example format:
-🇧🇷 [Brazilian Portuguese response continuing the dialogue]
-🇺🇸 [English translation]
-💡 Corrections (if needed): [specific corrections]
-❓ [Follow-up question in Portuguese with translation]`,
-    voice: 'shimmer'
-  },
-  'ko': {
-    instructions: `You are a friendly and engaging Korean language conversation partner. Your primary goal is to maintain a natural conversation while helping users improve their Korean. Follow these guidelines:
-1. Always respond in Korean first using Hangul, followed by romanized pronunciation guide and English translation
-2. Keep the conversation flowing naturally while providing gentle corrections
-3. Use emojis and friendly language to keep the conversation engaging
-4. Ask follow-up questions to encourage more conversation
-5. Provide cultural context about Korean-speaking regions when relevant
-
-Example format:
-🇰🇷 [Korean response in Hangul continuing the dialogue]
-📝 발음: [romanized pronunciation guide]
-🇺🇸 [English translation]
-💡 Corrections (if needed): [specific corrections]
-❓ [Follow-up question in Korean with romanization and translation]`,
-    voice: 'nova'
-  },
-  'ar': {
-    instructions: `You are a friendly and engaging Arabic language conversation partner. Your primary goal is to maintain a natural conversation while helping users improve their Arabic. Follow these guidelines:
-1. Always respond in Arabic script first, followed by romanized pronunciation guide and English translation
-2. Keep the conversation flowing naturally while providing gentle corrections
-3. Use emojis and friendly language to keep the conversation engaging
-4. Ask follow-up questions to encourage more conversation
-5. Provide cultural context about Arabic-speaking regions when relevant
-
-Example format:
-🇸🇦 [Arabic response continuing the dialogue]
-📝 النطق: [romanized pronunciation guide]
-🇺🇸 [English translation]
-💡 Corrections (if needed): [specific corrections]
-❓ [Follow-up question in Arabic with romanization and translation]`,
-    voice: 'onyx'
-  }
-};
-
-// Configure S3
-const s3 = new S3({
-  accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-  secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
-  region: process.env.AWS_REGION || 'us-east-1',
+const TurnSchema = z.object({
+  sessionId: z.string().min(1).max(64),
+  message: z.string(),
+  localDate: z.string().nullish(),
 });
 
-function getOpenAIClient() {
-  if (!process.env.OPENAI_API_KEY) {
-    throw new Error("OPENAI_API_KEY is not set");
-  }
-
-  return new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY,
-  });
-}
-
-export async function POST(req: Request) {
+/** One learner turn: the reply sees recent history and the learner's profile; XP is awarded here. */
+export async function POST(request: Request) {
   try {
     const auth = await requireUser();
     if (!auth.ok) return auth.response;
-    const userId = auth.userId;
 
-    const limited = await enforceAiQuota(userId, "text");
+    const parsed = TurnSchema.safeParse(await request.json().catch(() => null));
+    if (!parsed.success) {
+      return jsonError(400, "Invalid request");
+    }
+
+    const message = parsed.data.message.trim();
+    if (!message) {
+      return jsonError(400, "Message is empty");
+    }
+    if (message.length > MAX_LEARNER_MESSAGE_LENGTH) {
+      return jsonError(413, `Messages can be up to ${MAX_LEARNER_MESSAGE_LENGTH} characters.`);
+    }
+
+    const session = await getChatSession<Partial<TutorSessionMetadata>>(auth.userId, parsed.data.sessionId);
+    const language = session ? getLanguageConfig(session.language) : null;
+    if (!session || session.mode !== "tutor" || !language) {
+      return jsonError(404, "Conversation not found");
+    }
+
+    if (!isOpenAIConfigured()) {
+      return tutorUnavailableResponse();
+    }
+
+    const limited = await enforceAiQuota(auth.userId, "text");
     if (limited) return limited;
 
-    const body = await req.json();
-    const { message, language } = body;
-    
-    const openai = getOpenAIClient();
+    const [previous, context] = await Promise.all([
+      listChatMessages({ userId: auth.userId, sessionId: session.id, limit: HISTORY_MESSAGE_LIMIT - 1 }),
+      loadLearnerTutorContext(auth.userId, language.code),
+    ]);
 
-    // Convert language to code
-    const languageMapping: LanguageCodeMapping = {
-      "English": "en",
-      "German": "de",
-      "Portuguese (Brazilian)": "pt-BR",
-      "Chinese": "zh",
-      "Norwegian": "no",
-      "Korean": "ko",
-      "Arabic": "ar"
-    };
-    
-    const languageCode = languageMapping[language] || "en";
-    
-    // Get language configuration
-    const config = LANGUAGE_CONFIGS[languageCode] || LANGUAGE_CONFIGS.en;
-    
-    // Generate text response using GPT-4
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [
-        { role: "system", content: config.instructions },
-        { role: "user", content: message }
-      ],
-      temperature: 0.7,
-      max_tokens: 700
+    const history: HistoryEntry[] = [
+      ...previous
+        .filter((entry) => entry.role !== "system")
+        .map((entry) => ({ role: entry.role as HistoryEntry["role"], content: entry.content })),
+      { role: "user", content: message },
+    ];
+
+    const scenario = getTutorScenario(session.metadata?.scenarioId);
+    const unit = resolveUnit(session.metadata?.unitId, context);
+    const reply = await generateTutorReply({ context: { ...context, language, scenario, unit }, history });
+
+    // Persist only after a successful reply, so a failed turn can simply be retried.
+    const userRecord = await appendChatMessage({ userId: auth.userId, sessionId: session.id, role: "user", content: message });
+    const assistantRecord = await appendChatMessage({
+      userId: auth.userId,
+      sessionId: session.id,
+      role: "assistant",
+      content: reply.reply,
+      payload: reply,
     });
-    
-    const textResponse = completion.choices[0].message.content || "Sorry, I couldn't generate a response.";
-    
-    // Extract the main response and follow-up question
-    const { mainResponse, followUpQuestion } = extractFollowUpQuestion(textResponse);
-    
-    // Extract language-specific text for TTS (based on the main response only)
-    const ttsText = extractLanguageText(mainResponse, languageCode);
-    
-    // Generate audio using OpenAI
-    let audioUrl = null;
-    try {
-      const voiceMapping: Record<string, OpenAIVoice> = {
-        'en': 'shimmer',  // Female voice for English
-        'de': 'onyx',     // Male voice for German
-        'zh': 'nova',     // Female voice for Chinese
-        'no': 'echo',     // Female voice for Norwegian
-        'pt-BR': 'alloy', // Neural voice for Portuguese
-        'ko': 'nova',     // Female voice for Korean
-        'ar': 'onyx'      // Male voice for Arabic
-      };
-      
-      const voice = voiceMapping[languageCode] || 'shimmer';
-      
-      const mp3 = await openai.audio.speech.create({
-        model: "tts-1",
-        voice: voice,
-        input: ttsText,
-      });
-      
-      const buffer = Buffer.from(await mp3.arrayBuffer());
-      
-      // Generate unique filename
-      const timestamp = Date.now();
-      const randomString = Math.random().toString(36).substring(2, 8);
-      const audioFilename = `audio_${timestamp}_${randomString}.mp3`;
-      
-      // Upload to S3
-      const result = await s3.upload({
-        Bucket: process.env.AWS_S3_BUCKET_AUDIO || '',
-        Key: `audio/${audioFilename}`,
-        Body: buffer,
-        ContentType: 'audio/mpeg',
-        CacheControl: 'max-age=3600',
-        Metadata: {
-          language: languageCode,
-          timestamp: timestamp.toString()
-        }
-      }).promise();
-      
-      audioUrl = result.Location;
-      
-      if (userId) {
-        await createChatMessage({
-          userId,
-          language,
-          message,         // Changed from messageText to match schema
-          response: textResponse, // Store the complete response in the database
-          audioUrl
-        });
-      }
-    } catch (error) {
-      console.error('Error generating audio:', error);
+    const userMessage = userRecord ? toTutorMessageDto(userRecord) : null;
+    const assistantMessage = assistantRecord ? toTutorMessageDto(assistantRecord) : null;
+    if (!userMessage || !assistantMessage) {
+      return jsonError(404, "Conversation not found");
     }
-    
-    return NextResponse.json({
-      response: mainResponse,
-      follow_up_question: followUpQuestion,
-      audio_url: audioUrl
-    });
+
+    if (reply.corrections.length > 0) {
+      await recordMistakes({
+        userId: auth.userId,
+        language: language.code,
+        source: "chat",
+        mistakes: reply.corrections.map((correction) => ({
+          kind: correction.kind,
+          incorrect: correction.original,
+          correction: correction.corrected,
+          explanation: correction.explanation,
+          context: message,
+        })),
+      }).catch((error) => console.error("[CHAT_TURN] recordMistakes", error));
+    }
+
+    const previousLearnerMessage = [...previous].reverse().find((entry) => entry.role === "user")?.content ?? null;
+    const meaningful = isMeaningfulTurn(message, previousLearnerMessage);
+    let activity: TutorActivityDto | null = null;
+
+    if (meaningful) {
+      try {
+        const localDate = resolveLocalDate(parsed.data.localDate);
+        const turnsBefore = await countChatTurnsToday(auth.userId, language.code, localDate);
+        const earned = chatTurnXp(turnsBefore, true);
+        const result = await recordActivity({
+          userId: auth.userId,
+          language: language.code,
+          kind: "chat",
+          xp: earned.xp,
+          localDate,
+          count: 1,
+        });
+        activity = {
+          xpGained: result.xpGained,
+          dailyXp: result.dailyXp,
+          dailyGoal: result.dailyGoal,
+          goalJustReached: result.goalJustReached,
+          streak: result.streak.current,
+          capReached: earned.capReached,
+        };
+      } catch (error) {
+        // The reply is already saved; losing a turn's XP is better than failing the turn.
+        console.error("[CHAT_TURN] recordActivity", error);
+      }
+    }
+
+    const body: TutorTurnResponse = { userMessage, assistantMessage, activity };
+    return NextResponse.json(body);
   } catch (error) {
-    console.error('Chat error:', error);
-    return NextResponse.json({ error: 'Failed to process chat request' }, { status: 500 });
+    return tutorErrorResponse("CHAT_TURN", error);
   }
-} 
+}
