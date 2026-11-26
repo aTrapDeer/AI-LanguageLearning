@@ -11,7 +11,7 @@ import { PromptHeader } from "./prompt-header";
 import type { ExerciseProps } from "./types";
 
 /** Build the sentence from a word bank. Tap to place, tap again to remove; Backspace removes the last. */
-export function BuildExercise({ step, language, showRomanization, revealed, retry, onDraft }: ExerciseProps<BuildStep>) {
+export function BuildExercise({ step, language, revealed, retry, onDraft }: ExerciseProps<BuildStep>) {
   const reduceMotion = usePrefersReducedMotion();
   const [placed, setPlaced] = useState<string[]>([]);
   const bank = retry > 0 ? shuffle(step.tiles, createRng(seedFromString(`${step.id}:${retry}`))) : step.tiles;
@@ -77,13 +77,6 @@ export function BuildExercise({ step, language, showRomanization, revealed, retr
             ) : null;
           })}
         </div>
-
-        {revealed && !revealed.correct && (
-          <p lang={lang} dir={dir} className="text-center text-lg text-white/85">
-            {step.sentence.text}
-            {showRomanization && step.sentence.romanization && <span className="block text-sm text-white/70">{step.sentence.romanization}</span>}
-          </p>
-        )}
 
         <div lang={lang} dir={dir} role="group" aria-label="Word bank" className="flex flex-wrap justify-center gap-2 pt-2">
           {bank.map((tile) => {

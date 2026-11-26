@@ -322,7 +322,7 @@ function fillStep(info: SentenceInfo, words: PlanWord[], language: string, rng: 
       options,
       answerId,
       ref: { kind: "word", key: word.key },
-      explanation: `${explainWord({ ...word, word: blank })} “${sentence.text}” = “${sentence.translation}”.`,
+      explanation: explainWord({ ...word, word: blank }),
     };
   }
 
@@ -380,7 +380,7 @@ function buildStep(info: SentenceInfo, all: SentenceInfo[], words: PlanWord[], l
     tiles: order.map((tile, position) => ({ id: `t${position + 1}`, text: tile.text })),
     solutions,
     ref: { kind: "sentence", index: info.index },
-    explanation: `“${sentence.translation}” = ${sentence.text}`,
+    explanation: null,
   };
 }
 

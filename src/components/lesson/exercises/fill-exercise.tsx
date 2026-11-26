@@ -25,7 +25,7 @@ export function FillExercise({ step, language, showRomanization, revealed, retry
           {step.before}
           <span
             className={cn(
-              "mx-1 inline-block min-w-[4.5rem] rounded-xl border-b-4 px-2 align-baseline transition",
+              "inline-block min-w-[4.5rem] rounded-xl border-b-4 px-2 align-baseline transition",
               !slotText && "border-white/50 bg-white/10 text-transparent",
               slotText && !revealed && "border-sky-300 bg-sky-400/20",
               revealed?.correct && "border-emerald-300 bg-emerald-400/25",

@@ -232,7 +232,11 @@ export async function startLesson(params: { userId: string; language: string; un
     return fail(404, "unit_not_found", "That unit doesn't exist.");
   }
   if (!isPlayable(unit, progress.level, completedUnitIds)) {
-    return fail(403, "unit_locked", "Finish the earlier units first to unlock this one.");
+    return fail(
+      403,
+      "unit_locked",
+      unit.level > progress.level ? `Reach level ${unit.level} to unlock this unit.` : "Finish the earlier units first to unlock this one."
+    );
   }
 
   const active = await getActiveLessonAttempt({ userId, language, unitId: unit.id });

@@ -205,7 +205,6 @@ export function LessonPlayer({ language, unitId }: LessonPlayerProps) {
           lesson={state.lesson}
           result={state.result}
           bestCombo={state.progress.bestCombo}
-          showRomanization={showRomanization}
           pathHref={pathHref}
           onReplay={reload}
         />

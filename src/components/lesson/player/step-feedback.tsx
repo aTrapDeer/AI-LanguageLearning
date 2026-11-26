@@ -47,7 +47,7 @@ export function StepFeedback({ step, result, language, showRomanization, variant
   const display = answerDisplay(step, result, variant);
   const answerNode = display.text ? (
     display.isTarget ? (
-      <TargetText text={display.text} language={language} romanization={display.romanization ?? null} showRomanization={showRomanization} className="font-bold" />
+      <TargetText text={display.text} language={language} romanization={display.romanization ?? null} showRomanization={showRomanization} align="start" className="font-bold" />
     ) : (
       <span className="font-bold">{display.text}</span>
     )

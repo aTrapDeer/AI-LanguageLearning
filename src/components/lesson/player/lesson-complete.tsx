@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { BookOpen, Map as MapIcon, RotateCcw } from "lucide-react";
-import { SessionSummary, SpeakButton, type SessionSummaryAction } from "@/components/learn";
+import { SessionSummary, type SessionSummaryAction } from "@/components/learn";
 import type { CompleteLessonResponse, StartLessonResponse } from "@/lib/lesson/api-types";
+import { cn } from "@/lib/utils";
 import { TargetText } from "../target-text";
 
 export interface LessonCompleteProps {
@@ -11,13 +12,12 @@ export interface LessonCompleteProps {
   lesson: StartLessonResponse;
   result: CompleteLessonResponse;
   bestCombo: number;
-  showRomanization: boolean;
   pathHref: string;
   onReplay: () => void;
 }
 
 /** End-of-lesson screen: stars, XP, streak, celebrations, the words added to the deck and what's next. */
-export function LessonComplete({ language, lesson, result, bestCombo, showRomanization, pathHref, onReplay }: LessonCompleteProps) {
+export function LessonComplete({ language, lesson, result, bestCombo, pathHref, onReplay }: LessonCompleteProps) {
   const activity = result.activity;
   const passed = result.stars >= 1;
   const unitHref = (unitId: string) => `/learn/journey?lang=${encodeURIComponent(language)}&unit=${encodeURIComponent(unitId)}`;
@@ -56,62 +56,54 @@ export function LessonComplete({ language, lesson, result, bestCombo, showRomani
         secondaryAction={{ label: "Practise in chat", href: chatHref }}
       >
         {result.words.length > 0 && (
-          <div className="rounded-2xl border-2 border-slate-100 p-4">
-            <div className="flex items-center justify-between gap-2">
-              <h3 className="font-bold text-slate-800">Added to your review deck</h3>
-              <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-bold text-indigo-700">{result.words.length} words</span>
-            </div>
-            <ul className="mt-3 divide-y divide-slate-100">
+          <div>
+            <h3 className="text-sm font-bold text-slate-700">
+              {result.words.length} words added to your review deck
+            </h3>
+            <ul className="mt-2 flex flex-wrap gap-2">
               {result.words.map((word) => (
-                <li key={word.word} className="flex items-center gap-3 py-2">
-                  <SpeakButton text={word.word} language={language} size="sm" />
-                  <div className="min-w-0 flex-1">
-                    <TargetText
-                      text={word.word}
-                      language={language}
-                      romanization={word.romanization}
-                      showRomanization={showRomanization}
-                      className="font-bold text-slate-900"
-                      romanizationClassName="text-xs text-slate-500"
-                      as="div"
-                    />
-                  </div>
-                  <span className="text-right text-sm text-slate-600">{word.translation}</span>
-                  {word.missed && (
-                    <span title="Due for review now" className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase text-amber-800">
-                      Review
-                    </span>
+                <li
+                  key={word.word}
+                  title={word.missed ? `${word.translation} — due for review now` : word.translation}
+                  className={cn(
+                    "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-sm",
+                    word.missed ? "border-amber-300 bg-amber-50" : "border-slate-200 bg-slate-50"
                   )}
+                >
+                  <TargetText text={word.word} language={language} showRomanization={false} className="font-bold text-slate-900" />
+                  <span className="text-slate-500">{word.translation}</span>
                 </li>
               ))}
             </ul>
+            {missed > 0 && <p className="mt-2 text-xs text-amber-700">Highlighted words come up for review first.</p>}
           </div>
         )}
+      </SessionSummary>
 
+      <div className="mt-4 w-full max-w-md space-y-4">
         {lesson.plan.culture && (
-          <div className="mt-4 rounded-2xl bg-gradient-to-br from-sky-50 to-indigo-50 p-4 text-left">
-            <p className="text-xs font-bold uppercase tracking-wide text-indigo-600">Did you know?</p>
-            <p className="mt-1 text-sm leading-relaxed text-slate-700">{lesson.plan.culture}</p>
+          <div className="rounded-3xl bg-white/10 p-4 text-left backdrop-blur-sm">
+            <p className="text-xs font-bold uppercase tracking-wide text-amber-200">Did you know?</p>
+            <p className="mt-1 text-sm leading-relaxed text-white/90">{lesson.plan.culture}</p>
           </div>
         )}
-
-        <div className="mt-4 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-sm font-semibold">
-          <Link href={`/flashcards?lang=${encodeURIComponent(language)}`} className="inline-flex items-center gap-1 text-indigo-700 hover:underline">
+        <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 pb-2 text-sm font-semibold text-white/90">
+          <Link href={`/flashcards?lang=${encodeURIComponent(language)}`} className="inline-flex items-center gap-1 hover:underline">
             <BookOpen aria-hidden className="h-4 w-4" />
             {missed > 0 ? `Review ${missed} tricky word${missed === 1 ? "" : "s"}` : "Review words"}
           </Link>
           {passed && (
-            <button type="button" onClick={onReplay} className="inline-flex items-center gap-1 text-indigo-700 hover:underline">
+            <button type="button" onClick={onReplay} className="inline-flex items-center gap-1 hover:underline">
               <RotateCcw aria-hidden className="h-4 w-4" />
               Replay unit
             </button>
           )}
-          <Link href={pathHref} className="inline-flex items-center gap-1 text-slate-600 hover:underline">
+          <Link href={pathHref} className="inline-flex items-center gap-1 hover:underline">
             <MapIcon aria-hidden className="h-4 w-4" />
             Your path
           </Link>
         </div>
-      </SessionSummary>
+      </div>
     </div>
   );
 }

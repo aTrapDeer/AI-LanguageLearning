@@ -9,7 +9,7 @@ const LINES: Record<number, string> = { 3: "3 in a row!", 5: "5 in a row — on 
 export function ComboBurst({ combo }: { combo: number | null }) {
   const reduceMotion = usePrefersReducedMotion();
   return (
-    <div className="pointer-events-none absolute inset-x-0 top-2 z-10 flex justify-center" aria-live="polite">
+    <div className="pointer-events-none sticky bottom-2 z-10 order-last -mt-10 flex h-10 items-end justify-center" aria-live="polite">
       <AnimatePresence>
         {combo !== null && (
           <motion.div

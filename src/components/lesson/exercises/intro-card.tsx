@@ -5,6 +5,8 @@ import { useEffect } from "react";
 import { SpeakButton } from "@/components/learn";
 import { usePrefersReducedMotion } from "@/hooks/use-prefers-reduced-motion";
 import { useSpeech } from "@/hooks/use-speech";
+import { getLanguageConfig } from "@/lib/language-config";
+import { cn } from "@/lib/utils";
 import type { IntroStep } from "@/lib/lesson/types";
 import { hasUserActivation } from "../hooks";
 import { TargetText } from "../target-text";
@@ -15,6 +17,7 @@ export function IntroCard({ step, language, showRomanization }: { step: IntroSte
   const { word } = step;
   const reduceMotion = usePrefersReducedMotion();
   const { supported, speak } = useSpeech(language);
+  const rtl = Boolean(getLanguageConfig(language)?.rtl);
 
   useEffect(() => {
     if (supported && hasUserActivation()) {
@@ -29,7 +32,7 @@ export function IntroCard({ step, language, showRomanization }: { step: IntroSte
         initial={reduceMotion ? false : { opacity: 0, y: 12, rotateX: -12 }}
         animate={{ opacity: 1, y: 0, rotateX: 0 }}
         transition={{ type: "spring", stiffness: 220, damping: 22 }}
-        className="rounded-3xl bg-white p-6 text-center text-slate-900 shadow-xl sm:p-8"
+        className="my-auto rounded-3xl bg-white p-6 text-center text-slate-900 shadow-xl sm:p-8"
       >
         <div className="flex items-center justify-center gap-3">
           <TargetText
@@ -48,9 +51,10 @@ export function IntroCard({ step, language, showRomanization }: { step: IntroSte
         {word.example && (
           <div className="mt-6 rounded-2xl bg-slate-50 p-4 text-left">
             <div className="flex items-start gap-2">
-              <div className="min-w-0 flex-1">
+              <div className={cn("flex min-w-0 flex-1 flex-col", rtl ? "items-end text-right" : "items-start")}>
                 <TargetText
-                  as="p"
+                  as="div"
+                  align="start"
                   text={word.example}
                   language={language}
                   romanization={word.exampleRomanization}

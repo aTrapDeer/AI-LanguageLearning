@@ -9,6 +9,8 @@ export interface TargetTextProps {
   className?: string;
   romanizationClassName?: string;
   as?: "span" | "p" | "div";
+  /** "start" lines the reading aid up with the start of the text (right edge for RTL). */
+  align?: "center" | "start";
 }
 
 /** Target-language text with the right `lang`/`dir` (RTL for Arabic) and an optional reading aid. */
@@ -20,10 +22,12 @@ export function TargetText({
   className,
   romanizationClassName,
   as: Tag = "span",
+  align = "center",
 }: TargetTextProps) {
   const config = getLanguageConfig(language);
+  const alignment = align === "center" ? "items-center" : config?.rtl ? "items-end" : "items-start";
   return (
-    <Tag className="inline-flex flex-col items-center">
+    <Tag className={cn("inline-flex flex-col", alignment)}>
       <span lang={config?.speechLocale ?? language} dir={config?.rtl ? "rtl" : "auto"} className={cn("break-words", className)}>
         {text}
       </span>

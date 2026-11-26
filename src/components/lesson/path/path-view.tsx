@@ -138,7 +138,7 @@ export function PathView({ language, notice }: { language: string; notice?: stri
   return (
     <div className="relative isolate min-h-full text-white">
       <BrandBackground className="-z-10 fixed" />
-      <div className="mx-auto w-full max-w-md px-4 pb-2 pt-4 sm:pt-8">{body}</div>
+      <div className="mx-auto w-full max-w-md px-4 pb-2 pt-[4.5rem] md:pt-24">{body}</div>
     </div>
   );
 }
