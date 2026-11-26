@@ -15,6 +15,7 @@
 
 # next.js
 /.next/
+/.next-*/
 /out/
 
 # production
@@ -56,14 +57,7 @@ ecs-task-definition.json
 task-role-trust-policy.json
 trust-policy.json
 
-agent-api-python/env/*
-agent-api-python/env/
-agent-api-python/venv/*
-agent-api-python/venv/
-agent-api-python/.vscode/*
-agent-api-python/.vscode/
-agent-api-python/__pycache__/*
-agent-api-python/__pycache__/*
-
-migration.sql
-/migration.sql
+# local databases
+*.db
+*.db-shm
+*.db-wal
