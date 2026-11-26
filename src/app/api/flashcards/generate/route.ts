@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import OpenAI from 'openai';
+import { enforceAiQuota, requireUser } from '@/lib/api-auth';
 
 // Configure route segment
 export const maxDuration = 30;
@@ -62,6 +63,12 @@ type FlashcardResponse = {
 
 export async function POST(req: Request) {
   try {
+    const auth = await requireUser();
+    if (!auth.ok) return auth.response;
+
+    const limited = await enforceAiQuota(auth.userId, "text");
+    if (limited) return limited;
+
     const { language, level } = await req.json();
 
     // Validate input

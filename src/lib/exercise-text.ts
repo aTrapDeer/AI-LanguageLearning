@@ -26,6 +26,18 @@ export function normalizeTokenForComparison(token: string) {
   return cleaned.length > 0 ? cleaned.toLocaleLowerCase() : token.trim().toLocaleLowerCase();
 }
 
+/**
+ * Key used to de-duplicate vocabulary per learner: Unicode-normalised, case-folded, whitespace
+ * collapsed and surrounding punctuation removed ("  Hallo! " and "hallo" are the same word).
+ */
+export function normalizeVocabularyKey(word: string) {
+  return word
+    .normalize("NFKC")
+    .replace(/\s+/g, " ")
+    .replace(/^[\p{P}\p{S}\s]+|[\p{P}\p{S}\s]+$/gu, "")
+    .toLocaleLowerCase();
+}
+
 export function tokenizeExerciseText(text: string, language?: string) {
   const normalized = text.replace(/\s+/g, " ").trim();
   if (!normalized) {

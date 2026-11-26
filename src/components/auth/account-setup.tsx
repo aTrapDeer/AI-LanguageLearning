@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { motion, AnimatePresence } from "framer-motion"
 import { ChevronRight, Check, Languages, Star, Trophy, Sparkles, Brain, BookOpen } from "lucide-react"
 import { SUPPORTED_LANGUAGES } from "@/lib/language-config"
+import { getCefrBand, ONBOARDING_PROFICIENCY_OPTIONS } from "@/lib/levels"
 
 // Available languages with their icon colors
 const LANGUAGE_CARD_STYLES: Record<string, string> = {
@@ -27,56 +28,24 @@ const LANGUAGES = SUPPORTED_LANGUAGES.map((language) => ({
   color: LANGUAGE_CARD_STYLES[language.code],
 }));
 
-// Proficiency levels with engaging descriptions and visuals
-const PROFICIENCY_LEVELS = [
-  { 
-    value: "1", 
-    label: "Just Starting", 
-    description: "Know little to nothing", 
-    icon: BookOpen,
-    color: "bg-blue-50 border-blue-200",
-    activeColor: "bg-blue-100 border-blue-300",
-    emoji: "🌱"
-  },
-  { 
-    value: "2", 
-    label: "Beginner", 
-    description: "Understand some basics", 
-    icon: Brain,
-    color: "bg-green-50 border-green-200",
-    activeColor: "bg-green-100 border-green-300",
-    emoji: "🚀"
-  },
-  { 
-    value: "3", 
-    label: "Intermediate", 
-    description: "Can hold basic conversations", 
-    icon: Star,
-    color: "bg-yellow-50 border-yellow-200",
-    activeColor: "bg-yellow-100 border-yellow-300",
-    emoji: "🔆"
-  },
-  { 
-    value: "4", 
-    label: "Advanced", 
-    description: "Comfortable but not yet fluent", 
-    icon: Trophy,
-    color: "bg-orange-50 border-orange-200",
-    activeColor: "bg-orange-100 border-orange-300",
-    emoji: "🏆"
-  },
-  { 
-    value: "5", 
-    label: "Fluent", 
-    description: "Can handle complex conversations", 
-    icon: Sparkles,
-    color: "bg-purple-50 border-purple-200",
-    activeColor: "bg-purple-100 border-purple-300",
-    emoji: "✨"
-  }
+// Visual styling for the five onboarding self-assessment choices (labels and level mapping live in levels.ts).
+const PROFICIENCY_STYLES = [
+  { icon: BookOpen, color: "bg-blue-50 border-blue-200", activeColor: "bg-blue-100 border-blue-300", emoji: "🌱" },
+  { icon: Brain, color: "bg-green-50 border-green-200", activeColor: "bg-green-100 border-green-300", emoji: "🚀" },
+  { icon: Star, color: "bg-yellow-50 border-yellow-200", activeColor: "bg-yellow-100 border-yellow-300", emoji: "🔆" },
+  { icon: Trophy, color: "bg-orange-50 border-orange-200", activeColor: "bg-orange-100 border-orange-300", emoji: "🏆" },
+  { icon: Sparkles, color: "bg-purple-50 border-purple-200", activeColor: "bg-purple-100 border-purple-300", emoji: "✨" },
 ]
 
-export function AccountSetup({ userId }: { userId: string }) {
+const PROFICIENCY_LEVELS = ONBOARDING_PROFICIENCY_OPTIONS.map((option, index) => ({
+  value: option.choice,
+  label: option.label,
+  description: option.description,
+  cefr: getCefrBand(option.level),
+  ...PROFICIENCY_STYLES[index],
+}))
+
+export function AccountSetup() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const isAddLanguageFlow = searchParams.get("mode") === "add-language"
@@ -250,12 +219,6 @@ export function AccountSetup({ userId }: { userId: string }) {
     setError(null)
 
     try {
-      console.log("Submitting account setup with data:", {
-        userId,
-        selectedLanguages,
-        activeLanguage,
-        proficiencyLevels
-      });
       
       const response = await fetch("/api/user/account-setup", {
         method: "POST",
@@ -263,7 +226,6 @@ export function AccountSetup({ userId }: { userId: string }) {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          userId,
           learningLanguages: selectedLanguages,
           activeLanguage,
           proficiencyLevels: proficiencyLevels
@@ -277,7 +239,6 @@ export function AccountSetup({ userId }: { userId: string }) {
         throw new Error(data.error || "Failed to complete account setup")
       }
 
-      console.log("Account setup successful:", data);
       
       // Redirect based on setup type
       if (isLanguageSetup && setupLanguageCode) {
@@ -524,6 +485,9 @@ export function AccountSetup({ userId }: { userId: string }) {
                             >
                               {level.label}
                             </Label>
+                            <span className="ml-2 rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-semibold text-indigo-700">
+                              {level.cefr}
+                            </span>
                           </div>
                           <p className="text-gray-600 mt-1">{level.description}</p>
                           

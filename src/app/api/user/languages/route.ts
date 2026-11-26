@@ -1,59 +1,42 @@
-import { getServerSession } from "next-auth"
-import { NextResponse } from "next/server"
-import { authOptions } from "@/lib/auth"
-import { db } from "@/lib/db"
-import { isSupportedLanguageCode } from "@/lib/language-config"
+import { NextResponse } from "next/server";
+import { jsonError, requireUser } from "@/lib/api-auth";
+import { ensureProgress, getUserById, toPublicUser, updateUser } from "@/lib/database";
+import { isSupportedLanguageCode } from "@/lib/language-config";
 
 export async function POST(req: Request) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
-      return new NextResponse("Unauthorized", { status: 401 })
-    }
+    const auth = await requireUser();
+    if (!auth.ok) return auth.response;
 
-    const body = await req.json()
-    const { language } = body
+    const body = (await req.json().catch(() => null)) as { language?: unknown } | null;
+    const language = body?.language;
 
     if (!language) {
-      return new NextResponse("Language is required", { status: 400 })
+      return jsonError(400, "Language is required");
     }
 
     if (!isSupportedLanguageCode(language)) {
-      return NextResponse.json({ error: "Unsupported language" }, { status: 400 })
+      return jsonError(400, "Unsupported language");
     }
 
-    // Check if user already has this language
-    const existingUser = await db.user.findUnique({
-      where: { id: session.user.id }
-    })
-
-    if (existingUser?.learningLanguages?.includes(language)) {
-      return NextResponse.json({ message: "Language already added" }, { status: 200 })
+    const existingUser = await getUserById(auth.userId);
+    if (!existingUser) {
+      return jsonError(404, "User not found");
     }
 
-    // Add language to user's learning languages
-    const user = await db.user.update({
-      where: { id: session.user.id },
-      data: {
-        learningLanguages: existingUser?.learningLanguages ? 
-          [...existingUser.learningLanguages, language] : 
-          [language]
-      }
-    })
+    if (existingUser.learningLanguages.includes(language)) {
+      return NextResponse.json({ message: "Language already added" }, { status: 200 });
+    }
 
-    // Create initial progress record
-    await db.progress.create({
-      data: {
-        userId: session.user.id,
-        language,
-        level: 1,
-        xp: 0
-      }
-    })
+    const user = await updateUser(auth.userId, {
+      learningLanguages: [...existingUser.learningLanguages, language],
+    });
 
-    return NextResponse.json(user)
+    await ensureProgress(auth.userId, language, 1);
+
+    return NextResponse.json(user ? toPublicUser(user) : null);
   } catch (error) {
-    console.error("[LANGUAGES_POST]", error instanceof Error ? error.message : error)
-    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 })
+    console.error("[LANGUAGES_POST]", error);
+    return jsonError(500, "Internal Server Error");
   }
-} 
+}

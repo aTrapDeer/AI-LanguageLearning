@@ -77,18 +77,12 @@ export function AuthForm({ mode }: AuthFormProps) {
     try {
       setLoading(true)
       setError(null)
-      
-      console.log("Starting Google sign in process...")
 
-      // Try to sign in with Google with explicit options
-      const result = await signIn("google", {
+      await signIn("google", {
         callbackUrl: new URL(postLoginPath, window.location.origin).toString(),
         redirect: true,
         prompt: "select_account"
       })
-      
-      console.log("Sign in result:", result);
-      
     } catch (err) {
       console.error("Google sign in error:", err)
       setError("Failed to sign in with Google. Please try again.")

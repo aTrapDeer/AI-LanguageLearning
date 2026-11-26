@@ -1,59 +1,73 @@
-# Laingfy - AI-Powered Language Learning Platform
+# Laingfy - AI-Powered Language Learning
 
-Laingfy is an innovative language learning platform that leverages artificial intelligence to provide personalized, interactive language learning experiences. Our platform offers real-time conversation practice, pronunciation feedback, and adaptive learning paths tailored to each user's needs.
+Laingfy is a language-learning web app (mobile-first) that uses OpenAI models to generate practice
+content and hold conversations in the language you are learning.
 
-## Features
+Languages: German, Brazilian Portuguese, Chinese (Mandarin), Norwegian, Korean and Arabic
+(defined once in `src/lib/language-config.ts`).
 
-- **AI Conversation Practice**: Engage in natural conversations with our AI language tutors
-- **Speech Recognition**: Get real-time pronunciation feedback
-- **Visual Learning**: Practice describing AI-generated images in your target language
-- **Personalized Learning**: Content adapted to your interests and skill level
-- **Multiple Languages**: Support for German, Brazilian Portuguese, Chinese, Norwegian, and more coming soon
+## What's in the app today
 
-## Getting Started
+- **Onboarding** – pick languages and a starting level; levels use one 1–10 scale mapped to CEFR bands.
+- **Journey mode** – generated exercise rounds (sentence building, fill-in-the-blank, vocabulary).
+- **Flashcards** – generated vocabulary decks for your level.
+- **Conversation practice** – text and voice chat with an AI tutor, with spoken replies.
+- **Travel mode** – live speech translation and reply suggestions for real-world situations.
 
-1. Clone the repository
-2. Install dependencies:
-```bash
-npm install
-```
-3. Copy `.env.example` to `.env.local` and fill in your values.
-4. Create a Turso database and add:
-   - `TURSO_DATABASE_URL`
-   - `TURSO_AUTH_TOKEN`
-   - `AUTH_SECRET` / `NEXTAUTH_SECRET`
-5. Add `OPENAI_API_KEY` and the optional provider/service keys you plan to use.
-6. Run the development server:
-```bash
-npm run dev:all
-```
+The data layer also contains the foundations for a structured curriculum, spaced-repetition review,
+XP/streaks and tutor memory (`src/lib/curriculum.ts`, `src/lib/srs.ts`, `src/lib/gamification.ts`,
+`src/lib/db/*`), which the learning screens are being moved onto.
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to start learning!
+## Tech stack
 
-## Technology Stack
+- Next.js 15 (App Router) with React 18 and TypeScript
+- Tailwind CSS 3, shadcn-style components (`src/components/ui`), framer-motion
+- NextAuth v4 (credentials, optional Google OAuth) with JWT sessions
+- Turso / libSQL via `@libsql/client` (hand-written queries, schema auto-migrated)
+- OpenAI (chat completions, text-to-speech, transcription, Realtime API for voice)
+- AWS S3 for storing generated chat audio
+- Vitest for unit and database tests
 
-- React 19 with TypeScript
-- Tailwind CSS for styling
-- LiveKit for real-time audio processing
-- OpenAI for natural language processing
-- Turso (libSQL) for application data, auth data, and logging
-- NextAuth.js `4.24.13` for authentication
-- Redis for realtime and supporting services
+## Getting started
 
-## Authentication Notes
+1. Install dependencies:
+   ```bash
+   npm install
+   ```
+2. Copy `.env.example` to `.env.local` and fill in:
+   - `TURSO_DATABASE_URL` / `TURSO_AUTH_TOKEN` – or, for local development, a SQLite file:
+     `TURSO_DATABASE_URL="file:/absolute/path/to/dev.db"` (no token needed)
+   - `AUTH_SECRET` and `NEXTAUTH_SECRET` (same value), `NEXTAUTH_URL`
+   - `OPENAI_API_KEY` for any AI feature
+   - `AWS_*` variables if you want spoken chat replies stored in S3
+3. Start the dev server:
+   ```bash
+   npm run dev
+   ```
+   Open [http://localhost:3000](http://localhost:3000).
 
-- Email/password auth is enabled out of the box.
-- Google OAuth is optional and only activates when `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are set.
-- User, account, session, verification token, progress, learning, and chat records are stored in Turso.
+The database schema is created automatically on first use; see [TURSO-SETUP.md](./TURSO-SETUP.md).
 
-## Database Notes
+## Scripts
 
-- The app initializes its required Turso tables automatically on first use.
-- Chat history and learning progress are now written to Turso instead of Supabase.
+| Command | What it does |
+| --- | --- |
+| `npm run dev` | Start the Next.js dev server |
+| `npm run build` / `npm start` | Production build / serve it |
+| `npm run lint` | ESLint (Next.js config) |
+| `npm run typecheck` | `tsc --noEmit` |
+| `npm test` | Run the Vitest suite once (`npm run test:watch` to watch) |
+| `npm run db:init` | Create/migrate the database schema and print table counts |
 
-## Contributing
+## Notes
 
-We welcome contributions! Please see our contributing guidelines for more details.
+- Every API route except NextAuth and `/api/register` requires a signed-in session
+  (`src/lib/api-auth.ts`); the user id always comes from the session.
+- AI routes are protected by a per-user daily quota stored in the database. Defaults can be changed
+  with `AI_DAILY_LIMIT_TEXT`, `AI_DAILY_LIMIT_SPEECH`, `AI_DAILY_LIMIT_TRANSCRIPTION` and
+  `AI_DAILY_LIMIT_REALTIME` (a value of 0 or less removes the cap).
+- Model names can be overridden with `OPENAI_TEXT_MODEL`, `OPENAI_TTS_MODEL`,
+  `OPENAI_TRANSCRIPTION_MODEL` and the `OPENAI_REALTIME_*` variables.
 
 ## License
 

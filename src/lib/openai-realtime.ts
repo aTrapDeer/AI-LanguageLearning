@@ -1,4 +1,4 @@
-import { getSupportedLanguageName, type SupportedLanguageCode } from "@/lib/language-config";
+import { getSupportedLanguageName, LANGUAGES, type SupportedLanguageCode } from "@/lib/language-config";
 
 const DEFAULT_REALTIME_MODEL = "gpt-realtime";
 const DEFAULT_REALTIME_VOICE = "alloy";
@@ -10,15 +10,6 @@ const SUPPORTED_TRANSCRIPTION_MODELS = new Set([
   "gpt-4o-mini-transcribe-2025-03-20",
   "gpt-4o-mini-transcribe-2025-12-15",
 ]);
-
-const REALTIME_TRANSCRIPTION_LANGUAGE_MAP: Record<SupportedLanguageCode, string> = {
-  de: "de",
-  "pt-BR": "pt",
-  zh: "zh",
-  no: "no",
-  ko: "ko",
-  ar: "ar",
-};
 
 type RealtimeOutputModality = "audio" | "text";
 
@@ -44,7 +35,7 @@ export function getOpenAIRealtimeConfig() {
 }
 
 export function getRealtimeTranscriptionLanguage(languageCode: SupportedLanguageCode) {
-  return REALTIME_TRANSCRIPTION_LANGUAGE_MAP[languageCode];
+  return LANGUAGES[languageCode].transcriptionCode;
 }
 
 export function buildTravelRealtimeInstructions(languageCode: SupportedLanguageCode) {

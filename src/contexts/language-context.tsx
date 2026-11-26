@@ -24,6 +24,8 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
   const [selectedLanguage, setSelectedLanguage] = useState<Language | null>(null);
   const router = useRouter();
   const { data: session } = useSession();
+  // SessionProvider hands out a new session object on every window focus; key effects on the id.
+  const userId = session?.user?.id ?? null;
 
   const getCurrentLocation = () => {
     const { pathname, search } = window.location;
@@ -69,7 +71,7 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
       let languageToSet = savedLanguage ? JSON.parse(savedLanguage) : languages[0];
 
       // If user is authenticated, try to get their active language from the database
-      if (session?.user) {
+      if (userId) {
         try {
           const response = await fetch('/api/user/active-language');
           if (response.ok) {
@@ -91,7 +93,7 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     };
 
     initializeLanguage();
-  }, [session]);
+  }, [userId]);
 
   useEffect(() => {
     const syncSelectedLanguage = () => {
@@ -117,14 +119,13 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const setLanguage = async (language: Language) => {
-    if (session?.user) {
+    if (userId) {
       try {
         // Check if user has progress for this language
         const progressResponse = await fetch(`/api/user/progress/check?language=${language.code}`);
 
         if (progressResponse.status === 404 || progressResponse.status === 406) {
           // No progress found for this language - redirect to account setup
-          console.log(`No progress found for language ${language.code}, redirecting to setup`);
 
           // Keep legacy storage flags as a fallback while using an explicit add-language route.
           localStorage.setItem('setupLanguage', language.code);

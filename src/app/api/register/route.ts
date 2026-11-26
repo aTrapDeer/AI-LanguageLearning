@@ -1,104 +1,63 @@
-import { hash } from "bcryptjs"
-import { NextResponse } from "next/server"
-import { db } from "@/lib/db"
-import { z } from "zod"
-import { SUPPORTED_LANGUAGE_CODES } from "@/lib/language-config"
+import { hash } from "bcryptjs";
+import { NextResponse } from "next/server";
+import { z } from "zod";
+import { createUser, ensureProgress, getUserByEmail, toPublicUser } from "@/lib/database";
+import { SUPPORTED_LANGUAGE_CODES } from "@/lib/language-config";
 
-// Validation schema
 const registerSchema = z.object({
-  name: z.string().min(2, "Name must be at least 2 characters"),
-  email: z.string().email("Invalid email address"),
+  name: z.string().trim().min(2, "Name must be at least 2 characters").max(80),
+  email: z.string().trim().email("Invalid email address"),
   password: z
     .string()
     .min(8, "Password must be at least 8 characters")
+    .max(200)
     .regex(
       /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/,
       "Password must contain at least one uppercase letter, one lowercase letter, and one number"
     ),
-  nativeLanguage: z.string().optional().default("en"),
+  nativeLanguage: z.string().max(40).optional().default("en"),
   learningLanguages: z.array(z.enum(SUPPORTED_LANGUAGE_CODES)).optional().default([]),
-  accountSetup: z.boolean().optional().default(false),
-})
+});
 
+// Public by design: this is how accounts are created.
 export async function POST(req: Request) {
   try {
-    const body = await req.json()
-    
-    // Validate input
-    const result = registerSchema.safeParse(body)
+    const result = registerSchema.safeParse(await req.json().catch(() => null));
     if (!result.success) {
-      return NextResponse.json(
-        { error: result.error.issues[0].message },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: result.error.issues[0].message }, { status: 400 });
     }
 
-    const { name, email, password, nativeLanguage, learningLanguages, accountSetup } = result.data
+    const { name, email, password, nativeLanguage, learningLanguages } = result.data;
 
-    // Check if email already exists
-    const existingUser = await db.user.findUnique({
-      where: { email },
-    })
-
-    if (existingUser) {
-      return NextResponse.json(
-        { error: "Email already exists" },
-        { status: 400 }
-      )
+    if (await getUserByEmail(email)) {
+      return NextResponse.json({ error: "Email already exists" }, { status: 400 });
     }
 
-    // Hash password with high cost factor for security
-    const hashedPassword = await hash(password, 12)
+    const newUser = await createUser({
+      name,
+      email,
+      password: await hash(password, 12),
+      nativeLanguage,
+      learningLanguages,
+      activeLanguage: learningLanguages[0] ?? "en",
+      // Onboarding (language + level choice) always happens in /account-setup.
+      accountSetup: false,
+    });
 
-    // Determine active language (first learning language or native language)
-    const activeLanguage = learningLanguages.length > 0 ? learningLanguages[0] : "en"
+    await Promise.all(learningLanguages.map((language) => ensureProgress(newUser.id, language, 1)));
 
-    // Create the user first, then handle related records
-    // Note: Without transactions, this is not atomic, but we'll handle it sequentially
-    const newUser = await db.user.create({
-      data: {
-        name,
-        email,
-        password: hashedPassword,
-        nativeLanguage,
-        learningLanguages,
-        activeLanguage,
-        // Use type assertion to work around type checking
-        ...(accountSetup !== undefined ? { accountSetup } : { accountSetup: false }),
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      } as any,
-    })
-
-    // Create initial progress records for each learning language
-    if (learningLanguages && learningLanguages.length > 0) {
-      await Promise.all(
-        learningLanguages.map((language: string) =>
-          db.progress.create({
-            data: {
-              userId: newUser.id,
-              language,
-              level: 1,
-              xp: 0,
-            },
-          })
-        )
-      )
-    }
-
+    const user = toPublicUser(newUser);
     return NextResponse.json({
       user: {
-        id: newUser.id,
-        name: newUser.name,
-        email: newUser.email,
-        nativeLanguage: newUser.nativeLanguage,
-        learningLanguages: newUser.learningLanguages,
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        nativeLanguage: user.nativeLanguage,
+        learningLanguages: user.learningLanguages,
       },
-    })
+    });
   } catch (error) {
-    console.error("Registration error:", error)
-    return NextResponse.json(
-      { error: "Error creating user" },
-      { status: 500 }
-    )
+    console.error("Registration error:", error);
+    return NextResponse.json({ error: "Error creating user" }, { status: 500 });
   }
-} 
+}

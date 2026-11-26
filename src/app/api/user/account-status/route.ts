@@ -1,42 +1,21 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { jsonError, requireUser } from "@/lib/api-auth";
 import { getAccountSetupStatus } from "@/lib/database";
 
+/** Setup status of the signed-in user. A `userId` query parameter, if sent, must match the session. */
 export async function GET(req: Request) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session || !session.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const auth = await requireUser();
+    if (!auth.ok) return auth.response;
+
+    const requestedUserId = new URL(req.url).searchParams.get("userId");
+    if (requestedUserId && requestedUserId !== auth.userId) {
+      return jsonError(403, "You don't have permission to access this account");
     }
 
-    const url = new URL(req.url);
-    const userId = url.searchParams.get("userId");
-
-    if (!userId) {
-      return NextResponse.json({ error: "User ID is required" }, { status: 400 });
-    }
-
-    if (userId !== session.user.id) {
-      return NextResponse.json(
-        { error: "You don't have permission to access this account" },
-        { status: 403 }
-      );
-    }
-
-    const accountSetup = await getAccountSetupStatus(userId);
-
-    const response = NextResponse.json({ accountSetup });
-    response.headers.append("Access-Control-Allow-Origin", "*");
-    response.headers.append("Access-Control-Allow-Methods", "GET, OPTIONS");
-    response.headers.append("Access-Control-Allow-Headers", "Content-Type, Authorization");
-
-    return response;
+    return NextResponse.json({ accountSetup: await getAccountSetupStatus(auth.userId) });
   } catch (error) {
     console.error("Error checking account status:", error);
-    return NextResponse.json(
-      { error: "Error checking account status" },
-      { status: 500 }
-    );
+    return jsonError(500, "Error checking account status");
   }
-} 
+}

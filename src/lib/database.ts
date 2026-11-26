@@ -1,21 +1,60 @@
-import { createClient, type InArgs } from "@libsql/client";
 import type { AdapterAccount, AdapterSession, AdapterUser, VerificationToken } from "next-auth/adapters";
+import { clampLevel, onboardingChoiceToLevel } from "./levels";
+import {
+  asBoolean,
+  asNumber,
+  asRequiredString,
+  asString,
+  createId,
+  ensureDatabaseSchema,
+  execute,
+  getFirstRow,
+  getRows,
+  nowIso,
+  parseStringArray,
+  type DbRow,
+} from "./db/client";
+import { getProgress, mapProgress } from "./db/progress";
+import { DATABASE_TABLES } from "./db/schema";
 
-type DbRow = Record<string, unknown>;
+/*
+ * Data access entry point. Users/auth/progress live here; the learning domain is split into
+ * ./db/* modules and re-exported below so callers can import everything from "@/lib/database".
+ * Server-only: never import this from a client component.
+ */
+export * from "./db/progress";
+export * from "./db/vocabulary";
+export * from "./db/lessons";
+export * from "./db/activity";
+export * from "./db/chat";
+export * from "./db/mistakes";
+export * from "./db/quota";
+export * from "./db/summary";
 
 export interface DatabaseUser {
   id: string;
   name: string | null;
   email: string;
+  /** bcrypt hash. Never send this to a client; use {@link toPublicUser}. */
   password: string | null;
   nativeLanguage: string;
   activeLanguage: string;
   learningLanguages: string[];
   accountSetup: boolean;
+  /** Null means "use the default daily goal". */
+  dailyXpGoal: number | null;
   emailVerified: Date | null;
   image: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export type PublicUser = Omit<DatabaseUser, "password"> & { hasPassword: boolean };
+
+/** The only user shape routes may return. Strips the password hash. */
+export function toPublicUser(user: DatabaseUser): PublicUser {
+  const { password, ...rest } = user;
+  return { ...rest, hasPassword: Boolean(password) };
 }
 
 export interface CreateUserInput {
@@ -42,57 +81,11 @@ export interface UpdateUserInput {
   image?: string | null;
 }
 
-export interface DatabaseProgress {
-  id: string;
-  userId: string;
-  language: string;
-  level: number;
-  xp: number;
-  createdAt: string;
-  updatedAt: string;
-}
-
 export interface CreateProgressInput {
   userId: string;
   language: string;
   level?: number;
   xp?: number;
-}
-
-export interface UpdateProgressInput {
-  level?: number;
-  xp?: number;
-}
-
-export interface DatabaseLearning {
-  id: string;
-  userId: string;
-  language: string;
-  word: string;
-  translation: string;
-  difficulty: number;
-  lastRecalled: string;
-  nextReview: string;
-  successCount: number;
-  failureCount: number;
-  notes: string | null;
-  tags: string[];
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface CreateLearningInput {
-  userId: string;
-  language: string;
-  word: string;
-  translation: string;
-  difficulty?: number;
-  lastRecalled?: string;
-  nextReview: string;
-  successCount?: number;
-  failureCount?: number;
-  notes?: string | null;
-  tags?: string[];
 }
 
 export interface DatabaseChat {
@@ -116,66 +109,8 @@ export interface CreateChatInput {
 export interface AccountSetupInput {
   learningLanguages: string[];
   activeLanguage?: string;
+  /** Onboarding self-assessment per language: "1".."5", mapped to levels 1/3/5/7/9. */
   proficiencyLevels?: Record<string, string>;
-}
-
-let tursoClient: ReturnType<typeof createClient> | null = null;
-
-let schemaPromise: Promise<void> | null = null;
-
-function nowIso() {
-  return new Date().toISOString();
-}
-
-function createId() {
-  return crypto.randomUUID();
-}
-
-function asString(value: unknown) {
-  if (value === null || value === undefined) {
-    return null;
-  }
-
-  return String(value);
-}
-
-function asRequiredString(value: unknown, field: string) {
-  const stringValue = asString(value);
-  if (!stringValue) {
-    throw new Error(`Missing required database field: ${field}`);
-  }
-
-  return stringValue;
-}
-
-function asNumber(value: unknown, fallback = 0) {
-  if (typeof value === "number") {
-    return value;
-  }
-
-  if (typeof value === "bigint") {
-    return Number(value);
-  }
-
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : fallback;
-}
-
-function asBoolean(value: unknown) {
-  return value === true || value === 1 || value === "1";
-}
-
-function parseStringArray(value: unknown) {
-  if (typeof value !== "string" || value.trim() === "") {
-    return [] as string[];
-  }
-
-  try {
-    const parsed = JSON.parse(value) as unknown;
-    return Array.isArray(parsed) ? parsed.map((item) => String(item)) : [];
-  } catch {
-    return [];
-  }
 }
 
 function stringifyArray(values: string[] | undefined) {
@@ -193,6 +128,8 @@ function normalizeLanguages(values: string[]) {
 }
 
 function mapUser(row: DbRow): DatabaseUser {
+  const dailyXpGoal = row.daily_xp_goal === null || row.daily_xp_goal === undefined ? null : asNumber(row.daily_xp_goal);
+
   return {
     id: asRequiredString(row.id, "users.id"),
     name: asString(row.name),
@@ -202,41 +139,11 @@ function mapUser(row: DbRow): DatabaseUser {
     activeLanguage: asString(row.active_language) ?? "en",
     learningLanguages: parseStringArray(row.learning_languages),
     accountSetup: asBoolean(row.account_setup),
+    dailyXpGoal: dailyXpGoal && dailyXpGoal > 0 ? dailyXpGoal : null,
     emailVerified: row.email_verified ? new Date(asRequiredString(row.email_verified, "users.email_verified")) : null,
     image: asString(row.image),
     createdAt: asRequiredString(row.created_at, "users.created_at"),
     updatedAt: asRequiredString(row.updated_at, "users.updated_at"),
-  };
-}
-
-function mapProgress(row: DbRow): DatabaseProgress {
-  return {
-    id: asRequiredString(row.id, "progress.id"),
-    userId: asRequiredString(row.user_id, "progress.user_id"),
-    language: asRequiredString(row.language, "progress.language"),
-    level: asNumber(row.level, 1),
-    xp: asNumber(row.xp, 0),
-    createdAt: asRequiredString(row.created_at, "progress.created_at"),
-    updatedAt: asRequiredString(row.updated_at, "progress.updated_at"),
-  };
-}
-
-function mapLearning(row: DbRow): DatabaseLearning {
-  return {
-    id: asRequiredString(row.id, "learning.id"),
-    userId: asRequiredString(row.user_id, "learning.user_id"),
-    language: asRequiredString(row.language, "learning.language"),
-    word: asRequiredString(row.word, "learning.word"),
-    translation: asRequiredString(row.translation, "learning.translation"),
-    difficulty: asNumber(row.difficulty, 0),
-    lastRecalled: asRequiredString(row.last_recalled, "learning.last_recalled"),
-    nextReview: asRequiredString(row.next_review, "learning.next_review"),
-    successCount: asNumber(row.success_count, 0),
-    failureCount: asNumber(row.failure_count, 0),
-    notes: asString(row.notes),
-    tags: parseStringArray(row.tags),
-    createdAt: asRequiredString(row.created_at, "learning.created_at"),
-    updatedAt: asRequiredString(row.updated_at, "learning.updated_at"),
   };
 }
 
@@ -280,136 +187,14 @@ function mapVerificationToken(row: DbRow): VerificationToken {
   };
 }
 
-async function ensureDatabaseSchema() {
-  if (!schemaPromise) {
-    schemaPromise = (async () => {
-      const client = getTursoClient();
-      const statements = [
-        `CREATE TABLE IF NOT EXISTS users (
-          id TEXT PRIMARY KEY,
-          name TEXT,
-          email TEXT NOT NULL UNIQUE,
-          password TEXT,
-          native_language TEXT NOT NULL DEFAULT 'English',
-          active_language TEXT NOT NULL DEFAULT 'en',
-          learning_languages TEXT NOT NULL DEFAULT '[]',
-          account_setup INTEGER NOT NULL DEFAULT 0,
-          email_verified TEXT,
-          image TEXT,
-          created_at TEXT NOT NULL,
-          updated_at TEXT NOT NULL
-        )`,
-        `CREATE TABLE IF NOT EXISTS accounts (
-          id TEXT PRIMARY KEY,
-          user_id TEXT NOT NULL,
-          type TEXT NOT NULL,
-          provider TEXT NOT NULL,
-          provider_account_id TEXT NOT NULL,
-          refresh_token TEXT,
-          access_token TEXT,
-          expires_at INTEGER,
-          token_type TEXT,
-          scope TEXT,
-          id_token TEXT,
-          session_state TEXT,
-          created_at TEXT NOT NULL,
-          updated_at TEXT NOT NULL,
-          UNIQUE(provider, provider_account_id),
-          FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
-        )`,
-        `CREATE TABLE IF NOT EXISTS sessions (
-          id TEXT PRIMARY KEY,
-          session_token TEXT NOT NULL UNIQUE,
-          user_id TEXT NOT NULL,
-          expires TEXT NOT NULL,
-          created_at TEXT NOT NULL,
-          updated_at TEXT NOT NULL,
-          FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
-        )`,
-        `CREATE TABLE IF NOT EXISTS verification_tokens (
-          identifier TEXT NOT NULL,
-          token TEXT NOT NULL UNIQUE,
-          expires TEXT NOT NULL,
-          UNIQUE(identifier, token)
-        )`,
-        `CREATE TABLE IF NOT EXISTS progress (
-          id TEXT PRIMARY KEY,
-          user_id TEXT NOT NULL,
-          language TEXT NOT NULL,
-          level INTEGER NOT NULL DEFAULT 1,
-          xp INTEGER NOT NULL DEFAULT 0,
-          created_at TEXT NOT NULL,
-          updated_at TEXT NOT NULL,
-          UNIQUE(user_id, language),
-          FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
-        )`,
-        `CREATE TABLE IF NOT EXISTS learning (
-          id TEXT PRIMARY KEY,
-          user_id TEXT NOT NULL,
-          language TEXT NOT NULL,
-          word TEXT NOT NULL,
-          translation TEXT NOT NULL,
-          difficulty INTEGER NOT NULL DEFAULT 0,
-          last_recalled TEXT NOT NULL,
-          next_review TEXT NOT NULL,
-          success_count INTEGER NOT NULL DEFAULT 0,
-          failure_count INTEGER NOT NULL DEFAULT 0,
-          notes TEXT,
-          tags TEXT NOT NULL DEFAULT '[]',
-          created_at TEXT NOT NULL,
-          updated_at TEXT NOT NULL,
-          FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
-        )`,
-        `CREATE TABLE IF NOT EXISTS chats (
-          id TEXT PRIMARY KEY,
-          user_id TEXT NOT NULL,
-          language TEXT NOT NULL,
-          message TEXT NOT NULL,
-          response TEXT NOT NULL,
-          audio_url TEXT,
-          created_at TEXT NOT NULL,
-          FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
-        )`,
-        `CREATE INDEX IF NOT EXISTS idx_progress_user_id ON progress(user_id)`,
-        `CREATE INDEX IF NOT EXISTS idx_learning_user_language ON learning(user_id, language)`,
-        `CREATE INDEX IF NOT EXISTS idx_chats_user_language_created_at ON chats(user_id, language, created_at DESC)`,
-      ];
-
-      for (const statement of statements) {
-        await client.execute(statement);
-      }
-    })();
-  }
-
-  await schemaPromise;
-}
-
 export async function initializeDatabaseSchema() {
   await ensureDatabaseSchema();
 }
 
-async function execute(sql: string, args: InArgs = []) {
-  await ensureDatabaseSchema();
-  return getTursoClient().execute({ sql, args });
-}
-
-async function getFirstRow(sql: string, args: InArgs = []) {
-  const result = await execute(sql, args);
-  return (result.rows[0] as DbRow | undefined) ?? null;
-}
-
-async function getRows(sql: string, args: InArgs = []) {
-  const result = await execute(sql, args);
-  return result.rows as DbRow[];
-}
-
 export async function getDatabaseTableCounts() {
-  await ensureDatabaseSchema();
-
-  const tableNames = ["users", "accounts", "sessions", "verification_tokens", "progress", "learning", "chats"] as const;
   const counts: Record<string, number> = {};
 
-  for (const tableName of tableNames) {
+  for (const tableName of DATABASE_TABLES) {
     const row = await getFirstRow(`SELECT COUNT(*) AS count FROM ${tableName}`);
     counts[tableName] = asNumber(row?.count, 0);
   }
@@ -515,13 +300,11 @@ export async function updateUser(id: string, updates: UpdateUserInput) {
   return getUserById(id);
 }
 
-export async function getProgress(userId: string, language: string) {
-  const row = await getFirstRow(
-    "SELECT * FROM progress WHERE user_id = ? AND language = ? LIMIT 1",
-    [userId, language]
-  );
-
-  return row ? mapProgress(row) : null;
+/** Sets the learner's daily XP goal (null resets to the default). */
+export async function setDailyXpGoal(userId: string, goal: number | null) {
+  const value = goal === null ? null : Math.max(1, Math.min(500, Math.round(goal)));
+  await execute("UPDATE users SET daily_xp_goal = ?, updated_at = ? WHERE id = ?", [value, nowIso(), userId]);
+  return getUserById(userId);
 }
 
 export async function getAllUserProgress(userId: string) {
@@ -533,23 +316,26 @@ export async function getAllUserProgress(userId: string) {
   return rows.map(mapProgress);
 }
 
+/**
+ * Creates the (user, language) progress row, or updates its level if it exists.
+ * XP is never lowered here: an existing row keeps the larger of its XP and `input.xp`.
+ */
 export async function createProgress(input: CreateProgressInput) {
   const timestamp = nowIso();
-  const progressId = createId();
 
   await execute(
     `INSERT INTO progress (id, user_id, language, level, xp, created_at, updated_at)
       VALUES (?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(user_id, language) DO UPDATE SET
         level = excluded.level,
-        xp = excluded.xp,
+        xp = MAX(progress.xp, excluded.xp),
         updated_at = excluded.updated_at`,
     [
-      progressId,
+      createId(),
       input.userId,
       input.language,
-      input.level ?? 1,
-      input.xp ?? 0,
+      clampLevel(input.level ?? 1),
+      Math.max(0, Math.round(input.xp ?? 0)),
       timestamp,
       timestamp,
     ]
@@ -563,88 +349,25 @@ export async function createProgress(input: CreateProgressInput) {
   return progress;
 }
 
-export async function updateProgress(id: string, updates: UpdateProgressInput) {
-  const row = await getFirstRow("SELECT * FROM progress WHERE id = ? LIMIT 1", [id]);
-  if (!row) {
-    return null;
-  }
-
-  const existingProgress = mapProgress(row);
-
-  await execute(
-    `UPDATE progress
-      SET level = ?,
-          xp = ?,
-          updated_at = ?
-      WHERE id = ?`,
-    [
-      updates.level ?? existingProgress.level,
-      updates.xp ?? existingProgress.xp,
-      nowIso(),
-      id,
-    ]
-  );
-
-  const updatedRow = await getFirstRow("SELECT * FROM progress WHERE id = ? LIMIT 1", [id]);
-  return updatedRow ? mapProgress(updatedRow) : null;
-}
-
-export async function createLearningItem(input: CreateLearningInput) {
+/** Creates the progress row with `level` only if none exists; never changes an existing row. */
+export async function ensureProgress(userId: string, language: string, level = 1) {
   const timestamp = nowIso();
-  const learningId = createId();
-
   await execute(
-    `INSERT INTO learning (
-      id,
-      user_id,
-      language,
-      word,
-      translation,
-      difficulty,
-      last_recalled,
-      next_review,
-      success_count,
-      failure_count,
-      notes,
-      tags,
-      created_at,
-      updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [
-      learningId,
-      input.userId,
-      input.language,
-      input.word,
-      input.translation,
-      input.difficulty ?? 0,
-      input.lastRecalled ?? timestamp,
-      input.nextReview,
-      input.successCount ?? 0,
-      input.failureCount ?? 0,
-      input.notes ?? null,
-      stringifyArray(input.tags ?? []),
-      timestamp,
-      timestamp,
-    ]
+    `INSERT INTO progress (id, user_id, language, level, xp, created_at, updated_at)
+      VALUES (?, ?, ?, ?, 0, ?, ?)
+      ON CONFLICT(user_id, language) DO NOTHING`,
+    [createId(), userId, language, clampLevel(level), timestamp, timestamp]
   );
 
-  const learningRow = await getFirstRow("SELECT * FROM learning WHERE id = ? LIMIT 1", [learningId]);
-  if (!learningRow) {
-    throw new Error("Failed to load learning item");
+  const progress = await getProgress(userId, language);
+  if (!progress) {
+    throw new Error("Failed to load progress record");
   }
 
-  return mapLearning(learningRow);
+  return progress;
 }
 
-export async function getLearningItems(userId: string, language: string) {
-  const rows = await getRows(
-    "SELECT * FROM learning WHERE user_id = ? AND language = ? ORDER BY next_review ASC, created_at DESC",
-    [userId, language]
-  );
-
-  return rows.map(mapLearning);
-}
-
+/** Legacy flat chat log used by the current chat routes. New code should use chat sessions. */
 export async function createChatMessage(input: CreateChatInput) {
   const chatId = createId();
   const timestamp = nowIso();
@@ -676,15 +399,6 @@ export async function createChatMessage(input: CreateChatInput) {
   }
 
   return mapChat(chatRow);
-}
-
-export async function getChatHistory(userId: string, language: string) {
-  const rows = await getRows(
-    "SELECT * FROM chats WHERE user_id = ? AND language = ? ORDER BY created_at DESC",
-    [userId, language]
-  );
-
-  return rows.map(mapChat);
 }
 
 export async function setActiveLanguage(userId: string, language: string) {
@@ -721,13 +435,13 @@ export async function completeAccountSetup(userId: string, input: AccountSetupIn
 
   for (const language of requestedLanguages) {
     const existingProgress = await getProgress(userId, language);
-    const requestedLevel = input.proficiencyLevels?.[language];
-    const level = requestedLevel ? Number.parseInt(requestedLevel, 10) : existingProgress?.level ?? 1;
+    const requestedChoice = input.proficiencyLevels?.[language];
+    const level = requestedChoice ? onboardingChoiceToLevel(requestedChoice) : existingProgress?.level ?? 1;
 
     await createProgress({
       userId,
       language,
-      level: Number.isFinite(level) ? level : 1,
+      level,
       xp: existingProgress?.xp ?? 0,
     });
   }
@@ -983,23 +697,3 @@ export async function deleteAdapterUser(userId: string) {
   await execute("DELETE FROM users WHERE id = ?", [userId]);
 }
 
-function getTursoClient() {
-  if (tursoClient) {
-    return tursoClient;
-  }
-
-  const tursoUrl = process.env.TURSO_DATABASE_URL;
-  const tursoAuthToken = process.env.TURSO_AUTH_TOKEN;
-
-  if (!tursoUrl) {
-    throw new Error("TURSO_DATABASE_URL environment variable is not set");
-  }
-
-  tursoClient = createClient({
-    url: tursoUrl,
-    authToken: tursoAuthToken,
-    intMode: "number",
-  });
-
-  return tursoClient;
-}

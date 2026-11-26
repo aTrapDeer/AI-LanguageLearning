@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import * as fs from 'fs';
 import * as path from 'path';
+import { enforceAiQuota, requireUser } from '@/lib/api-auth';
 import { arraysEqual, findTokenIndicesForWords, normalizeTokenForComparison, tokenizeExerciseText } from '@/lib/exercise-text';
 
 // Configure route segment - extends timeout for complex AI operations
@@ -314,18 +315,13 @@ Return only valid JSON: {"language":"${languageCode}", "level":${level}, "rounds
 // Improved fallback management
 function createLanguageSpecificFallback(language: string, level: number): JourneyData | null {
   // Check if we have a static file for this language
-  console.log(`Looking for fallback file for language: ${language}`);
   try {
     const fallbackPath = path.join(process.cwd(), `public/sample-journey-${language}.json`);
-    console.log(`Checking path: ${fallbackPath}`);
     if (fs.existsSync(fallbackPath)) {
-      console.log(`Found fallback file for ${language}!`);
       const data = fs.readFileSync(fallbackPath, 'utf8');
       const parsed = JSON.parse(data);
       parsed.level = level; // Update to requested level
       return parsed;
-    } else {
-      console.log(`No fallback file found for ${language} at ${fallbackPath}`);
     }
   } catch (error) {
     console.error(`Failed to load ${language} fallback:`, error);
@@ -335,7 +331,7 @@ function createLanguageSpecificFallback(language: string, level: number): Journe
 
 // Try to load language-specific fallback data
 try {
-  const germanFallbackPath = path.join(process.cwd(), 'src/static/sample-journey.json');
+  const germanFallbackPath = path.join(process.cwd(), 'public/sample-journey.json');
   if (fs.existsSync(germanFallbackPath)) {
     const germanData = fs.readFileSync(germanFallbackPath, 'utf8');
     FALLBACK_DATA.de = JSON.parse(germanData);
@@ -345,11 +341,10 @@ try {
 }
 
 try {
-  const portugueseFallbackPath = path.join(process.cwd(), 'src/static/sample-journey-pt-BR.json');
+  const portugueseFallbackPath = path.join(process.cwd(), 'public/sample-journey-pt-BR.json');
   if (fs.existsSync(portugueseFallbackPath)) {
     const portugueseData = fs.readFileSync(portugueseFallbackPath, 'utf8');
     FALLBACK_DATA['pt-BR'] = JSON.parse(portugueseData);
-    console.log('Successfully loaded Portuguese fallback data');
   }
 } catch (error) {
   console.error('Failed to load Portuguese fallback data:', error);
@@ -359,7 +354,6 @@ try {
 /* COMMENTED OUT TO PREVENT RATE LIMITING
 async function generateImage(prompt: string): Promise<string> {
   try {
-    console.log(`Generating image with DALL-E 3 for prompt: ${prompt}`);
     const response = await openai.images.generate({
       model: "dall-e-3",
       prompt: prompt,
@@ -374,7 +368,6 @@ async function generateImage(prompt: string): Promise<string> {
       throw new Error('No image URL returned from DALL-E 3');
     }
     
-    console.log(`✅ Successfully generated image: ${imageUrl}`);
     return imageUrl;
   } catch (error) {
     console.error('DALL-E 3 image generation failed:', error);
@@ -387,17 +380,15 @@ async function generateImage(prompt: string): Promise<string> {
 // Generate journey content
 export async function POST(req: Request) {
   try {
-    // Debug: Log the raw request body before parsing 
+    const auth = await requireUser();
+    if (!auth.ok) return auth.response;
+
     const rawBody = await req.text();
-    console.log(`🔍 Raw request body: "${rawBody}"`);
-    console.log(`🔍 Raw body length: ${rawBody.length}`);
-    console.log(`🔍 First 50 chars: "${rawBody.substring(0, 50)}"`);
     
     // Now parse the JSON
     const body = JSON.parse(rawBody);
     const { language, level } = body;
 
-    console.log(`🚀 Journey generation requested for language: ${language}, level: ${level}`);
     
     // Validate language code
     if (!language) {
@@ -414,8 +405,6 @@ export async function POST(req: Request) {
     const languageName = LANGUAGE_NAMES[language] || 'English';
     const levelDescription = LEVEL_DESCRIPTIONS[userLevel] || LEVEL_DESCRIPTIONS[1];
     
-    console.log(`📝 Using language name: ${languageName} at level: ${userLevel}`);
-    console.log(`📄 Level description: ${levelDescription}`);
     
     // Check for OpenAI API key
     if (!process.env.OPENAI_API_KEY) {
@@ -430,7 +419,9 @@ export async function POST(req: Request) {
       return NextResponse.json(getFallbackJourney(language, userLevel));
     }
 
-    console.log('✅ OpenAI API key validated, proceeding with ChatGPT generation...');
+    const limited = await enforceAiQuota(auth.userId, "text");
+    if (limited) return limited;
+
     const openai = getOpenAIClient();
 
     // Try to generate with OpenAI
@@ -443,7 +434,6 @@ export async function POST(req: Request) {
       const prompt = createDynamicPrompt(languageName, language, userLevel, levelDescription, selectedTheme);
 
       // Generate content with ChatGPT with timeout protection
-      console.log(`🤖 Calling OpenAI API with theme: ${selectedTheme}...`);
       const completion = await Promise.race([
         openai.chat.completions.create({
           model: "gpt-4o-mini",
@@ -488,7 +478,6 @@ MISSING WORD QUALITY CONTROL:
         )
       ]);
       
-      console.log(`✅ ChatGPT API call successful! Generated ${completion.choices[0].message.content?.length || 0} characters`);
       
       // Extract and parse the JSON content
       const jsonContent = completion.choices[0].message.content;
@@ -498,7 +487,6 @@ MISSING WORD QUALITY CONTROL:
         throw new Error('Failed to generate journey content');
       }
       
-      console.log(`📝 Raw response length: ${jsonContent.length} characters`);
       
       // Clean up common JSON formatting issues that ChatGPT sometimes produces
       const cleanedJson = jsonContent
@@ -506,13 +494,11 @@ MISSING WORD QUALITY CONTROL:
         .replace(/(['"])\s*:\s*([^,}\]]*[^,}\]\s])\s*([,}\]])/g, '$1: $2$3') // Fix spacing issues
         .trim();
       
-      console.log(`🧹 Cleaned JSON (first 200 chars): ${cleanedJson.substring(0, 200)}...`);
       
       // Parse and validate the JSON
       let journeyData: JourneyData;
       try {
         journeyData = JSON.parse(cleanedJson);
-        console.log('✅ Successfully parsed OpenAI response');
 
         journeyData.rounds = journeyData.rounds.map((round) => normalizeRound(round, journeyData.language));
         journeyData.summaryTest = journeyData.summaryTest.map((round) => normalizeRound(round, journeyData.language));
@@ -593,13 +579,11 @@ MISSING WORD QUALITY CONTROL:
         }
         
         // Generate images for any image rounds with optimized timeout handling
-        console.log('🖼️ Processing image rounds...');
         const imageGenerationPromises: Promise<void>[] = [];
         
         for (let i = 0; i < journeyData.rounds.length; i++) {
           const round = journeyData.rounds[i];
           if (round.type === 'image') {
-            console.log(`🎨 Found image round at index ${i}, scheduling image generation...`);
             
             // Generate images in parallel with timeout protection
             const imagePromise = Promise.race([
@@ -621,7 +605,6 @@ MISSING WORD QUALITY CONTROL:
               const imageUrl = response.data?.[0]?.url;
               if (imageUrl) {
                 (round as ImageRound).imageUrl = imageUrl;
-                console.log(`✅ Successfully generated image for round ${i}: ${imageUrl.substring(0, 100)}...`);
               } else {
                 throw new Error('No image URL returned from DALL-E 3');
               }
@@ -629,7 +612,6 @@ MISSING WORD QUALITY CONTROL:
             .catch(imageError => {
               console.error(`❌ Image generation failed for round ${i}:`, imageError);
               (round as ImageRound).imageUrl = 'https://placehold.co/1024x1024/E3F2FD/1976D2?text=Image+Unavailable';
-              console.log(`🎭 Using placeholder image for round ${i} due to generation failure`);
             });
             
             imageGenerationPromises.push(imagePromise);
@@ -638,18 +620,15 @@ MISSING WORD QUALITY CONTROL:
         
         // Wait for all image generations to complete (or fail with placeholders)
         if (imageGenerationPromises.length > 0) {
-          console.log(`⏳ Waiting for ${imageGenerationPromises.length} image(s) to generate...`);
           await Promise.allSettled(imageGenerationPromises);
-          console.log('🖼️ All image processing completed');
         }
         
         // Fix missing word exercises for appropriate levels
-        journeyData = fixMissingWordExercises(journeyData, userLevel);
+        journeyData = fixMissingWordExercises(journeyData);
         
         // Process the journey data to scramble words for matching rounds
         journeyData = processJourneyData(journeyData);
         
-        console.log(`Successfully generated journey with ${journeyData.rounds.length} rounds and ${journeyData.summaryTest.length} test rounds`);
         return NextResponse.json(journeyData);
       } catch (parseError) {
         console.error('Error parsing journey data:', parseError);
@@ -662,12 +641,6 @@ MISSING WORD QUALITY CONTROL:
       // Add specific error handling for common issues
       if (openaiError instanceof Error) {
         console.error('Error message:', openaiError.message);
-        
-        // For JSON parsing errors, let's try to fix and retry once more
-        if (openaiError.message.includes('Failed to parse journey content')) {
-          console.log('🔄 JSON parsing failed, but this means ChatGPT is working. Check the cleaned JSON format above.');
-          console.log('🚫 FORCING FALLBACK TO DEBUG - but ChatGPT generation is actually working!');
-        }
         
         // Check for quota/billing issues
         if (openaiError.message.includes('quota') || openaiError.message.includes('billing')) {
@@ -691,7 +664,6 @@ MISSING WORD QUALITY CONTROL:
       }
       
       // TEMPORARY: Comment out fallback to force debugging of ChatGPT issues
-      console.log('📦 Using fallback journey data...');
       return NextResponse.json(getFallbackJourney(language, userLevel));
     }
   } catch (error) {
@@ -706,21 +678,15 @@ MISSING WORD QUALITY CONTROL:
 
 // Get fallback journey content based on language
 function getFallbackJourney(language: string, level: number): JourneyData {
-  console.log(`📦 Using fallback journey for ${language} at level ${level}`);
   
   // Try new intelligent fallback first
-  console.log(`🔍 Attempting to find smart fallback for ${language}...`);
   const smartFallback = createLanguageSpecificFallback(language, level);
   if (smartFallback) {
-    console.log(`✅ Found smart fallback data for ${language}, returning it!`);
     return processJourneyData(smartFallback);
-  } else {
-    console.log(`❌ No smart fallback found for ${language}, trying cached data...`);
   }
   
   // Use cached fallback if available
   if (FALLBACK_DATA[language]) {
-    console.log(`🗂️ Found cached fallback data for ${language}`);
     const fallback = {...FALLBACK_DATA[language]!};
     fallback.level = level; // Update level to match request
     fallback.language = language; // Ensure language code is correct
@@ -730,7 +696,6 @@ function getFallbackJourney(language: string, level: number): JourneyData {
   }
   
   // Modify English fallback for other languages
-  console.log(`🔄 No specific fallback for ${language}, adapting English template`);
   const fallback = JSON.parse(JSON.stringify(FALLBACK_DATA.en));
   fallback.language = language;
   fallback.level = level;
@@ -902,8 +867,7 @@ function getFallbackJourney(language: string, level: number): JourneyData {
 }
 
 // Fix missing word exercises to match level requirements
-function fixMissingWordExercises(journeyData: JourneyData, level: number): JourneyData {
-  console.log(`🔧 Normalizing missing word exercises for level ${level}`);
+function fixMissingWordExercises(journeyData: JourneyData): JourneyData {
   
   // Fix regular rounds
   journeyData.rounds = journeyData.rounds.map(round => {

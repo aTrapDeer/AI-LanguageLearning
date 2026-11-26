@@ -1,50 +1,73 @@
-import { getServerSession } from "next-auth";
 import { NextResponse } from "next/server";
-import { authOptions } from "@/lib/auth";
-import { db } from "@/lib/db";
+import { z } from "zod";
+import { jsonError, requireUser } from "@/lib/api-auth";
+import { ensureProgress, getAllUserProgress, setLearnerLevel } from "@/lib/database";
+import { SUPPORTED_LANGUAGE_CODES } from "@/lib/language-config";
+import { clampLevel, MAX_LEVEL, MIN_LEVEL } from "@/lib/levels";
 
 export async function GET() {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return new NextResponse("Unauthorized", { status: 401 });
-    }
+    const auth = await requireUser();
+    if (!auth.ok) return auth.response;
 
-    const progress = await db.progress.getAllForUser(session.user.id);
-
-    return NextResponse.json(progress);
+    return NextResponse.json(await getAllUserProgress(auth.userId));
   } catch (error) {
     console.error("[PROGRESS_GET]", error);
-    return new NextResponse("Internal Error", { status: 500 });
+    return jsonError(500, "Internal Error");
   }
 }
 
+const EnsureProgressSchema = z.object({
+  language: z.enum(SUPPORTED_LANGUAGE_CODES),
+  level: z.number().int().min(MIN_LEVEL).max(MAX_LEVEL).optional(),
+});
+
+/**
+ * Creates the progress row for a language if it is missing. Never changes an existing row, and never
+ * accepts XP from the client (XP is only awarded server-side through recordActivity).
+ */
 export async function POST(req: Request) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return new NextResponse("Unauthorized", { status: 401 });
+    const auth = await requireUser();
+    if (!auth.ok) return auth.response;
+
+    const parsed = EnsureProgressSchema.safeParse(await req.json().catch(() => null));
+    if (!parsed.success) {
+      return jsonError(400, parsed.error.issues[0]?.message ?? "Invalid request");
     }
 
-    const body = await req.json();
-    const { language, level, xp } = body;
-
-    if (!language) {
-      return NextResponse.json({ error: "Language is required" }, { status: 400 });
-    }
-
-    const progress = await db.progress.create({
-      data: {
-        userId: session.user.id,
-        language,
-        level: typeof level === "number" ? level : 1,
-        xp: typeof xp === "number" ? xp : 0,
-      },
-    });
-
+    const progress = await ensureProgress(auth.userId, parsed.data.language, clampLevel(parsed.data.level ?? 1));
     return NextResponse.json(progress, { status: 201 });
   } catch (error) {
     console.error("[PROGRESS_POST]", error);
-    return new NextResponse("Internal Error", { status: 500 });
+    return jsonError(500, "Internal Error");
+  }
+}
+
+const SetLevelSchema = z.object({
+  language: z.enum(SUPPORTED_LANGUAGE_CODES),
+  level: z.number().int().min(MIN_LEVEL).max(MAX_LEVEL),
+});
+
+/** Lets a learner move their own level for a language they already study. */
+export async function PATCH(req: Request) {
+  try {
+    const auth = await requireUser();
+    if (!auth.ok) return auth.response;
+
+    const parsed = SetLevelSchema.safeParse(await req.json().catch(() => null));
+    if (!parsed.success) {
+      return jsonError(400, parsed.error.issues[0]?.message ?? "Invalid request");
+    }
+
+    const progress = await setLearnerLevel(auth.userId, parsed.data.language, parsed.data.level);
+    if (!progress) {
+      return jsonError(404, "This language has not been set up for your account");
+    }
+
+    return NextResponse.json(progress);
+  } catch (error) {
+    console.error("[PROGRESS_PATCH]", error);
+    return jsonError(500, "Internal Error");
   }
 }

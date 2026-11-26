@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
 import { createChatMessage } from "@/lib/database";
+import { enforceAiQuota, requireUser } from "@/lib/api-auth";
 import S3 from "aws-sdk/clients/s3";
 import { extractFollowUpQuestion, extractLanguageText, OpenAIVoice, LanguageCodeMapping } from "./chat-utils";
 
@@ -132,8 +133,15 @@ function getOpenAIClient() {
 
 export async function POST(req: Request) {
   try {
+    const auth = await requireUser();
+    if (!auth.ok) return auth.response;
+    const userId = auth.userId;
+
+    const limited = await enforceAiQuota(userId, "text");
+    if (limited) return limited;
+
     const body = await req.json();
-    const { message, language, userId } = body;
+    const { message, language } = body;
     
     const openai = getOpenAIClient();
 
@@ -215,7 +223,6 @@ export async function POST(req: Request) {
       
       audioUrl = result.Location;
       
-      // Store chat history in database if userId is provided
       if (userId) {
         await createChatMessage({
           userId,

@@ -5,9 +5,18 @@ import Link from 'next/link';
 import { useSession } from 'next-auth/react';
 import { motion } from 'framer-motion';
 import { VerticalCutReveal } from '@/components/ui/vertical-cut-reveal';
-import AnimatedGlobe from '@/components/ui/globe';
 import { BackgroundGradientAnimation } from '@/components/ui/background-gradient-animation';
+import { SUPPORTED_LANGUAGES, type SupportedLanguageCode } from '@/lib/language-config';
 import { MessageCircle, Mic, Brain, Image as ImageIcon, Sparkles, Globe2, ArrowRight, Zap, Target } from 'lucide-react';
+
+const LANGUAGE_HOVER_STYLES: Record<SupportedLanguageCode, string> = {
+  de: 'hover:bg-amber-50 dark:hover:bg-amber-500/10 hover:border-amber-200 dark:hover:border-amber-500/30',
+  'pt-BR': 'hover:bg-emerald-50 dark:hover:bg-emerald-500/10 hover:border-emerald-200 dark:hover:border-emerald-500/30',
+  zh: 'hover:bg-red-50 dark:hover:bg-red-500/10 hover:border-red-200 dark:hover:border-red-500/30',
+  no: 'hover:bg-blue-50 dark:hover:bg-blue-500/10 hover:border-blue-200 dark:hover:border-blue-500/30',
+  ko: 'hover:bg-indigo-50 dark:hover:bg-indigo-500/10 hover:border-indigo-200 dark:hover:border-indigo-500/30',
+  ar: 'hover:bg-green-50 dark:hover:bg-green-500/10 hover:border-green-200 dark:hover:border-green-500/30',
+};
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -54,9 +63,6 @@ export default function Home() {
           blendingValue="hard-light"
           containerClassName="absolute inset-0"
         />
-        <div className="absolute inset-0 opacity-50 mix-blend-overlay pointer-events-none">
-          <AnimatedGlobe />
-        </div>
         
         <div className="container relative mx-auto px-4 z-10">
           <div className="text-center max-w-4xl mx-auto space-y-8">
@@ -262,18 +268,11 @@ export default function Home() {
             viewport={{ once: true }}
             className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 max-w-6xl mx-auto"
           >
-            {[
-              { code: 'de', flag: '🇩🇪', name: 'German', color: 'hover:bg-amber-50 dark:hover:bg-amber-500/10 hover:border-amber-200 dark:hover:border-amber-500/30' },
-              { code: 'pt-BR', flag: '🇧🇷', name: 'Portuguese', color: 'hover:bg-emerald-50 dark:hover:bg-emerald-500/10 hover:border-emerald-200 dark:hover:border-emerald-500/30' },
-              { code: 'zh', flag: '🇨🇳', name: 'Chinese', color: 'hover:bg-red-50 dark:hover:bg-red-500/10 hover:border-red-200 dark:hover:border-red-500/30' },
-              { code: 'no', flag: '🇳🇴', name: 'Norwegian', color: 'hover:bg-blue-50 dark:hover:bg-blue-500/10 hover:border-blue-200 dark:hover:border-blue-500/30' },
-              { code: 'ko', flag: '🇰🇷', name: 'Korean', color: 'hover:bg-indigo-50 dark:hover:bg-indigo-500/10 hover:border-indigo-200 dark:hover:border-indigo-500/30' },
-              { code: 'ar', flag: '🇸🇦', name: 'Arabic', color: 'hover:bg-green-50 dark:hover:bg-green-500/10 hover:border-green-200 dark:hover:border-green-500/30' },
-            ].map((lang) => (
+            {SUPPORTED_LANGUAGES.map((lang) => (
               <motion.div key={lang.code} variants={itemVariants}>
                 <Link 
                   href={`/learn/${lang.code}`} 
-                  className={`flex flex-col items-center justify-center p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm transition-all duration-300 group ${lang.color}`}
+                  className={`flex flex-col items-center justify-center p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm transition-all duration-300 group ${LANGUAGE_HOVER_STYLES[lang.code]}`}
                 >
                   <span className="text-5xl mb-4 transform group-hover:scale-125 group-hover:-rotate-6 transition-transform duration-300 drop-shadow-md block">
                     {lang.flag}

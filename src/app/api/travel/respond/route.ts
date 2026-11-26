@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
-import OpenAI from "openai";
-import { getServerSession } from "next-auth";
 import { z } from "zod";
-import { authOptions } from "@/lib/auth";
+import { enforceAiQuota, requireUser } from "@/lib/api-auth";
+import { getOpenAIClient, getTextModel } from "@/lib/openai";
 import { getSupportedLanguageName, isSupportedLanguageCode } from "@/lib/language-config";
 
 const TravelResponseSchema = z.object({
@@ -10,22 +9,10 @@ const TravelResponseSchema = z.object({
   message: z.string().min(1).max(400),
 });
 
-function getOpenAIClient() {
-  if (!process.env.OPENAI_API_KEY) {
-    throw new Error("OPENAI_API_KEY is not set");
-  }
-
-  return new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY,
-  });
-}
-
 export async function POST(request: Request) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const auth = await requireUser();
+    if (!auth.ok) return auth.response;
 
     const body = await request.json();
     const parsedBody = TravelResponseSchema.safeParse(body);
@@ -42,11 +29,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Unsupported language" }, { status: 400 });
     }
 
+    const limited = await enforceAiQuota(auth.userId, "text");
+    if (limited) return limited;
+
     const languageName = getSupportedLanguageName(language);
     const openai = getOpenAIClient();
 
     const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: getTextModel(),
       response_format: { type: "json_object" },
       temperature: 0.7,
       messages: [

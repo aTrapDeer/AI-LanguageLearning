@@ -1,70 +1,49 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { z } from "zod";
-import { completeAccountSetup } from "@/lib/database";
+import { jsonError, requireUser } from "@/lib/api-auth";
+import { completeAccountSetup, toPublicUser } from "@/lib/database";
 import { SUPPORTED_LANGUAGE_CODES } from "@/lib/language-config";
+import { ONBOARDING_PROFICIENCY_OPTIONS } from "@/lib/levels";
 
+const ONBOARDING_CHOICES = ONBOARDING_PROFICIENCY_OPTIONS.map((option) => option.choice) as [string, ...string[]];
+
+// Unknown keys (e.g. a legacy `userId`) are stripped: the account is always the session's.
 const AccountSetupSchema = z.object({
-  userId: z.string().optional(),
   learningLanguages: z.array(z.enum(SUPPORTED_LANGUAGE_CODES)).min(1, "Please select at least one language"),
   activeLanguage: z.enum(SUPPORTED_LANGUAGE_CODES).optional(),
-  proficiencyLevels: z.record(z.string(), z.string()).optional(),
+  /** Onboarding self-assessment per language ("1".."5"); stored as levels 1/3/5/7/9. */
+  proficiencyLevels: z.record(z.enum(SUPPORTED_LANGUAGE_CODES), z.enum(ONBOARDING_CHOICES)).optional(),
 });
 
 export async function POST(req: Request) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session || !session.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const auth = await requireUser();
+    if (!auth.ok) return auth.response;
 
-    const requestBody = await req.json();
-    const validationResult = AccountSetupSchema.safeParse(requestBody);
-
+    const validationResult = AccountSetupSchema.safeParse(await req.json().catch(() => null));
     if (!validationResult.success) {
-      return NextResponse.json(
-        { error: validationResult.error.issues[0].message },
-        { status: 400 }
-      );
-    }
-
-    const userId = validationResult.data.userId || session.user.id;
-    if (userId !== session.user.id) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      return jsonError(400, validationResult.error.issues[0]?.message ?? "Invalid request");
     }
 
     const { learningLanguages, activeLanguage, proficiencyLevels = {} } = validationResult.data;
 
     if (activeLanguage && !learningLanguages.includes(activeLanguage)) {
-      return NextResponse.json(
-        { error: "Active language must be one of the selected learning languages" },
-        { status: 400 }
-      );
+      return jsonError(400, "Active language must be one of the selected learning languages");
     }
 
-    const user = await completeAccountSetup(userId, {
+    const user = await completeAccountSetup(auth.userId, {
       learningLanguages,
       activeLanguage,
       proficiencyLevels,
     });
 
     if (!user) {
-      return NextResponse.json(
-        { error: "User not found" },
-        { status: 404 }
-      );
+      return jsonError(404, "User not found");
     }
 
-    return NextResponse.json({
-      success: true,
-      user,
-    });
-  } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
-    return NextResponse.json(
-      { error: errorMessage },
-      { status: 500 }
-    );
+    return NextResponse.json({ success: true, user: toPublicUser(user) });
+  } catch (error) {
+    console.error("[ACCOUNT_SETUP]", error);
+    return jsonError(500, "Failed to complete account setup");
   }
 }

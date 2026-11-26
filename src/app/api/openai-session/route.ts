@@ -1,8 +1,15 @@
 import { NextResponse } from "next/server";
+import { enforceAiQuota, requireUser } from "@/lib/api-auth";
 import { buildOpenAIRealtimeSession, getOpenAIRealtimeConfig } from "@/lib/openai-realtime";
 
 export async function POST() {
   try {
+    const auth = await requireUser();
+    if (!auth.ok) return auth.response;
+
+    const limited = await enforceAiQuota(auth.userId, "realtime");
+    if (limited) return limited;
+
     if (!process.env.OPENAI_API_KEY) {
       throw new Error("OPENAI_API_KEY is not set");
     }

@@ -1,71 +1,58 @@
-import { getServerSession } from "next-auth";
 import { NextResponse } from "next/server";
-import { authOptions } from "@/lib/auth";
+import { jsonError, requireUser } from "@/lib/api-auth";
 import { getUserById, setActiveLanguage } from "@/lib/database";
 import { isSupportedLanguageCode } from "@/lib/language-config";
 
 export async function PUT(req: Request) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return new NextResponse("Unauthorized", { status: 401 });
-    }
+    const auth = await requireUser();
+    if (!auth.ok) return auth.response;
 
-    const body = await req.json();
-    const { language } = body;
+    const body = (await req.json().catch(() => null)) as { language?: unknown } | null;
+    const language = body?.language;
 
     if (!language) {
-      return new NextResponse("Language is required", { status: 400 });
+      return jsonError(400, "Language is required");
     }
 
     if (!isSupportedLanguageCode(language)) {
-      return NextResponse.json({ error: "Unsupported language" }, { status: 400 });
+      return jsonError(400, "Unsupported language");
     }
 
-    const existingUser = await getUserById(session.user.id);
+    const existingUser = await getUserById(auth.userId);
     if (!existingUser) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
+      return jsonError(404, "User not found");
     }
 
     if (!existingUser.learningLanguages.includes(language)) {
-      return NextResponse.json(
-        { error: "Language has not been added to this account" },
-        { status: 400 }
-      );
+      return jsonError(400, "Language has not been added to this account");
     }
 
-    const user = await setActiveLanguage(session.user.id, language);
+    const user = await setActiveLanguage(auth.userId, language);
     if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
+      return jsonError(404, "User not found");
     }
 
-    return NextResponse.json({
-      id: user.id,
-      activeLanguage: user.activeLanguage,
-    });
+    return NextResponse.json({ id: user.id, activeLanguage: user.activeLanguage });
   } catch (error) {
-    console.error("[ACTIVE_LANGUAGE_PUT]", error instanceof Error ? error.message : error);
-    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+    console.error("[ACTIVE_LANGUAGE_PUT]", error);
+    return jsonError(500, "Internal Server Error");
   }
 }
 
 export async function GET() {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return new NextResponse("Unauthorized", { status: 401 });
-    }
+    const auth = await requireUser();
+    if (!auth.ok) return auth.response;
 
-    const user = await getUserById(session.user.id);
+    const user = await getUserById(auth.userId);
     if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
+      return jsonError(404, "User not found");
     }
 
-    return NextResponse.json({
-      activeLanguage: user.activeLanguage,
-    });
+    return NextResponse.json({ activeLanguage: user.activeLanguage });
   } catch (error) {
-    console.error("[ACTIVE_LANGUAGE_GET]", error instanceof Error ? error.message : error);
-    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+    console.error("[ACTIVE_LANGUAGE_GET]", error);
+    return jsonError(500, "Internal Server Error");
   }
-} 
+}

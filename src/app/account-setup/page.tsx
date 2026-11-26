@@ -42,7 +42,7 @@ function AccountSetupPageContent() {
 
   return (
     <div className="flex min-h-screen items-center justify-center p-4 bg-gradient-to-br from-indigo-50 to-blue-50 dark:from-indigo-950/50 dark:to-blue-950/30">
-      <AccountSetup userId={session.user.id} />
+      <AccountSetup />
     </div>
   )
 }

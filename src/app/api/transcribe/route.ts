@@ -1,66 +1,52 @@
-import { NextResponse } from 'next/server';
+import { NextResponse } from "next/server";
+import { enforceAiQuota, jsonError, requireUser } from "@/lib/api-auth";
+import { getLanguageConfig, resolveLanguageCode } from "@/lib/language-config";
+import { getOpenAIClient, getTranscriptionModel, OpenAIConfigError } from "@/lib/openai";
 
-// Map full language names to ISO-639-1 codes
-const languageToISO: Record<string, string> = {
-    'English': 'en',
-    'German': 'de',
-    'Portuguese (Brazilian)': 'pt',
-    'Chinese': 'zh',
-    'Norwegian': 'no'
-};
+const MAX_AUDIO_BYTES = 10 * 1024 * 1024;
 
 export async function POST(request: Request) {
-    try {
-        const formData = await request.formData();
-        const audioBlob = formData.get('audio') as Blob;
-        const language = formData.get('language') as string;
+  try {
+    const auth = await requireUser();
+    if (!auth.ok) return auth.response;
 
-        if (!audioBlob) {
-            throw new Error('No audio file provided');
-        }
+    const formData = await request.formData();
+    const audioBlob = formData.get("audio");
+    const requestedLanguage = formData.get("language");
 
-        if (!process.env.OPENAI_API_KEY) {
-            throw new Error('OPENAI_API_KEY is not set');
-        }
-
-        // Get ISO language code
-        const languageCode = languageToISO[language] || language.toLowerCase();
-        console.log('Language:', language, 'Code:', languageCode);
-
-        // Convert blob to file
-        const file = new File([audioBlob], 'audio.webm', { type: 'audio/webm' });
-
-        // Create form data for OpenAI API
-        const openAIFormData = new FormData();
-        openAIFormData.append('file', file);
-        openAIFormData.append('model', 'whisper-1');
-        openAIFormData.append('language', languageCode);
-
-        const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
-            method: 'POST',
-            headers: {
-                Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-            },
-            body: openAIFormData,
-        });
-
-        if (!response.ok) {
-            const error = await response.text();
-            console.error('Transcription API Error:', {
-                status: response.status,
-                error,
-                language: languageCode
-            });
-            throw new Error(`Transcription failed: ${error}`);
-        }
-
-        const data = await response.json();
-        return NextResponse.json({ text: data.text });
-    } catch (error) {
-        console.error('Error transcribing audio:', error);
-        return NextResponse.json(
-            { error: 'Failed to transcribe audio', details: error instanceof Error ? error.message : String(error) },
-            { status: 500 }
-        );
+    if (!(audioBlob instanceof Blob) || audioBlob.size === 0) {
+      return jsonError(400, "No audio file provided");
     }
-} 
+
+    if (audioBlob.size > MAX_AUDIO_BYTES) {
+      return jsonError(413, "Audio file is too large");
+    }
+
+    const limited = await enforceAiQuota(auth.userId, "transcription");
+    if (limited) return limited;
+
+    // Accepts a code ("de") or a legacy display name ("German"); English is passed through.
+    const languageCode = resolveLanguageCode(requestedLanguage);
+    const transcriptionLanguage = languageCode
+      ? getLanguageConfig(languageCode)?.transcriptionCode
+      : String(requestedLanguage ?? "").trim().toLowerCase() === "english"
+        ? "en"
+        : undefined;
+
+    const file = new File([audioBlob], "audio.webm", { type: audioBlob.type || "audio/webm" });
+    const transcription = await getOpenAIClient().audio.transcriptions.create({
+      file,
+      model: getTranscriptionModel(),
+      ...(transcriptionLanguage ? { language: transcriptionLanguage } : {}),
+    });
+
+    return NextResponse.json({ text: transcription.text });
+  } catch (error) {
+    if (error instanceof OpenAIConfigError) {
+      return jsonError(503, "Transcription is not configured");
+    }
+
+    console.error("Error transcribing audio:", error);
+    return jsonError(500, "Failed to transcribe audio");
+  }
+}

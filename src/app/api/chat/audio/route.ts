@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import OpenAI from "openai";
 import S3 from "aws-sdk/clients/s3";
 import { createChatMessage } from "@/lib/database";
+import { enforceAiQuota, requireUser } from "@/lib/api-auth";
 import { extractFollowUpQuestion, extractLanguageText, OpenAIVoice } from "../chat-utils";
 
 // Language configurations (same as in chat/route.ts)
@@ -115,6 +116,13 @@ Example format:
 
 export async function POST(req: Request) {
   try {
+    const auth = await requireUser();
+    if (!auth.ok) return auth.response;
+
+    // One request transcribes, replies and speaks.
+    const limited = await enforceAiQuota(auth.userId, "text");
+    if (limited) return limited;
+
     const formData = await req.formData();
     const language = formData.get("language") as string;
     const audioFile = formData.get("audio") as File;
@@ -228,8 +236,7 @@ export async function POST(req: Request) {
 
     const audioUrl = result.Location;
 
-    // Store chat history in database if userId is provided
-    const userId = formData.get("userId") as string;
+    const userId = auth.userId;
     if (userId) {
       await createChatMessage({
         userId,
