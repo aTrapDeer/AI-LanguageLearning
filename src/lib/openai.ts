@@ -33,11 +33,17 @@ export function getImageSize(): string {
 }
 
 /**
- * Optional `complexity` request field. Sent only when configured, because not every image model
- * accepts it and an unknown parameter fails the whole request.
+ * `complexity` controls how much the model plans before rendering. The 2.6 image models accept it
+ * and default to "high"; simple one-subject illustrations don't need that, and "low" is faster at
+ * no extra cost. Other models may reject the field, so it is only sent for 2.6 unless configured.
+ * Set OPENAI_IMAGE_COMPLEXITY="off" to never send it.
  */
 export function getImageComplexity(): string | null {
-  return process.env.OPENAI_IMAGE_COMPLEXITY?.trim() || null;
+  const configured = process.env.OPENAI_IMAGE_COMPLEXITY?.trim().toLowerCase();
+  if (configured) {
+    return configured === "off" ? null : configured;
+  }
+  return getImageModel().startsWith("gpt-image-2.6") ? "low" : null;
 }
 
 export class OpenAIConfigError extends Error {

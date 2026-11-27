@@ -84,7 +84,7 @@ The database schema is created automatically on first use; see [TURSO-SETUP.md](
   default a newly generated lesson starts up to `LESSON_IMAGES_PER_LESSON` (4) pictures and waits at
   most `LESSON_IMAGES_WAIT_MS` (10000) for them; the rest finish in the background and later lessons fill
   in what is missing. Requests use `OPENAI_IMAGE_MODEL` (`gpt-image-2.6-flare`), `OPENAI_IMAGE_QUALITY`
-  (`low`) and `OPENAI_IMAGE_SIZE` (`1024x1024`); `OPENAI_IMAGE_COMPLEXITY` is sent only when set. A failed
+  (`low`) and `OPENAI_IMAGE_SIZE` (`1024x1024`); `OPENAI_IMAGE_COMPLEXITY` defaults to `low` for 2.6 models (`off` disables it). A failed
   picture is retried later with back-off (10 minutes, doubling, at most daily).
 
 ## License

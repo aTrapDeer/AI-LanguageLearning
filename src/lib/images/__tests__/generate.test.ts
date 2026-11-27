@@ -44,23 +44,38 @@ function fakeClient(reply: { b64_json?: string; url?: string } | Error) {
 }
 
 describe("buildImageRequest", () => {
-  it("sends exactly model, prompt, size, quality and n with the defaults", () => {
+  it("sends the documented fields with low-cost defaults", () => {
     const body = buildImageRequest("a red apple");
-    expect(Object.keys(body).sort()).toEqual(["model", "n", "prompt", "quality", "size"]);
-    expect(body).toMatchObject({ model: "gpt-image-2.6-flare", size: "1024x1024", quality: "low", n: 1 });
+    expect(Object.keys(body).sort()).toEqual(["complexity", "model", "n", "output_format", "prompt", "quality", "size"]);
+    expect(body).toMatchObject({
+      model: "gpt-image-2.6-flare",
+      size: "1024x1024",
+      quality: "low",
+      complexity: "low",
+      output_format: "jpeg",
+      n: 1,
+    });
     expect(body.prompt).toContain("a red apple");
   });
 
-  it("takes overrides from env and adds complexity only when configured", () => {
+  it("leaves complexity out for other models and when switched off", () => {
+    process.env.OPENAI_IMAGE_MODEL = "some-other-image-model";
+    expect(buildImageRequest("a dog")).not.toHaveProperty("complexity");
+    process.env.OPENAI_IMAGE_MODEL = "gpt-image-2.6-flare";
+    process.env.OPENAI_IMAGE_COMPLEXITY = "off";
+    expect(buildImageRequest("a dog")).not.toHaveProperty("complexity");
+  });
+
+  it("takes overrides from env", () => {
     process.env.OPENAI_IMAGE_MODEL = "gpt-image-2.6-sunburst";
     process.env.OPENAI_IMAGE_QUALITY = "medium";
     process.env.OPENAI_IMAGE_SIZE = "1536x1024";
-    process.env.OPENAI_IMAGE_COMPLEXITY = "low";
+    process.env.OPENAI_IMAGE_COMPLEXITY = "medium";
     expect(buildImageRequest("a dog")).toMatchObject({
       model: "gpt-image-2.6-sunburst",
       quality: "medium",
       size: "1536x1024",
-      complexity: "low",
+      complexity: "medium",
     });
   });
 

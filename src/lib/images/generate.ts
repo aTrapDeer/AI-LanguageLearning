@@ -30,8 +30,9 @@ export class ImageGenerationError extends Error {
 }
 
 /**
- * The exact request body. Only widely supported fields are sent: an unknown parameter fails the
- * whole request, and the response format is left to the model (b64_json or url are both handled).
+ * The exact request body. An unknown parameter fails the whole request, so only fields the Images
+ * API documents for GPT Image models are sent. JPEG is requested because it is returned faster than
+ * the default PNG and the image is re-encoded before storage anyway.
  */
 export function buildImageRequest(description: string): Record<string, unknown> {
   const body: Record<string, unknown> = {
@@ -39,6 +40,7 @@ export function buildImageRequest(description: string): Record<string, unknown> 
     prompt: buildImagePrompt(description),
     size: getImageSize(),
     quality: getImageQuality(),
+    output_format: "jpeg",
     n: 1,
   };
   const complexity = getImageComplexity();
