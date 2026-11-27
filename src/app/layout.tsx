@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Bricolage_Grotesque, Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Header1 } from "@/components/ui/header";
 import { Providers } from "./providers";
@@ -12,6 +12,13 @@ const geistSans = Geist({
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
+});
+
+// Display face for headlines and big numbers; the width axis lets headings run slightly condensed.
+const display = Bricolage_Grotesque({
+  variable: "--font-display",
+  subsets: ["latin"],
+  axes: ["opsz", "wdth"],
 });
 
 /** Absolute base for Open Graph/Twitter image URLs; falls back to localhost in development. */
@@ -69,12 +76,12 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="light">
+    <html lang="en" className={`light ${geistSans.variable} ${geistMono.variable} ${display.variable}`}>
       <head>
         <link rel="manifest" href="/site.webmanifest" />
       </head>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased h-screen flex flex-col`}
+        className="antialiased h-screen flex flex-col"
       >
         <Providers>
           <Header1 />

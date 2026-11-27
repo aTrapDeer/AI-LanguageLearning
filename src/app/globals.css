@@ -68,16 +68,19 @@
   }
 }
 
-@layer base {
-  * {
-    @apply border-border;
-  }
-  body {
-    @apply bg-background text-foreground;
-  }
-}
 
 @layer utilities {
+  /* Film grain for the ink surfaces: a tiny SVG noise tile, blended so it adds depth without noise in text. */
+  .bg-grain {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.55 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  /* Faint dot grid used behind product vignettes on paper. */
+  .bg-dots {
+    background-image: radial-gradient(rgb(24 18 63 / 0.09) 1px, transparent 1px);
+    background-size: 18px 18px;
+  }
+
   /* Hide scrollbar for Chrome, Safari and Opera */
   .no-scrollbar::-webkit-scrollbar {
     display: none;
@@ -120,5 +123,23 @@
     100% {
       transform: scale(1);
     }
+  }
+}
+
+/*
+ * Scroll reveal for landing sections (see components/landing/reveal.tsx). Content is visible by default
+ * and only hidden once script has confirmed it is below the fold, so no-JS and reduced-motion visitors
+ * always see everything.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  .reveal {
+    transition:
+      opacity 0.7s cubic-bezier(0.2, 0.7, 0.2, 1),
+      transform 0.7s cubic-bezier(0.2, 0.7, 0.2, 1);
+    transition-delay: var(--reveal-delay, 0ms);
+  }
+  .reveal[data-reveal="hidden"] {
+    opacity: 0;
+    transform: translateY(28px);
   }
 }

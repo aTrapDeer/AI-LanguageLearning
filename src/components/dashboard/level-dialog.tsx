@@ -55,10 +55,12 @@ export function LevelDialog({ open, onOpenChange, language, languageName, curren
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90dvh] w-[calc(100%-2rem)] max-w-md overflow-y-auto rounded-3xl bg-white p-5 text-slate-900">
-        <DialogHeader>
-          <DialogTitle>{target ? `Move to level ${target.level}?` : `Your ${languageName} level`}</DialogTitle>
-          <DialogDescription>
+      <DialogContent className="max-h-[90dvh] w-[calc(100%-2rem)] max-w-md overflow-y-auto rounded-[1.75rem] border-ink-900/10 bg-white p-5 text-ink-950 sm:p-6">
+        <DialogHeader className="pr-8 text-left">
+          <DialogTitle className="font-display text-2xl font-bold tracking-tight">
+            {target ? `Move to level ${target.level}?` : `Your ${languageName} level`}
+          </DialogTitle>
+          <DialogDescription className="text-ink-600">
             {target
               ? `You'll go from level ${currentLevel} to level ${target.level} (${target.cefr} ${target.label}). Your XP, streak and saved words stay; your path will show level ${target.level}'s units.`
               : "Lessons feel too easy or too hard? Pick the level that fits. You can change it again any time."}
@@ -68,7 +70,7 @@ export function LevelDialog({ open, onOpenChange, language, languageName, curren
         {target ? (
           <div className="mt-2 grid gap-2">
             {error && (
-              <p role="alert" className="rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-700">
+              <p role="alert" className="rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-800">
                 {error}
               </p>
             )}
@@ -76,7 +78,7 @@ export function LevelDialog({ open, onOpenChange, language, languageName, curren
               type="button"
               onClick={apply}
               disabled={saving}
-              className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-indigo-600 font-bold text-white hover:bg-indigo-500 disabled:opacity-70"
+              className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-ink-900 font-bold text-white transition hover:bg-ink-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-ink-300 disabled:opacity-70"
             >
               {saving && <Loader2 aria-hidden className="h-4 w-4 animate-spin" />}
               Yes, move me to level {target.level}
@@ -85,7 +87,7 @@ export function LevelDialog({ open, onOpenChange, language, languageName, curren
               type="button"
               onClick={() => setSelected(null)}
               disabled={saving}
-              className="h-11 rounded-2xl border-2 border-slate-200 font-semibold text-slate-700 hover:bg-slate-50"
+              className="h-12 rounded-2xl border border-ink-900/15 font-semibold text-ink-800 transition hover:bg-ink-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink-500"
             >
               Pick a different level
             </button>
@@ -100,20 +102,24 @@ export function LevelDialog({ open, onOpenChange, language, languageName, curren
                     type="button"
                     disabled={isCurrent}
                     onClick={() => setSelected(level.level)}
+                    aria-current={isCurrent ? "true" : undefined}
                     className={cn(
-                      "flex w-full items-center gap-3 rounded-2xl border-2 px-3 py-2 text-left transition",
-                      isCurrent ? "border-indigo-500 bg-indigo-50" : "border-slate-100 hover:border-indigo-200 hover:bg-slate-50"
+                      "flex min-h-12 w-full items-center gap-3 rounded-2xl border px-3 py-2 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink-500",
+                      isCurrent ? "border-ink-900 bg-ink-50" : "border-ink-900/[0.08] hover:border-ink-900/25 hover:bg-paper"
                     )}
                   >
-                    <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-900 text-sm font-extrabold text-white">
+                    <span
+                      className={cn(
+                        "inline-flex h-9 w-11 shrink-0 items-center justify-center rounded-xl font-mono text-xs font-semibold",
+                        isCurrent ? "bg-ember-400 text-ink-950" : "bg-ink-900 text-white"
+                      )}
+                    >
                       {level.cefr}
                     </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block text-sm font-bold">
-                        Level {level.level} · {level.label}
-                        {isCurrent && <span className="ml-2 text-xs font-semibold text-indigo-600">Current</span>}
-                      </span>
+                    <span className="min-w-0 flex-1 text-sm font-semibold">
+                      Level {level.level} · {level.label}
                     </span>
+                    {isCurrent && <span className="font-mono text-[11px] font-medium uppercase tracking-[0.12em] text-ink-600">Current</span>}
                   </button>
                 </li>
               );

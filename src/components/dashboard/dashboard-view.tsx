@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { useEffect, useState } from "react";
 import { LanguageSelect } from "@/components/ui/language-select";
@@ -9,12 +8,14 @@ import { notifyLearnSummaryChanged, useLearnSummary } from "@/hooks/use-learn-su
 import { DAILY_XP_GOAL_OPTIONS } from "@/lib/gamification";
 import { CelebrationBanner } from "./celebration-banner";
 import { ContinueCard } from "./continue-card";
+import { DashboardSkeleton } from "./dashboard-skeleton";
 import { LevelDialog } from "./level-dialog";
-import { PracticeModes } from "./practice-modes";
-import { GoalCard, ReviewDueCard, StreakCard } from "./stat-cards";
-import { UnitsStrip } from "./units-strip";
+import { PracticePanel } from "./practice-panel";
+import { ProgressPanel } from "./progress-panel";
+import { ReviewPanel } from "./review-panel";
+import { SetupLanguage } from "./setup-language";
+import { TodayPanel } from "./today-panel";
 import { useDailyGoal } from "./use-daily-goal";
-import { WeekStrip } from "./week-strip";
 
 function greeting(name: string | null | undefined) {
   const hour = new Date().getHours();
@@ -23,19 +24,11 @@ function greeting(name: string | null | undefined) {
   return first ? `${part}, ${first}` : part;
 }
 
-function DashboardSkeleton() {
-  return (
-    <div className="grid gap-4" aria-busy="true" aria-label="Loading your dashboard">
-      <div className="h-72 animate-pulse rounded-3xl bg-indigo-200/60" />
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
-        <div className="h-36 animate-pulse rounded-3xl bg-slate-200/70" />
-        <div className="h-36 animate-pulse rounded-3xl bg-slate-200/70" />
-        <div className="col-span-2 h-36 animate-pulse rounded-3xl bg-slate-200/70 lg:col-span-1" />
-      </div>
-    </div>
-  );
-}
-
+/**
+ * The learner's home. On phones it reads top to bottom in priority order (next unit, today, review,
+ * progress, practice); from `lg` the same elements sit in a two-column grid — main column for the
+ * journey, a rail for today's status — without changing the DOM order.
+ */
 export function DashboardView() {
   const { data: session } = useSession();
   const { selectedLanguage } = useLanguage();
@@ -51,65 +44,61 @@ export function DashboardView() {
 
   const isNewLearner = Boolean(summary && summary.totalXp === 0 && summary.levelProgress.completed === 0 && summary.streak.longest === 0);
 
+  let subline = "Loading your progress…";
+  if (summary && isNewLearner) subline = `Your ${summary.languageName} path starts with one short lesson. We'll take it from there.`;
+  else if (summary) subline = `${summary.totalXp.toLocaleString("en")} XP in ${summary.languageName} · ${summary.cefr} ${summary.levelLabel}`;
+
   return (
-    <div className="min-h-[100dvh] bg-slate-50 pb-12 pt-20 md:pt-24">
-      <div className="mx-auto flex w-full max-w-5xl flex-col gap-4 px-4">
-        <div className="flex flex-wrap items-end justify-between gap-2">
-          <div>
-            <h1 className="text-2xl font-extrabold text-slate-900 sm:text-3xl">{isNewLearner ? "Welcome to Laingfy!" : greetingText}</h1>
-            <p className="text-sm text-slate-600">
-              {isNewLearner
-                ? "Your path starts with one short lesson. We'll take it from there."
-                : summary
-                  ? `${summary.totalXp.toLocaleString()} XP in ${summary.languageName}`
-                  : "Loading your progress…"}
-            </p>
-          </div>
-          <div className="rounded-xl border border-slate-200 bg-white lg:hidden">
-            <LanguageSelect />
-          </div>
+    <div className="min-h-[100dvh] bg-paper pb-16 pt-[4.25rem] md:pt-24">
+      <div className="mx-auto w-full max-w-6xl px-4 sm:px-6">
+        <div className="-ml-2.5 mb-1 flex items-center gap-1 lg:hidden">
+          <span className="pl-2.5 font-mono text-[11px] uppercase tracking-[0.16em] text-ink-500">Learning</span>
+          <LanguageSelect showName="always" className="h-11 px-2" />
         </div>
+        <h1 className="text-balance font-display text-[2rem] font-extrabold leading-[1.02] tracking-[-0.02em] text-ink-950 [font-stretch:94%] sm:text-[2.6rem]">
+          {isNewLearner ? "Welcome to Laingfy" : greetingText}
+        </h1>
+        <p className="mt-1.5 min-h-[1.25rem] text-sm text-ink-600 sm:text-[15px]">{subline}</p>
 
         {error && !summary && (
-          <div role="alert" className="rounded-2xl bg-rose-50 p-4 text-sm text-rose-700">
-            We couldn&apos;t load your progress. <button type="button" onClick={() => void refresh()} className="font-bold underline">Try again</button>
+          <div role="alert" className="mt-5 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
+            We couldn&apos;t load your progress.{" "}
+            <button type="button" onClick={() => void refresh()} className="font-bold underline underline-offset-2">
+              Try again
+            </button>
           </div>
         )}
 
         {!summary ? (
           !error && <DashboardSkeleton />
         ) : !summary.hasProgress ? (
-          <section className="rounded-3xl bg-white p-6 text-center shadow-sm">
-            <h2 className="text-xl font-extrabold text-slate-900">Set up {summary.languageName}</h2>
-            <p className="mt-2 text-slate-600">Tell us roughly where you are and we&apos;ll start you at the right level.</p>
-            <Link
-              href={`/account-setup?mode=add-language&lang=${encodeURIComponent(summary.language)}&redirect=/dashboard`}
-              className="mt-4 inline-flex h-12 items-center justify-center rounded-2xl bg-indigo-600 px-6 font-bold text-white hover:bg-indigo-500"
-            >
-              Start {summary.languageName}
-            </Link>
-          </section>
+          <SetupLanguage language={summary.language} languageName={summary.languageName} />
         ) : (
           <>
             <CelebrationBanner summary={summary} />
-            <ContinueCard summary={summary} isNewLearner={isNewLearner} onChangeLevel={() => setLevelOpen(true)} />
-
-            <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
-              <StreakCard streak={summary.streak} />
-              <GoalCard
-                today={summary.today}
+            <div className="mt-5 grid gap-4 lg:grid-cols-[minmax(0,1fr)_368px] lg:gap-5">
+              <ContinueCard
+                summary={summary}
+                isNewLearner={isNewLearner}
+                onChangeLevel={() => setLevelOpen(true)}
+                className="lg:col-start-1 lg:row-start-1"
+              />
+              <TodayPanel
+                summary={summary}
                 options={goal.data?.options ?? [...DAILY_XP_GOAL_OPTIONS]}
                 saving={goal.saving}
                 onSetGoal={goal.setGoal}
+                className="lg:col-start-2 lg:row-start-1"
               />
-              <div className="col-span-2 lg:col-span-1">
-                <ReviewDueCard language={summary.language} dueCount={summary.review.dueCount} deckSize={summary.vocabulary.total} />
-              </div>
+              <ReviewPanel summary={summary} className="lg:col-start-2 lg:row-start-2" />
+              <ProgressPanel
+                summary={summary}
+                history={goal.data?.history ?? null}
+                onChangeLevel={() => setLevelOpen(true)}
+                className="lg:col-start-1 lg:row-span-2 lg:row-start-2"
+              />
+              <PracticePanel language={summary.language} className="lg:col-start-2 lg:row-start-3" />
             </div>
-
-            <UnitsStrip summary={summary} />
-            <WeekStrip history={goal.data?.history ?? null} goal={summary.today.goal} />
-            <PracticeModes language={summary.language} />
 
             <LevelDialog
               open={levelOpen}

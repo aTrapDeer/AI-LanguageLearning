@@ -2,6 +2,7 @@
 
 import { motion } from "framer-motion";
 import { Check } from "lucide-react";
+import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { usePrefersReducedMotion } from "@/hooks/use-prefers-reduced-motion";
 
@@ -15,10 +16,12 @@ export interface DailyGoalRingProps {
   /** Show "12/30" under the ring. */
   showLabel?: boolean;
   surface?: "dark" | "light";
+  /** Replaces the percentage/check in the middle (e.g. a large XP count on the dashboard). */
+  center?: ReactNode;
   className?: string;
 }
 
-export function DailyGoalRing({ xp, goal, size = 48, strokeWidth = 5, showLabel = false, surface = "dark", className }: DailyGoalRingProps) {
+export function DailyGoalRing({ xp, goal, size = 48, strokeWidth = 5, showLabel = false, surface = "dark", center, className }: DailyGoalRingProps) {
   const reduceMotion = usePrefersReducedMotion();
   const safeGoal = goal > 0 ? goal : 1;
   const ratio = Math.min(1, Math.max(0, xp / safeGoal));
@@ -61,7 +64,7 @@ export function DailyGoalRing({ xp, goal, size = 48, strokeWidth = 5, showLabel 
             surface === "dark" ? "text-white" : "text-slate-700"
           )}
         >
-          {reached ? <Check className="h-1/2 w-1/2 text-emerald-400" /> : `${Math.round(ratio * 100)}%`}
+          {center ?? (reached ? <Check className="h-1/2 w-1/2 text-emerald-400" /> : `${Math.round(ratio * 100)}%`)}
         </span>
       </div>
       {showLabel && (

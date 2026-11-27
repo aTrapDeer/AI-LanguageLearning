@@ -25,7 +25,7 @@ export function StreakBadge({ streak, todayDone = true, atRisk = false, surface 
       className={cn(
         "inline-flex items-center gap-1 rounded-full font-semibold tabular-nums",
         size === "sm" ? "px-2 py-0.5 text-xs" : "px-3 py-1 text-sm",
-        surface === "dark" ? "bg-white/10 text-white" : "bg-orange-50 text-orange-700",
+        surface === "dark" ? "bg-white/10 text-white" : "bg-ember-50 text-ember-800",
         atRisk && "ring-2 ring-amber-400/70",
         className
       )}
@@ -34,7 +34,7 @@ export function StreakBadge({ streak, todayDone = true, atRisk = false, surface 
         aria-hidden
         className={cn(
           size === "sm" ? "h-3.5 w-3.5" : "h-4 w-4",
-          lit ? "fill-orange-400 text-orange-400" : surface === "dark" ? "text-white/40" : "text-orange-300"
+          lit ? "fill-ember-400 text-ember-500" : surface === "dark" ? "text-white/40" : "text-ember-400"
         )}
       />
       {days}
