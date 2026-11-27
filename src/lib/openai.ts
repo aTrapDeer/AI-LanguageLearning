@@ -3,23 +3,163 @@ import { zodResponseFormat } from "openai/helpers/zod";
 import type { ChatCompletionCreateParamsNonStreaming, ChatCompletionMessageParam } from "openai/resources/chat/completions";
 import type { ZodType, ZodTypeDef } from "zod";
 
-/** Model names come from env so they can be changed without a deploy. */
-export function getTextModel(): string {
-  return process.env.OPENAI_TEXT_MODEL?.trim() || "gpt-4o-mini";
+export type ModelUse = "text" | "speech" | "transcription" | "realtime" | "realtimeTranscription" | "image";
+
+export const DEFAULT_MODELS: Readonly<Record<ModelUse, string>> = {
+  text: "gpt-6-luna",
+  // Every `/v1/audio/speech` model is being retired; speech is generated through the Realtime API instead.
+  speech: "gpt-realtime-2.1-mini",
+  transcription: "gpt-transcribe",
+  realtime: "gpt-realtime-2.1",
+  // Realtime input transcription over WebRTC; `gpt-transcribe` there needs a WebSocket session.
+  realtimeTranscription: "gpt-live-transcribe",
+  image: "gpt-image-2.6-flare",
+};
+
+const REALTIME_REPLACEMENTS: Record<string, string> = {
+  "gpt-realtime": "gpt-realtime-2.1",
+  "gpt-realtime-2025-08-28": "gpt-realtime-2.1",
+  "gpt-4o-realtime": "gpt-realtime-2.1",
+  "gpt-4o-realtime-preview": "gpt-realtime-2.1",
+  "gpt-4o-realtime-preview-2024-10-01": "gpt-realtime-2.1",
+  "gpt-4o-realtime-preview-2024-12-17": "gpt-realtime-2.1",
+  "gpt-4o-realtime-preview-2025-06-03": "gpt-realtime-2.1",
+  "gpt-realtime-mini": "gpt-realtime-2.1-mini",
+  "gpt-realtime-mini-2025-10-06": "gpt-realtime-2.1-mini",
+  "gpt-realtime-mini-2025-12-15": "gpt-realtime-2.1-mini",
+  "gpt-4o-mini-realtime": "gpt-realtime-2.1-mini",
+  "gpt-4o-mini-realtime-preview": "gpt-realtime-2.1-mini",
+  "gpt-4o-mini-realtime-preview-2024-12-17": "gpt-realtime-2.1-mini",
+};
+
+const STALE_TRANSCRIPTION_MODELS = [
+  "whisper-1",
+  "gpt-4o-transcribe",
+  "gpt-4o-transcribe-diarize",
+  "gpt-4o-mini-transcribe",
+  "gpt-4o-mini-transcribe-2025-03-20",
+  "gpt-4o-mini-transcribe-2025-12-15",
+];
+
+const replaceAll = (ids: string[], replacement: string) => Object.fromEntries(ids.map((id) => [id, replacement]));
+
+/**
+ * Ids OpenAI lists as deprecated or shut down (developers.openai.com/api/docs/deprecations, checked
+ * 2026-11-27), per use, mapped to the model used instead. Upcoming shutdowns map to the replacement the
+ * deprecations page recommends; ids that are already shut down map to the current model of the same tier.
+ * A configured env value found here is ignored (with a warning) so a forgotten deployment setting cannot
+ * keep the app on a retired model.
+ */
+export const STALE_MODELS: Readonly<Record<ModelUse, Readonly<Record<string, string>>>> = {
+  text: {
+    ...replaceAll(
+      [
+        "gpt-4o-mini",
+        "gpt-4o-mini-2024-07-18",
+        "gpt-4o",
+        "gpt-4o-2024-05-13",
+        "gpt-4o-2024-08-06",
+        "gpt-4o-2024-11-20",
+        "gpt-4.1",
+        "gpt-4.1-2025-04-14",
+        "gpt-4.1-mini",
+        "gpt-4.1-mini-2025-04-14",
+        "gpt-4.1-nano",
+        "gpt-4.1-nano-2025-04-14",
+        "gpt-5-nano",
+        "gpt-5-nano-2025-08-07",
+        "gpt-5.4-nano",
+        "gpt-5.4-nano-2026-03-17",
+        "gpt-3.5-turbo",
+        "gpt-3.5-turbo-0125",
+        "gpt-3.5-turbo-1106",
+      ],
+      "gpt-6-luna"
+    ),
+    ...replaceAll(["gpt-5-mini", "gpt-5-mini-2025-08-07"], "gpt-6.1-terra"),
+    ...replaceAll(["gpt-5", "gpt-5-2025-08-07"], "gpt-6.1-sol"),
+    ...replaceAll(["gpt-5.1", "gpt-5.1-2025-11-13"], "gpt-6-sol"),
+  },
+  speech: {
+    ...replaceAll(
+      ["tts-1", "tts-1-hd", "gpt-4o-mini-tts", "gpt-4o-mini-tts-2025-03-20", "gpt-4o-mini-tts-2025-12-15"],
+      "gpt-realtime-2.1-mini"
+    ),
+    ...REALTIME_REPLACEMENTS,
+  },
+  transcription: replaceAll(STALE_TRANSCRIPTION_MODELS, "gpt-transcribe"),
+  realtime: REALTIME_REPLACEMENTS,
+  realtimeTranscription: replaceAll(STALE_TRANSCRIPTION_MODELS, "gpt-live-transcribe"),
+  image: replaceAll(
+    [
+      "dall-e-2",
+      "dall-e-3",
+      "gpt-image-1",
+      "gpt-image-1-mini",
+      "gpt-image-1.5",
+      "gpt-image-1.5-2025-12-16",
+      "chatgpt-image-latest",
+      "gpt-image-2",
+      "gpt-image-2-2026-04-21",
+    ],
+    "gpt-image-2.6-flare"
+  ),
+};
+
+export function getStaleModelReplacement(use: ModelUse, model: string): string | null {
+  return STALE_MODELS[use][model] ?? null;
 }
 
+const warnedStaleSettings = new Set<string>();
+
+/** Reads a model id from `envName`, swapping a deprecated or shut-down id for its replacement. */
+export function resolveConfiguredModel(use: ModelUse, envName: string): string {
+  const configured = process.env[envName]?.trim();
+  if (!configured) {
+    return DEFAULT_MODELS[use];
+  }
+
+  const replacement = getStaleModelReplacement(use, configured);
+  if (!replacement) {
+    return configured;
+  }
+
+  const key = `${envName}=${configured}`;
+  if (!warnedStaleSettings.has(key)) {
+    warnedStaleSettings.add(key);
+    console.warn(
+      `[openai] ${envName}="${configured}" is deprecated or shut down by OpenAI; using "${replacement}" instead. Update or remove ${envName}.`
+    );
+  }
+  return replacement;
+}
+
+/** Model names come from env so they can be changed without a deploy. */
+export function getTextModel(): string {
+  return resolveConfiguredModel("text", "OPENAI_TEXT_MODEL");
+}
+
+/** A Realtime model: the listen button reads text aloud through a short Realtime session. */
 export function getSpeechModel(): string {
-  return process.env.OPENAI_TTS_MODEL?.trim() || "tts-1";
+  return resolveConfiguredModel("speech", "OPENAI_TTS_MODEL");
 }
 
 /** File-upload transcription (the `/api/transcribe` and chat audio routes). */
 export function getTranscriptionModel(): string {
-  return process.env.OPENAI_TRANSCRIPTION_MODEL?.trim() || "whisper-1";
+  return resolveConfiguredModel("transcription", "OPENAI_TRANSCRIPTION_MODEL");
+}
+
+/**
+ * `gpt-transcribe` and `gpt-live-transcribe` take a `languages` list and reject the older singular
+ * `language` hint alongside it; older transcription models only know `language`.
+ */
+export function buildTranscriptionLanguageHint(model: string, languageCode: string): { languages: string[] } | { language: string } {
+  return /^gpt-(live-)?transcribe/.test(model) ? { languages: [languageCode] } : { language: languageCode };
 }
 
 /** Images API model for vocabulary pictures. */
 export function getImageModel(): string {
-  return process.env.OPENAI_IMAGE_MODEL?.trim() || "gpt-image-2.6-flare";
+  return resolveConfiguredModel("image", "OPENAI_IMAGE_MODEL");
 }
 
 /** Passed through as-is: the accepted values differ between image models. */
@@ -71,6 +211,63 @@ export function getOpenAIClient(): OpenAI {
   }
 
   return cachedClient;
+}
+
+const REASONING_MODEL = /^(gpt-5|gpt-6|o\d)/;
+
+/** GPT-5/GPT-6 and o-series models reason before answering, which changes the parameters they accept. */
+export function isReasoningModel(model: string): boolean {
+  return REASONING_MODEL.test(model);
+}
+
+/**
+ * Reasoning effort for text generation. "none" (the default) gives the lowest latency, matches the
+ * non-reasoning models this app was written for, and keeps `temperature` available. Set
+ * OPENAI_TEXT_REASONING_EFFORT to low/medium/... for more deliberate output, or "off" to send nothing
+ * and use the model's own default (required for models that reject "none").
+ */
+export function getTextReasoningEffort(model: string): string | null {
+  if (!isReasoningModel(model)) {
+    return null;
+  }
+  const configured = process.env.OPENAI_TEXT_REASONING_EFFORT?.trim().toLowerCase();
+  if (configured === "off") {
+    return null;
+  }
+  return configured || "none";
+}
+
+/** Sampling and length parameters a Chat Completions request may carry for `model`. */
+export function buildTextGenerationParams(
+  model: string,
+  options: { temperature?: number; maxTokens?: number }
+): Pick<ChatCompletionCreateParamsNonStreaming, "reasoning_effort" | "temperature" | "max_completion_tokens"> {
+  const effort = getTextReasoningEffort(model);
+  // Reasoning models only accept sampling settings when they are not reasoning.
+  const sampling = !isReasoningModel(model) || effort === "none";
+  return {
+    // SDK 4 types predate "none" and the newer effort levels; the API accepts them.
+    ...(effort ? { reasoning_effort: effort as ChatCompletionCreateParamsNonStreaming["reasoning_effort"] } : {}),
+    ...(sampling && options.temperature !== undefined ? { temperature: options.temperature } : {}),
+    // The cap counts reasoning tokens too, so a cap sized for the visible reply is only safe without reasoning.
+    ...(sampling && options.maxTokens !== undefined ? { max_completion_tokens: options.maxTokens } : {}),
+  };
+}
+
+/** Instructions role: newer models take `developer` in place of `system`. */
+export function instructionsRole(model: string): "developer" | "system" {
+  return isReasoningModel(model) ? "developer" : "system";
+}
+
+/** One log line naming the model, status, parameter and code of a failed OpenAI request. */
+export function describeOpenAIError(error: unknown, model: string): string {
+  const details = (error ?? {}) as { status?: unknown; param?: unknown; code?: unknown; message?: unknown };
+  const parts = [`model "${model}"`];
+  if (typeof details.status === "number") parts.push(`status ${details.status}`);
+  if (typeof details.param === "string" && details.param) parts.push(`param "${details.param}"`);
+  if (typeof details.code === "string" && details.code) parts.push(`code ${details.code}`);
+  const message = typeof details.message === "string" && details.message ? details.message : String(error);
+  return `OpenAI request failed (${parts.join(", ")}): ${message}`;
 }
 
 /** The subset of the OpenAI client `generateJson` needs; lets tests inject a fake. */
@@ -141,7 +338,7 @@ function stripCodeFence(raw: string) {
 }
 
 /**
- * Calls chat completions with structured output, validates the reply with `schema`, and retries once
+ * Calls Chat Completions with structured output, validates the reply with `schema`, and retries once
  * (feeding the validation errors back to the model) when the output is not valid.
  * Throws {@link StructuredOutputError} on every failure path.
  */
@@ -174,9 +371,10 @@ export async function generateJson<T>(options: GenerateJsonOptions<T>): Promise<
     responseFormat = { type: "json_object" };
   }
 
+  const model = options.model ?? getTextModel();
   const systemContent = strict ? options.system : `${options.system}\n\nRespond with a single JSON object only.`;
   const messages: ChatCompletionMessageParam[] = [
-    { role: "system", content: systemContent },
+    { role: instructionsRole(model), content: systemContent },
     ...(typeof options.user === "string" ? [{ role: "user" as const, content: options.user }] : options.user),
   ];
 
@@ -188,17 +386,13 @@ export async function generateJson<T>(options: GenerateJsonOptions<T>): Promise<
     let completion: Awaited<ReturnType<JsonChatClient["chat"]["completions"]["create"]>>;
     try {
       completion = await client.chat.completions.create({
-        model: options.model ?? getTextModel(),
+        model,
         messages,
         response_format: responseFormat,
-        ...(options.temperature === undefined ? {} : { temperature: options.temperature }),
-        ...(options.maxTokens === undefined ? {} : { max_tokens: options.maxTokens }),
+        ...buildTextGenerationParams(model, options),
       });
     } catch (error) {
-      throw new StructuredOutputError("api", error instanceof Error ? error.message : "OpenAI request failed", {
-        attempts: attempt,
-        cause: error,
-      });
+      throw new StructuredOutputError("api", describeOpenAIError(error, model), { attempts: attempt, cause: error });
     }
 
     const message = completion.choices[0]?.message;
@@ -212,9 +406,11 @@ export async function generateJson<T>(options: GenerateJsonOptions<T>): Promise<
     const raw = message?.content ?? null;
     lastRaw = raw;
 
+    const truncated = completion.choices[0]?.finish_reason === "length";
+
     if (!raw || !raw.trim()) {
       lastKind = "empty";
-      lastIssues = ["empty response"];
+      lastIssues = [truncated ? "empty response (stopped at the token limit)" : "empty response"];
     } else {
       let parsed: unknown;
       let parseFailed = false;
@@ -224,6 +420,7 @@ export async function generateJson<T>(options: GenerateJsonOptions<T>): Promise<
         parseFailed = true;
         lastKind = "invalid_json";
         lastIssues = [error instanceof Error ? error.message : "invalid JSON"];
+        if (truncated) lastIssues.push("the reply stopped at the token limit");
       }
 
       if (!parseFailed) {

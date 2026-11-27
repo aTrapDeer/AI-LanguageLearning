@@ -100,8 +100,9 @@ export function buildVoiceTutorInstructions(context: VoicePromptContext): string
   return sections.join("\n\n");
 }
 
+/** Context for the transcription model: describe the audio, not the task (OpenAI's guidance for the current models). */
 export function buildVoiceTranscriptionPrompt(languageName: string, mode: VoiceMode): string {
   return mode === "assisted"
-    ? `A language learner practising ${languageName}; they may mix ${languageName} and English. Transcribe exactly what is said, in the language spoken.`
-    : `A language learner speaking ${languageName}, possibly with mistakes and an accent. Transcribe exactly what is said without correcting it.`;
+    ? `A language learner practising ${languageName} with a tutor; they mix ${languageName} and English, with beginner mistakes.`
+    : `A language learner speaking ${languageName} with a tutor, with a non-native accent and grammar mistakes that are part of the recording.`;
 }

@@ -1,7 +1,11 @@
 import { z } from "zod";
 import { enforceAiQuota, jsonError, requireUser } from "@/lib/api-auth";
-import { getOpenAIClient, getSpeechModel, isOpenAIConfigured } from "@/lib/openai";
+import { isOpenAIConfigured } from "@/lib/openai";
+import { synthesizeSpeech } from "@/lib/openai-realtime";
 import { parseLanguage, tutorUnavailableResponse } from "@/lib/tutor/route-helpers";
+
+// Each request opens a short Realtime session (connect, generate, close) instead of one HTTP call.
+export const maxDuration = 30;
 
 const MAX_TTS_CHARACTERS = 600;
 
@@ -11,16 +15,7 @@ const TtsSchema = z.object({
   speed: z.enum(["normal", "slow"]).nullish(),
 });
 
-const SPEEDS = { normal: 1, slow: 0.75 } as const;
-type TtsVoice = "alloy" | "echo" | "fable" | "onyx" | "nova" | "shimmer";
-const VOICES = new Set<TtsVoice>(["alloy", "echo", "fable", "onyx", "nova", "shimmer"]);
-
-function getVoice(): TtsVoice {
-  const configured = process.env.OPENAI_TTS_VOICE?.trim() as TtsVoice | undefined;
-  return configured && VOICES.has(configured) ? configured : "nova";
-}
-
-/** Speaks target-language text on demand (only when the learner taps listen). Streams MP3. */
+/** Speaks target-language text on demand (only when the learner taps listen). Returns WAV audio. */
 export async function POST(request: Request) {
   try {
     const auth = await requireUser();
@@ -39,7 +34,8 @@ export async function POST(request: Request) {
       return jsonError(413, "Text is too long to read aloud");
     }
 
-    if (!parseLanguage(parsed.data.language)) {
+    const language = parseLanguage(parsed.data.language);
+    if (!language) {
       return jsonError(400, "Unsupported language");
     }
 
@@ -50,22 +46,16 @@ export async function POST(request: Request) {
     const limited = await enforceAiQuota(auth.userId, "speech");
     if (limited) return limited;
 
-    const speech = await getOpenAIClient().audio.speech.create({
-      model: getSpeechModel(),
-      voice: getVoice(),
-      input: text,
-      response_format: "mp3",
-      speed: SPEEDS[parsed.data.speed ?? "normal"],
-    });
+    const audio = await synthesizeSpeech({ text, languageName: language.name, slow: parsed.data.speed === "slow" });
 
-    return new Response(speech.body, {
+    return new Response(new Uint8Array(audio), {
       headers: {
-        "Content-Type": "audio/mpeg",
+        "Content-Type": "audio/wav",
         "Cache-Control": "private, max-age=3600",
       },
     });
   } catch (error) {
-    console.error("[TTS]", error);
+    console.error("[TTS]", error instanceof Error ? error.message : error);
     return jsonError(502, "Couldn't create audio right now.");
   }
 }

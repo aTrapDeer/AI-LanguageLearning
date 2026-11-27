@@ -217,7 +217,7 @@ describe("generateTutorReply", () => {
 
     expect(reply.reply).toBe(validReply.reply);
     expect(calls[0].messages).toHaveLength(2);
-    expect(calls[0].messages[0].role).toBe("system");
+    expect(calls[0].messages[0].role).toBe("developer");
     expect(String(calls[0].messages[1].content)).toContain("barista");
   });
 

@@ -36,7 +36,7 @@ other AI features show an "unavailable" state.
 - Tailwind CSS 3, shadcn-style components (`src/components/ui`), framer-motion
 - NextAuth v4 (credentials, optional Google OAuth) with JWT sessions
 - Turso / libSQL via `@libsql/client` (hand-written queries, schema auto-migrated)
-- OpenAI (chat completions, text-to-speech, transcription, Realtime API for voice, Images API)
+- OpenAI (Chat Completions with `gpt-6-luna`, the Realtime API for voice and read-aloud audio, `gpt-transcribe`, Images API)
 - sharp for normalising generated pictures to WebP
 - Vitest for unit and database tests
 
@@ -79,7 +79,12 @@ The database schema is created automatically on first use; see [TURSO-SETUP.md](
   with `AI_DAILY_LIMIT_TEXT`, `AI_DAILY_LIMIT_SPEECH`, `AI_DAILY_LIMIT_TRANSCRIPTION`,
   `AI_DAILY_LIMIT_REALTIME` and `AI_DAILY_LIMIT_IMAGE` (a value of 0 or less removes the cap).
 - Model names can be overridden with `OPENAI_TEXT_MODEL`, `OPENAI_TTS_MODEL`,
-  `OPENAI_TRANSCRIPTION_MODEL`, `OPENAI_IMAGE_MODEL` and the `OPENAI_REALTIME_*` variables.
+  `OPENAI_TRANSCRIPTION_MODEL`, `OPENAI_IMAGE_MODEL` and the `OPENAI_REALTIME_*` variables (defaults in
+  `.env.example`). A value OpenAI lists as deprecated or shut down is swapped for its successor with a
+  warning in the server log, so an old deployment setting can't keep the app on a retired model.
+- The listen button (`/api/tts`) reads text aloud through a short Realtime API session
+  (`gpt-realtime-2.1-mini`) and returns WAV audio, because every model on OpenAI's speech endpoint is
+  being retired.
 - Vocabulary pictures: `LESSON_IMAGES=off` turns them off completely (nothing generated or shown). By
   default a newly generated lesson starts up to `LESSON_IMAGES_PER_LESSON` (4) pictures and waits at
   most `LESSON_IMAGES_WAIT_MS` (10000) for them; the rest finish in the background and later lessons fill

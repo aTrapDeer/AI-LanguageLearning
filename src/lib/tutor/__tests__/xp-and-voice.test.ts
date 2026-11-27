@@ -116,7 +116,12 @@ describe("voice tutor instructions", () => {
       instructions: "x",
       transcriptionPrompt: buildVoiceTranscriptionPrompt("Portuguese (Brazilian)", "native"),
     });
-    expect(session.audio.input.transcription).toMatchObject({ language: "pt" });
+    expect(session.model).toBe("gpt-realtime-2.1");
+    expect(session.audio.input.transcription).toEqual({
+      model: "gpt-live-transcribe",
+      languages: ["pt"],
+      prompt: buildVoiceTranscriptionPrompt("Portuguese (Brazilian)", "native"),
+    });
     expect(session.output_modalities).toEqual(["audio"]);
     expect(session.audio.input.turn_detection.create_response).toBe(true);
     expect(session.instructions).toBe("x");

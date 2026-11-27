@@ -172,6 +172,14 @@ export function useRealtimeVoice() {
           userLineRef.current = null;
           break;
         }
+        case "conversation.item.input_audio_transcription.failed": {
+          // The tutor still heard the audio; only the written line is missing.
+          console.warn("Voice transcription failed:", message.error?.message ?? "no details");
+          const id = userLineRef.current;
+          if (id) updateLines((current) => current.filter((line) => line.id !== id || line.text.trim()));
+          userLineRef.current = null;
+          break;
+        }
         case "response.output_audio_transcript.delta":
         case "response.output_text.delta": {
           setTutorSpeaking(true);

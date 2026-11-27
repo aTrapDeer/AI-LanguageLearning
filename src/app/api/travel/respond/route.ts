@@ -1,13 +1,29 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { enforceAiQuota, requireUser } from "@/lib/api-auth";
-import { getOpenAIClient, getTextModel, OpenAIConfigError } from "@/lib/openai";
+import { generateJson, isOpenAIConfigured, StructuredOutputError } from "@/lib/openai";
 import { getSupportedLanguageName, isSupportedLanguageCode } from "@/lib/language-config";
 
 const TravelResponseSchema = z.object({
   language: z.string().min(1),
   message: z.string().min(1).max(400),
 });
+
+const ResponseOptionsSchema = z.object({
+  options: z.array(
+    z.object({
+      label: z.string(),
+      tone: z.string(),
+      translation: z.string(),
+      backTranslation: z.string(),
+      pronunciation: z.string(),
+      usageNote: z.string(),
+    })
+  ),
+});
+
+const unavailable = () =>
+  NextResponse.json({ error: "Travel mode isn't available right now.", code: "tutor_unavailable" }, { status: 503 });
 
 export async function POST(request: Request) {
   try {
@@ -29,34 +45,27 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Unsupported language" }, { status: 400 });
     }
 
+    if (!isOpenAIConfigured()) {
+      return unavailable();
+    }
+
     const limited = await enforceAiQuota(auth.userId, "text");
     if (limited) return limited;
 
     const languageName = getSupportedLanguageName(language);
-    const openai = getOpenAIClient();
-
-    const completion = await openai.chat.completions.create({
-      model: getTextModel(),
-      response_format: { type: "json_object" },
+    const parsedResponse = await generateJson({
+      schema: ResponseOptionsSchema,
+      schemaName: "travel_reply_options",
       temperature: 0.7,
-      messages: [
-        {
-          role: "system",
-          content: `You help travelers reply naturally in ${languageName}.
+      system: `You help travelers reply naturally in ${languageName}.
 
-Return valid JSON only using this exact structure:
-{
-  "options": [
-    {
-      "label": "Natural",
-      "tone": "friendly and natural",
-      "translation": "translated sentence in ${languageName}",
-      "backTranslation": "natural English meaning",
-      "pronunciation": "pronunciation help when useful, otherwise empty string",
-      "usageNote": "brief note on when to use it"
-    }
-  ]
-}
+Return the replies in "options"; each one has:
+- "label": e.g. "Natural", "Polite" or "Direct".
+- "tone": e.g. "friendly and natural".
+- "translation": the sentence in ${languageName}.
+- "backTranslation": its natural English meaning.
+- "pronunciation": pronunciation help when useful, otherwise an empty string.
+- "usageNote": a brief note on when to use it.
 
 Rules:
 - Provide exactly 3 options.
@@ -67,40 +76,19 @@ Rules:
 - Do not include markdown, code fences, or extra commentary.
 - If the script is Latin-based, pronunciation can be an empty string.
 - Preserve important place names, numbers, and times accurately.`,
-        },
-        {
-          role: "user",
-          content: `Translate this traveler response into ${languageName}: ${message}`,
-        },
-      ],
+      user: `Translate this traveler response into ${languageName}: ${message}`,
     });
 
-    const rawContent = completion.choices[0]?.message?.content;
-    if (!rawContent) {
-      throw new Error("No translation options returned");
-    }
-
-    const parsedResponse = JSON.parse(rawContent) as {
-      options?: Array<{
-        label?: string;
-        tone?: string;
-        translation?: string;
-        backTranslation?: string;
-        pronunciation?: string;
-        usageNote?: string;
-      }>;
-    };
-
-    const options = (parsedResponse.options || [])
-      .filter((option) => option.translation && option.backTranslation)
+    const options = parsedResponse.options
+      .filter((option) => option.translation.trim() && option.backTranslation.trim())
       .slice(0, 3)
       .map((option, index) => ({
-        label: option.label || ["Natural", "Polite", "Direct"][index] || `Option ${index + 1}`,
-        tone: option.tone || "travel-friendly",
-        translation: option.translation!.trim(),
-        backTranslation: option.backTranslation!.trim(),
-        pronunciation: option.pronunciation?.trim() || "",
-        usageNote: option.usageNote?.trim() || "Good for everyday travel conversations.",
+        label: option.label.trim() || ["Natural", "Polite", "Direct"][index] || `Option ${index + 1}`,
+        tone: option.tone.trim() || "travel-friendly",
+        translation: option.translation.trim(),
+        backTranslation: option.backTranslation.trim(),
+        pronunciation: option.pronunciation.trim(),
+        usageNote: option.usageNote.trim() || "Good for everyday travel conversations.",
       }));
 
     if (options.length === 0) {
@@ -109,11 +97,11 @@ Rules:
 
     return NextResponse.json({ options });
   } catch (error) {
-    if (error instanceof OpenAIConfigError) {
-      return NextResponse.json({ error: "Travel mode isn't available right now.", code: "tutor_unavailable" }, { status: 503 });
+    if (error instanceof StructuredOutputError) {
+      console.error(`[TRAVEL_RESPOND] ${error.kind} after ${error.attempts} attempt(s): ${error.message}`, error.issues);
+    } else {
+      console.error("[TRAVEL_RESPOND]", error);
     }
-
-    console.error("[TRAVEL_RESPOND]", error);
     return NextResponse.json({ error: "Failed to generate response options. Please try again." }, { status: 502 });
   }
 }

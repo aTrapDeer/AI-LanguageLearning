@@ -1,6 +1,14 @@
 import { NextResponse } from "next/server";
 import { enforceAiQuota, jsonError, requireUser } from "@/lib/api-auth";
-import { getOpenAIClient, getTranscriptionModel, isOpenAIConfigured, OpenAIConfigError } from "@/lib/openai";
+import type { TranscriptionCreateParamsNonStreaming } from "openai/resources/audio/transcriptions";
+import {
+  buildTranscriptionLanguageHint,
+  describeOpenAIError,
+  getOpenAIClient,
+  getTranscriptionModel,
+  isOpenAIConfigured,
+  OpenAIConfigError,
+} from "@/lib/openai";
 import { parseLanguage, tutorUnavailableResponse } from "@/lib/tutor/route-helpers";
 
 const MAX_AUDIO_BYTES = 10 * 1024 * 1024;
@@ -23,6 +31,7 @@ function fileNameFor(mimeType: string) {
 }
 
 export async function POST(request: Request) {
+  const model = getTranscriptionModel();
   try {
     const auth = await requireUser();
     if (!auth.ok) return auth.response;
@@ -55,11 +64,13 @@ export async function POST(request: Request) {
 
     const mimeType = audioBlob.type || "audio/webm";
     const file = new File([audioBlob], fileNameFor(mimeType), { type: mimeType });
-    const transcription = await getOpenAIClient().audio.transcriptions.create({
+    // SDK 4 types only know the singular `language` hint; the current models take `languages`.
+    const params = {
       file,
-      model: getTranscriptionModel(),
-      language: isEnglish ? "en" : language!.transcriptionCode,
-    });
+      model,
+      ...buildTranscriptionLanguageHint(model, isEnglish ? "en" : language!.transcriptionCode),
+    } as TranscriptionCreateParamsNonStreaming;
+    const transcription = await getOpenAIClient().audio.transcriptions.create(params);
 
     return NextResponse.json({ text: transcription.text.trim() });
   } catch (error) {
@@ -67,7 +78,7 @@ export async function POST(request: Request) {
       return tutorUnavailableResponse();
     }
 
-    console.error("[TRANSCRIBE]", error);
+    console.error("[TRANSCRIBE]", describeOpenAIError(error, model));
     return jsonError(502, "Couldn't understand the recording. Please try again.");
   }
 }

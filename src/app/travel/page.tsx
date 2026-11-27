@@ -287,6 +287,13 @@ function TravelPageContent() {
           void translateTurn(turnId, completedTranscript);
           break;
         }
+        case "conversation.item.input_audio_transcription.failed": {
+          console.warn("Travel transcription failed:", message.error?.message ?? "no details");
+          const turnId = ensureActiveTurn();
+          currentTurnIdRef.current = null;
+          void translateTurn(turnId, "");
+          break;
+        }
         case "error": {
           setError(message.error?.message || "Realtime translation failed.");
           setConnectionStatus("Error");
