@@ -8,3 +8,4 @@ export { SpeakButton, type SpeakButtonProps } from "./speak-button";
 export { StarRating, type StarRatingProps } from "./star-rating";
 export { StreakBadge, type StreakBadgeProps } from "./streak-badge";
 export { XpPill, type XpPillProps } from "./xp-pill";
+export { VocabPicture, type VocabPictureProps } from "./vocab-picture";

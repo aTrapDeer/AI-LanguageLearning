@@ -134,7 +134,8 @@ export async function getLessonById<TContent = unknown>(lessonId: string): Promi
 
 /**
  * A pooled lesson for (language, unit) this learner has not completed yet, preferring ones they have
- * never opened. Returns null when the pool has nothing new for them (generate a fresh lesson then).
+ * never opened, then ones in the newest content format. Returns null when the pool has nothing new for
+ * them (generate a fresh lesson then).
  * Pass `minContentVersion` to skip lessons generated with an older content format.
  */
 export async function findReusableLesson<TContent = unknown>(params: {
@@ -152,6 +153,7 @@ export async function findReusableLesson<TContent = unknown>(params: {
         )
       ORDER BY
         EXISTS (SELECT 1 FROM lesson_attempts WHERE lesson_attempts.lesson_id = lessons.id AND lesson_attempts.user_id = ?) ASC,
+        lessons.content_version DESC,
         RANDOM()
       LIMIT 1`,
     [params.language, params.unitId, params.minContentVersion ?? 1, params.userId, params.userId]

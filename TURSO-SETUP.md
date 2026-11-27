@@ -2,7 +2,8 @@
 
 Laingfy stores all application data in Turso (libSQL): users and NextAuth records, per-language
 progress, vocabulary with spaced-repetition state, pooled lessons and lesson attempts, daily activity
-(XP and streaks), tutor chat sessions, recorded mistakes, and per-user AI usage counters.
+(XP and streaks), tutor chat sessions, recorded mistakes, per-user AI usage counters, and the shared
+vocabulary pictures.
 
 ## Environment variables
 
@@ -54,4 +55,5 @@ This reads `.env.local` (variables already set in the shell take precedence).
 | `chat_sessions`, `chat_messages` | Tutor conversation memory |
 | `mistakes` | Corrections the learner received, for targeted practice |
 | `ai_usage` | Per-user daily counters for paid AI calls |
+| `concept_images` | Vocabulary pictures (WebP bytes), one per English concept, shared by all learners and languages; `learning.image_key` links a word to its picture |
 | `chats` | Legacy flat chat log (still written by the current chat routes) |

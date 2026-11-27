@@ -5,6 +5,9 @@ import type { GeneratedLessonContent } from "./content";
 /**
  * Hand-written lessons for the very first unit (greetings) in every language, so a brand-new learner
  * always gets a complete, correct lesson even when generation is unavailable.
+ *
+ * No item has a picture: greetings and courtesy phrases can't be drawn without either text or a
+ * scene that could mean several of them, and a misleading picture is worse than none.
  */
 
 export const STARTER_UNIT_ID = getUnitsForLevel(1)[0].id;
@@ -17,7 +20,7 @@ function v(
   translation: string,
   partOfSpeech: string,
   example: [string, string, string?],
-  extra: { romanization?: string; alternatives?: string[] } = {}
+  extra: { romanization?: string; alternatives?: string[]; picture?: string } = {}
 ): Vocab {
   return {
     word,
@@ -28,6 +31,7 @@ function v(
     example: example[0],
     exampleTranslation: example[1],
     exampleRomanization: example[2] ?? null,
+    picture: extra.picture ?? null,
   };
 }
 

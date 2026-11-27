@@ -39,11 +39,13 @@ import { buildLessonPlan, countGradedSteps } from "./builder";
 import {
   generatedLessonContentSchema,
   LESSON_CONTENT_VERSION,
+  MIN_PLAYABLE_CONTENT_VERSION,
   validateLessonContent,
   validateStoredContent,
   type LessonContent,
 } from "./content";
 import { gradeStep } from "./grader";
+import { preparePlanPictures } from "./pictures";
 import { buildLessonPrompt } from "./prompt";
 import { randomSeed, pickSome, createRng } from "./rng";
 import { sanitizeProgress, type LessonProgress } from "./session";
@@ -135,7 +137,7 @@ async function chooseLesson(params: {
   const { userId, language, unit } = params;
 
   const reusable = await loadValidLesson(
-    await findReusableLesson({ userId, language, unitId: unit.id, minContentVersion: LESSON_CONTENT_VERSION }),
+    await findReusableLesson({ userId, language, unitId: unit.id, minContentVersion: MIN_PLAYABLE_CONTENT_VERSION }),
     language
   );
   if (reusable) {
@@ -167,7 +169,7 @@ async function chooseLesson(params: {
 
   // Replays may reuse a lesson the learner has seen before rather than fail.
   const any = await loadValidLesson(
-    await findAnyLessonForUnit({ language, unitId: unit.id, minContentVersion: LESSON_CONTENT_VERSION }),
+    await findAnyLessonForUnit({ language, unitId: unit.id, minContentVersion: MIN_PLAYABLE_CONTENT_VERSION }),
     language
   );
   if (any) {
@@ -199,14 +201,21 @@ async function planFor(params: { userId: string; language: string; lesson: Store
     lessonId: params.lesson.id,
     unitId: params.lesson.unitId,
     seed: randomSeed(),
-    reviewWords: due.map((item) => ({ id: item.id, word: item.word, translation: item.translation, romanization: item.romanization })),
+    reviewWords: due.map((item) => ({
+      id: item.id,
+      word: item.word,
+      translation: item.translation,
+      romanization: item.romanization,
+      imageKey: item.imageKey,
+    })),
   });
 }
 
 async function resume(userId: string, attempt: LessonAttempt<unknown>, unit: CurriculumUnit): Promise<StartLessonResponse | null> {
   if (isAttemptState(attempt.state)) {
     const progress = sanitizeProgress(attempt.state.plan, attempt.state.progress);
-    return { attemptId: attempt.id, resumed: progress !== null && progress.done > 0, source: "pool", unit, plan: attempt.state.plan, progress };
+    const plan = await preparePlanPictures({ userId, plan: attempt.state.plan, freshlyGenerated: false });
+    return { attemptId: attempt.id, resumed: progress !== null && progress.done > 0, source: "pool", unit, plan, progress };
   }
 
   // An attempt without a plan (e.g. created elsewhere): give it one.
@@ -215,7 +224,9 @@ async function resume(userId: string, attempt: LessonAttempt<unknown>, unit: Cur
   const plan = await planFor({ userId, language: attempt.language, ...loaded });
   const state: AttemptState = { v: 1, plan, progress: null };
   const saved = await saveLessonAttemptState({ userId, attemptId: attempt.id, state });
-  return saved ? { attemptId: attempt.id, resumed: false, source: "pool", unit, plan, progress: null } : null;
+  if (!saved) return null;
+  const withPictures = await preparePlanPictures({ userId, plan, freshlyGenerated: false });
+  return { attemptId: attempt.id, resumed: false, source: "pool", unit, plan: withPictures, progress: null };
 }
 
 export async function startLesson(params: { userId: string; language: string; unitId?: string | null }): Promise<ServiceResult<StartLessonResponse>> {
@@ -253,6 +264,8 @@ export async function startLesson(params: { userId: string; language: string; un
   const initialState: AttemptState = { v: 1, plan, progress: null };
   const attempt = await startLessonAttempt<AttemptState>({ userId, lessonId: chosen.data.lesson.id, initialState });
   const state = isAttemptState(attempt.state) ? attempt.state : initialState;
+  // The stored plan keeps only concept keys; picture URLs are resolved per response.
+  const planWithPictures = await preparePlanPictures({ userId, plan: state.plan, freshlyGenerated: chosen.data.source === "generated" });
 
   return {
     ok: true,
@@ -261,7 +274,7 @@ export async function startLesson(params: { userId: string; language: string; un
       resumed: false,
       source: chosen.data.source,
       unit,
-      plan: state.plan,
+      plan: planWithPictures,
       progress: sanitizeProgress(state.plan, state.progress),
     },
   };
@@ -438,6 +451,7 @@ export async function completeLesson(params: {
       exampleTranslation: word.exampleTranslation,
       unitId: plan.unitId,
       tags: [plan.unitId],
+      imageKey: word.picture?.key ?? null,
     });
     if (missed.length > 0) {
       collectNew((await upsertVocabulary({ userId, language, source: "journey", items: missed.map(toInput), now })).items);

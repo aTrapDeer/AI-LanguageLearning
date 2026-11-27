@@ -29,6 +29,7 @@ export * from "./db/activity";
 export * from "./db/chat";
 export * from "./db/mistakes";
 export * from "./db/quota";
+export * from "./db/images";
 export * from "./db/summary";
 
 export interface DatabaseUser {

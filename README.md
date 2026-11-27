@@ -12,6 +12,12 @@ Languages: German, Brazilian Portuguese, Chinese (Mandarin), Norwegian, Korean a
 - **Lesson path** (`/learn/journey`) – 60 curriculum units, six per level. Each lesson teaches new words,
   then tests them with choice, listening, matching, fill-in, sentence-building and typed-recall exercises.
   Missed exercises come back at the end; finishing awards stars and XP and adds the words to your review deck.
+- **Vocabulary pictures** – words that can be drawn (objects, food, animals, places, simple actions) get a
+  small text-free illustration on their intro card, on "How do you say this?" questions and on the answer
+  side of review cards. Each picture is generated once per English concept with the OpenAI Images API,
+  stored as a ~512 px WebP in the database and shared by every learner and language ("der Apfel",
+  "a maçã" and "苹果" all use one "apple" picture). Lessons never wait more than a few seconds for them
+  and work the same without them.
 - **Review** (`/flashcards`) – spaced repetition over your own words (Again / Hard / Good / Easy), plus a
   "My words" view to search, add and remove vocabulary.
 - **Chat tutor** (`/learn/<language>`) – remembers the conversation, adapts to your level and current unit,
@@ -30,7 +36,8 @@ other AI features show an "unavailable" state.
 - Tailwind CSS 3, shadcn-style components (`src/components/ui`), framer-motion
 - NextAuth v4 (credentials, optional Google OAuth) with JWT sessions
 - Turso / libSQL via `@libsql/client` (hand-written queries, schema auto-migrated)
-- OpenAI (chat completions, text-to-speech, transcription, Realtime API for voice)
+- OpenAI (chat completions, text-to-speech, transcription, Realtime API for voice, Images API)
+- sharp for normalising generated pictures to WebP
 - Vitest for unit and database tests
 
 ## Getting started
@@ -65,13 +72,20 @@ The database schema is created automatically on first use; see [TURSO-SETUP.md](
 
 ## Notes
 
-- Every API route except NextAuth and `/api/register` requires a signed-in session
-  (`src/lib/api-auth.ts`); the user id always comes from the session.
+- Every API route except NextAuth, `/api/register` and `/api/images/:id` requires a signed-in session
+  (`src/lib/api-auth.ts`); the user id always comes from the session. `/api/images/:id` serves only the
+  shared vocabulary pictures (random UUIDs, cached as immutable) and no user data.
 - AI routes are protected by a per-user daily quota stored in the database. Defaults can be changed
-  with `AI_DAILY_LIMIT_TEXT`, `AI_DAILY_LIMIT_SPEECH`, `AI_DAILY_LIMIT_TRANSCRIPTION` and
-  `AI_DAILY_LIMIT_REALTIME` (a value of 0 or less removes the cap).
+  with `AI_DAILY_LIMIT_TEXT`, `AI_DAILY_LIMIT_SPEECH`, `AI_DAILY_LIMIT_TRANSCRIPTION`,
+  `AI_DAILY_LIMIT_REALTIME` and `AI_DAILY_LIMIT_IMAGE` (a value of 0 or less removes the cap).
 - Model names can be overridden with `OPENAI_TEXT_MODEL`, `OPENAI_TTS_MODEL`,
-  `OPENAI_TRANSCRIPTION_MODEL` and the `OPENAI_REALTIME_*` variables.
+  `OPENAI_TRANSCRIPTION_MODEL`, `OPENAI_IMAGE_MODEL` and the `OPENAI_REALTIME_*` variables.
+- Vocabulary pictures: `LESSON_IMAGES=off` turns them off completely (nothing generated or shown). By
+  default a newly generated lesson starts up to `LESSON_IMAGES_PER_LESSON` (4) pictures and waits at
+  most `LESSON_IMAGES_WAIT_MS` (10000) for them; the rest finish in the background and later lessons fill
+  in what is missing. Requests use `OPENAI_IMAGE_MODEL` (`gpt-image-2.6-flare`), `OPENAI_IMAGE_QUALITY`
+  (`low`) and `OPENAI_IMAGE_SIZE` (`1024x1024`); `OPENAI_IMAGE_COMPLEXITY` is sent only when set. A failed
+  picture is retried later with back-off (10 minutes, doubling, at most daily).
 
 ## License
 

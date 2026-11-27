@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion, type PanInfo } from "framer-motion";
-import { SpeakButton } from "@/components/learn";
+import { SpeakButton, VocabPicture } from "@/components/learn";
 import { usePrefersReducedMotion } from "@/hooks/use-prefers-reduced-motion";
 import { getLanguageConfig } from "@/lib/language-config";
 import type { ReviewCardData } from "@/lib/review/types";
@@ -96,6 +96,11 @@ export function ReviewCard({ card, language, revealed, onReveal, onSwipe }: Revi
             className="overflow-hidden"
           >
             <div className="mx-auto my-5 h-px w-16 bg-slate-200" />
+            {card.imageUrl && (
+              <div className="mb-4 flex justify-center">
+                <VocabPicture url={card.imageUrl} className="h-24 w-24 sm:h-28 sm:w-28" />
+              </div>
+            )}
             {recognize ? (
               <>
                 {romanization}

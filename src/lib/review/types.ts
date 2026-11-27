@@ -12,6 +12,8 @@ export interface ReviewCardData {
   romanization: string | null;
   exampleSentence: string | null;
   exampleTranslation: string | null;
+  /** The word's picture, shown with the answer; null when it has none. */
+  imageUrl: string | null;
   maturity: Maturity;
   direction: CardDirection;
   srs: SrsState;

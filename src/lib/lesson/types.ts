@@ -9,6 +9,17 @@ export interface TargetText {
   romanization: string | null;
 }
 
+/**
+ * A word's picture. The plan stores only the concept key (and the description it is generated from);
+ * `url` is filled in on each response once a picture exists, so stored plans pick up pictures that
+ * finished after the lesson was started.
+ */
+export interface PlanPicture {
+  key: string;
+  description: string;
+  url?: string | null;
+}
+
 /** A new word as the learner meets it in the lesson. */
 export interface PlanWord {
   /** Normalised key, stable within the lesson. */
@@ -21,6 +32,8 @@ export interface PlanWord {
   example: string | null;
   exampleTranslation: string | null;
   exampleRomanization: string | null;
+  /** Absent in plans built before pictures existed. */
+  picture?: PlanPicture | null;
 }
 
 export interface ReviewWordInput {
@@ -29,6 +42,8 @@ export interface ReviewWordInput {
   word: string;
   translation: string;
   romanization: string | null;
+  /** Concept key of the word's picture (`learning.image_key`). */
+  imageKey?: string | null;
 }
 
 export type StepRef =
@@ -75,6 +90,8 @@ export interface ChoiceStep extends GradedBase {
   options: ChoiceOption[];
   answerId: string;
   isReview: boolean;
+  /** Shown with the English prompt of "toTarget" questions only (it would give a "toEnglish" answer away). */
+  picture?: PlanPicture | null;
 }
 
 export interface ListenStep extends GradedBase {

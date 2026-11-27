@@ -7,7 +7,7 @@ import { asNumber, execute, getFirstRow, nowIso } from "./client";
  * the cap for that kind.
  */
 
-export const AI_QUOTA_KINDS = ["text", "speech", "transcription", "realtime"] as const;
+export const AI_QUOTA_KINDS = ["text", "speech", "transcription", "realtime", "image"] as const;
 export type AiQuotaKind = (typeof AI_QUOTA_KINDS)[number];
 
 export const DEFAULT_AI_DAILY_LIMITS: Readonly<Record<AiQuotaKind, number>> = {
@@ -19,6 +19,8 @@ export const DEFAULT_AI_DAILY_LIMITS: Readonly<Record<AiQuotaKind, number>> = {
   transcription: 300,
   /** Realtime voice sessions started. */
   realtime: 30,
+  /** Vocabulary pictures generated (each picture is generated once and then shared by everyone). */
+  image: 40,
 };
 
 /** Effective limit for `kind`, or null when uncapped. */

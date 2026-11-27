@@ -1,3 +1,4 @@
+import { conceptKeyFor } from "@/lib/images/concept";
 import { getLanguageConfig } from "@/lib/language-config";
 import type { LessonContent, LessonSentence } from "./content";
 import { createRng, pickSome, shuffle, type Rng } from "./rng";
@@ -12,6 +13,7 @@ import type {
   LessonStep,
   ListenStep,
   MatchStep,
+  PlanPicture,
   PlanWord,
   ReviewWordInput,
   TypeStep,
@@ -41,6 +43,11 @@ export interface BuildPlanOptions {
 type Draft<T extends LessonStep> = Omit<T, "id">;
 type DraftStep = LessonStep extends infer S ? (S extends LessonStep ? Draft<S> : never) : never;
 
+function pictureFor(item: LessonContent["vocabulary"][number]): PlanPicture | null {
+  const key = item.picture ? conceptKeyFor(item.translation) : null;
+  return key && item.picture ? { key, description: item.picture } : null;
+}
+
 export function toPlanWord(item: LessonContent["vocabulary"][number], language: string): PlanWord {
   return {
     key: normalizeForCompare(item.word, language),
@@ -52,6 +59,7 @@ export function toPlanWord(item: LessonContent["vocabulary"][number], language: 
     example: item.example,
     exampleTranslation: item.exampleTranslation,
     exampleRomanization: item.exampleRomanization,
+    picture: pictureFor(item),
   };
 }
 
@@ -117,6 +125,7 @@ interface Meaning {
   word: string;
   romanization: string | null;
   translation: string;
+  picture?: PlanPicture | null;
 }
 
 function choiceToEnglish(params: {
@@ -197,6 +206,7 @@ function choiceToTarget(params: {
     isReview: params.isReview,
     ref: params.ref,
     explanation: explainWord(params.item),
+    picture: params.item.picture ?? null,
   };
 }
 
@@ -456,7 +466,13 @@ export function buildLessonPlan(content: LessonContent, options: BuildPlanOption
   const half = Math.ceil(words.length / 2);
   const groupA = words.slice(0, half);
   const groupB = words.slice(half);
-  const reviewMeanings: Meaning[] = reviewWords.map((review) => ({ ...review }));
+  const reviewMeanings: Meaning[] = reviewWords.map((review) => ({
+    word: review.word,
+    translation: review.translation,
+    romanization: review.romanization,
+    // Review words have no description here; the picture already exists if it has a key.
+    picture: review.imageKey ? { key: review.imageKey, description: "" } : null,
+  }));
 
   const recognitionA = shuffle(groupA, rng)
     .map((word) => choiceToEnglish({ item: word, pool: [...words, ...reviewMeanings], language, rng, ref: { kind: "word", key: word.key }, isReview: false }))
@@ -476,7 +492,7 @@ export function buildLessonPlan(content: LessonContent, options: BuildPlanOption
       const ref = { kind: "review" as const, vocabId: review.id, word: review.word };
       return index % 2 === 0
         ? choiceToEnglish({ item: review, pool: [...words, ...reviewMeanings], language, rng, ref, isReview: true })
-        : choiceToTarget({ item: review, pool: [...words, ...reviewMeanings], language, rng, ref, isReview: true });
+        : choiceToTarget({ item: reviewMeanings[index], pool: [...words, ...reviewMeanings], language, rng, ref, isReview: true });
     })
     .filter((step): step is Draft<ChoiceStep> => Boolean(step));
 

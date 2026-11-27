@@ -14,6 +14,7 @@ import {
   sanitizeProgress,
 } from "../session";
 import { getStarterContent, STARTER_UNIT_ID } from "../starter-content";
+import { attachPictureUrls, planPictureRequests } from "../pictures";
 import { findPhraseSpans, normalizeForCompare, tokenizeSentence } from "../text";
 import type { BuildStep, ChoiceStep, FillStep, GradedStep, LessonAnswer, LessonPlan, ListenStep, MatchStep, TypeStep } from "../types";
 
@@ -430,5 +431,99 @@ describe("rng", () => {
     const items = [1, 2, 3, 4, 5, 6];
     expect(shuffle(items, createRng(3))).toEqual(shuffle(items, createRng(3)));
     expect([...shuffle(items, createRng(3))].sort()).toEqual(items);
+  });
+});
+
+describe("vocabulary pictures", () => {
+  const PICTURES: Record<string, string> = {
+    hello: "a person waving",
+    please: "a hand offering a cup of coffee",
+    "excuse me": "a person raising a hand",
+  };
+
+  function withPictures(): LessonContent {
+    const raw = getStarterContent("de", STARTER_UNIT_ID)!;
+    const result = validateLessonContent(
+      { ...raw, vocabulary: raw.vocabulary.map((item) => ({ ...item, picture: PICTURES[item.translation] ?? null })) },
+      "de"
+    );
+    if (!result.ok) throw new Error(result.errors.join("; "));
+    return result.content;
+  }
+
+  it("keeps a clean description and drops unusable ones", () => {
+    const raw = getStarterContent("de", STARTER_UNIT_ID)!;
+    const result = validateLessonContent(
+      {
+        ...raw,
+        vocabulary: raw.vocabulary.map((item, index) => ({
+          ...item,
+          picture: ["  a red\napple.  ", "eine Hand", "x".repeat(200), "苹果", null][index] ?? null,
+        })),
+      },
+      "de"
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.content.vocabulary.map((item) => item.picture)).toEqual(["a red apple", "eine Hand", null, null, null, null, null]);
+  });
+
+  it("puts a picture on intro cards and English-prompt questions, never next to the target word", () => {
+    for (const seed of [1, 2, 3, 4, 5, 6]) {
+      const built = buildLessonPlan(withPictures(), { language: "de", lessonId: "l", unitId: STARTER_UNIT_ID, seed });
+      const pictured = built.newWords.filter((word) => word.picture);
+      expect(pictured.map((word) => word.picture?.key).sort()).toEqual(["excuse me", "hello", "please"]);
+
+      for (const step of built.steps) {
+        if (step.kind === "intro") expect(Boolean(step.word.picture)).toBe(step.word.translation in PICTURES);
+        if (step.kind === "choice" && step.direction === "toEnglish") expect(step.picture ?? null).toBeNull();
+        if (step.kind === "choice" && step.direction === "toTarget" && step.ref.kind === "word") {
+          expect(Boolean(step.picture)).toBe(step.prompt.text in PICTURES);
+        }
+      }
+
+      const urls = new Map([["please", "/api/images/x"]]);
+      const attached = attachPictureUrls(built, urls);
+      for (const step of attached.steps) {
+        if (step.kind === "intro" && step.word.translation === "please") expect(step.word.picture?.url).toBe("/api/images/x");
+        if (step.kind === "intro" && step.word.translation === "excuse me") expect(step.word.picture?.url).toBeNull();
+        if (step.kind === "listen" && step.fallback.prompt.text === "please") expect(step.fallback.picture?.url).toBe("/api/images/x");
+      }
+      // The input plan (as stored with the attempt) is untouched.
+      expect(JSON.stringify(built)).not.toContain("/api/images/");
+      // Words asked in an English-prompt question come first, so a capped lesson shows them twice.
+      const requested = planPictureRequests(built).map((request) => request.key);
+      expect(requested.slice(0, 2).sort()).toEqual(["excuse me", "please"]);
+      expect(requested[2]).toBe("hello");
+    }
+  });
+
+  it("does not change the exercises themselves", () => {
+    const strip = (built: LessonPlan) =>
+      JSON.parse(JSON.stringify(built, (key, value) => (key === "picture" ? undefined : value))) as LessonPlan;
+    const options = { language: "de", lessonId: "l", unitId: STARTER_UNIT_ID, seed: 11 };
+    expect(strip(buildLessonPlan(withPictures(), options))).toEqual(strip(buildLessonPlan(starter("de"), options)));
+  });
+
+  it("shows a review word's existing picture on its English-prompt question", () => {
+    const built = buildLessonPlan(starter("de"), {
+      language: "de",
+      lessonId: "l",
+      unitId: STARTER_UNIT_ID,
+      seed: 5,
+      reviewWords: REVIEW.map((word) => ({ ...word, imageKey: word.translation })),
+    });
+    const reviewChoices = built.steps.filter((step): step is ChoiceStep => step.kind === "choice" && step.isReview);
+    expect(reviewChoices.length).toBeGreaterThan(0);
+    for (const step of reviewChoices) {
+      if (step.direction === "toTarget") expect(step.picture?.key).toBe(step.prompt.text);
+      else expect(step.picture ?? null).toBeNull();
+    }
+  });
+
+  it("has no pictures in the hand-written starters (greetings cannot be drawn without text)", () => {
+    for (const language of SUPPORTED_LANGUAGE_CODES) {
+      expect(starter(language).vocabulary.every((item) => item.picture === null)).toBe(true);
+    }
   });
 });

@@ -2,7 +2,7 @@
 
 import { motion } from "framer-motion";
 import { useEffect } from "react";
-import { SpeakButton } from "@/components/learn";
+import { SpeakButton, VocabPicture } from "@/components/learn";
 import { usePrefersReducedMotion } from "@/hooks/use-prefers-reduced-motion";
 import { useSpeech } from "@/hooks/use-speech";
 import { getLanguageConfig } from "@/lib/language-config";
@@ -34,6 +34,11 @@ export function IntroCard({ step, language, showRomanization }: { step: IntroSte
         transition={{ type: "spring", stiffness: 220, damping: 22 }}
         className="my-auto rounded-3xl bg-white p-6 text-center text-slate-900 shadow-xl sm:p-8"
       >
+        {word.picture?.url && (
+          <div className="mb-4 flex justify-center">
+            <VocabPicture url={word.picture.url} className="h-32 w-32 sm:h-40 sm:w-40" />
+          </div>
+        )}
         <div className="flex items-center justify-center gap-3">
           <TargetText
             text={word.word}

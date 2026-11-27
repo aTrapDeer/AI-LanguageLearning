@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { cleanPictureDescription, conceptKeyFor } from "@/lib/images/concept";
 import { getLanguageConfig } from "@/lib/language-config";
 import { collapseSpaces, isInTargetScript, isLatinText, normalizeForCompare, tokenizeSentence } from "./text";
 
@@ -7,7 +8,10 @@ import { collapseSpaces, isInTargetScript, isLatinText, normalizeForCompare, tok
  * distractors or answer keys; the builder derives exercises from it deterministically.
  */
 
-export const LESSON_CONTENT_VERSION = 1;
+/** 2: vocabulary items carry an optional `picture` description. */
+export const LESSON_CONTENT_VERSION = 2;
+/** Older content still plays (without pictures), so the pool keeps serving it. */
+export const MIN_PLAYABLE_CONTENT_VERSION = 1;
 
 export const MIN_VOCABULARY = 4;
 export const MAX_VOCABULARY = 8;
@@ -28,6 +32,8 @@ export const generatedLessonContentSchema = z.object({
       example: z.string(),
       exampleTranslation: z.string(),
       exampleRomanization: z.string().nullable(),
+      /** Short concrete English description of a picture of the word, or null when it can't be pictured. */
+      picture: z.string().nullable(),
     })
   ),
   sentences: z.array(
@@ -55,6 +61,8 @@ export interface LessonVocabularyItem {
   example: string | null;
   exampleTranslation: string | null;
   exampleRomanization: string | null;
+  /** Visual description for the word's picture; absent in content stored before version 2. */
+  picture?: string | null;
 }
 
 export interface LessonSentence {
@@ -177,6 +185,8 @@ export function validateLessonContent(raw: unknown, language: string): ContentVa
       example: exampleOk ? example : null,
       exampleTranslation,
       exampleRomanization: exampleOk ? cleanRomanization(item.exampleRomanization, needsRomanization) : null,
+      // A picture needs a concept to be shared under; without one the description is useless.
+      picture: conceptKeyFor(translation) ? cleanPictureDescription(item.picture) : null,
     });
 
     if (vocabulary.length >= MAX_VOCABULARY) {
@@ -266,6 +276,7 @@ export function validateStoredContent(stored: unknown, language: string): Lesson
       ...item,
       example: item?.example ?? "",
       exampleTranslation: item?.exampleTranslation ?? "",
+      picture: item?.picture ?? null,
     })),
   };
   const result = validateLessonContent(asGenerated, language);

@@ -2,7 +2,7 @@ import type { VocabularyItem } from "../db/vocabulary";
 import { cardDirection } from "./plan";
 import type { ReviewCardData, VocabularyListItem } from "./types";
 
-export function toReviewCard(item: VocabularyItem): ReviewCardData {
+export function toReviewCard(item: VocabularyItem, imageUrl: string | null = null): ReviewCardData {
   return {
     id: item.id,
     word: item.word,
@@ -10,6 +10,7 @@ export function toReviewCard(item: VocabularyItem): ReviewCardData {
     romanization: item.romanization,
     exampleSentence: item.exampleSentence,
     exampleTranslation: item.exampleTranslation,
+    imageUrl,
     maturity: item.maturity,
     direction: cardDirection(item.maturity),
     srs: { intervalDays: item.intervalDays, ease: item.ease, repetitions: item.repetitions, lapses: item.lapses },

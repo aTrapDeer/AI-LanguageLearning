@@ -3,6 +3,7 @@ import { z } from "zod";
 import { enforceAiQuota, jsonError, requireUser } from "@/lib/api-auth";
 import { listDueVocabulary, type VocabularyItem } from "@/lib/database";
 import { SUPPORTED_LANGUAGE_CODES } from "@/lib/language-config";
+import { findPictureUrls } from "@/lib/images/service";
 import { isOpenAIConfigured } from "@/lib/openai";
 import { generateReviewWords } from "@/lib/review/generate-words";
 import { toReviewCard } from "@/lib/review/mappers";
@@ -75,7 +76,16 @@ export async function POST(req: Request) {
     let body: StartSessionResponse;
     if (cards.length > 0) {
       const sessionId = await createReviewSession({ userId, language, itemIds: cards.map((card) => card.id), now });
-      body = { status: "ready", session: { sessionId, language, cards: cards.map(toReviewCard), newWordsAdded } };
+      const pictures = await findPictureUrls(cards.map((card) => card.imageKey));
+      body = {
+        status: "ready",
+        session: {
+          sessionId,
+          language,
+          cards: cards.map((card) => toReviewCard(card, (card.imageKey && pictures.get(card.imageKey)) || null)),
+          newWordsAdded,
+        },
+      };
     } else {
       const canAddNewWords = canGenerateMore(generatedLast24h + newWordsAdded, aiAvailable) && !generationFailed;
       if (deckSize > 0) {

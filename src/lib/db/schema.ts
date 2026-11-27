@@ -184,6 +184,25 @@ const NEW_TABLES = [
     updated_at TEXT NOT NULL,
     PRIMARY KEY (user_id, usage_date, kind)
   )`,
+  // One picture per English concept, shared by every language and learner. Not user data.
+  `CREATE TABLE IF NOT EXISTS concept_images (
+    id TEXT PRIMARY KEY,
+    concept_key TEXT NOT NULL UNIQUE,
+    description TEXT NOT NULL,
+    status TEXT NOT NULL CHECK (status IN ('pending', 'ready', 'failed')),
+    mime_type TEXT,
+    data BLOB,
+    byte_size INTEGER,
+    width INTEGER,
+    height INTEGER,
+    model TEXT,
+    attempts INTEGER NOT NULL DEFAULT 0,
+    last_error TEXT,
+    claimed_at TEXT,
+    retry_after TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  )`,
 ];
 
 /** Columns added to tables that already exist in production. */
@@ -200,6 +219,8 @@ const ADDED_COLUMNS: Array<{ table: string; column: string; definition: string }
   { table: "learning", column: "example_sentence", definition: "TEXT" },
   { table: "learning", column: "example_translation", definition: "TEXT" },
   { table: "learning", column: "last_reviewed_at", definition: "TEXT" },
+  /** concept_images.concept_key of the word's picture, when it has one. */
+  { table: "learning", column: "image_key", definition: "TEXT" },
 ];
 
 const INDEXES = [
@@ -305,4 +326,5 @@ export const DATABASE_TABLES = [
   "chat_messages",
   "mistakes",
   "ai_usage",
+  "concept_images",
 ] as const;

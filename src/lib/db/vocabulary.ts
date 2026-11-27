@@ -39,6 +39,8 @@ export interface VocabularyItem {
   exampleTranslation: string | null;
   source: VocabularySource;
   unitId: string | null;
+  /** Concept key of the word's picture (see concept_images), when it has one. */
+  imageKey: string | null;
   notes: string | null;
   tags: string[];
   intervalDays: number;
@@ -64,6 +66,8 @@ export interface VocabularyInput {
   notes?: string | null;
   tags?: string[];
   unitId?: string | null;
+  /** Concept key of the word's picture. */
+  imageKey?: string | null;
 }
 
 export interface UpsertVocabularyInput {
@@ -117,6 +121,7 @@ export function mapVocabularyItem(row: DbRow): VocabularyItem {
     exampleTranslation: asString(row.example_translation),
     source: toSource(row.source),
     unitId: asString(row.unit_id),
+    imageKey: asString(row.image_key),
     notes: asString(row.notes),
     tags: parseStringArray(row.tags),
     intervalDays,
@@ -139,7 +144,7 @@ function placeholders(count: number) {
 
 /**
  * Adds words to a learner's vocabulary. Words already present (same normalised form) keep their
- * review progress and translation; only empty optional fields (romanization, example, unit) are filled.
+ * review progress and translation; only empty optional fields (romanization, example, unit, picture) are filled.
  */
 export async function upsertVocabulary(input: UpsertVocabularyInput): Promise<UpsertVocabularyResult> {
   const now = input.now ?? new Date();
@@ -179,13 +184,14 @@ export async function upsertVocabulary(input: UpsertVocabularyInput): Promise<Up
     sql: `INSERT INTO learning (
         id, user_id, language, word, normalized_word, translation, difficulty, last_recalled, next_review,
         success_count, failure_count, notes, tags, interval_days, ease, repetitions, lapses, source, unit_id,
-        romanization, example_sentence, example_translation, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, 0, 0, ?, ?, 0, 2.5, 0, 0, ?, ?, ?, ?, ?, ?, ?)
+        romanization, example_sentence, example_translation, image_key, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, 0, 0, ?, ?, 0, 2.5, 0, 0, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(user_id, language, normalized_word) DO UPDATE SET
         romanization = COALESCE(learning.romanization, excluded.romanization),
         example_sentence = COALESCE(learning.example_sentence, excluded.example_sentence),
         example_translation = COALESCE(learning.example_translation, excluded.example_translation),
         unit_id = COALESCE(learning.unit_id, excluded.unit_id),
+        image_key = COALESCE(learning.image_key, excluded.image_key),
         notes = COALESCE(learning.notes, excluded.notes)`,
     args: [
       createId(),
@@ -203,6 +209,7 @@ export async function upsertVocabulary(input: UpsertVocabularyInput): Promise<Up
       cleanOptional(item.romanization),
       cleanOptional(item.exampleSentence),
       cleanOptional(item.exampleTranslation),
+      cleanOptional(item.imageKey),
       timestamp,
       timestamp,
     ],

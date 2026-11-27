@@ -17,6 +17,29 @@ export function getTranscriptionModel(): string {
   return process.env.OPENAI_TRANSCRIPTION_MODEL?.trim() || "whisper-1";
 }
 
+/** Images API model for vocabulary pictures. */
+export function getImageModel(): string {
+  return process.env.OPENAI_IMAGE_MODEL?.trim() || "gpt-image-2.6-flare";
+}
+
+/** Passed through as-is: the accepted values differ between image models. */
+export function getImageQuality(): string {
+  return process.env.OPENAI_IMAGE_QUALITY?.trim() || "low";
+}
+
+export function getImageSize(): string {
+  const size = process.env.OPENAI_IMAGE_SIZE?.trim();
+  return size && /^(\d{2,4}x\d{2,4}|auto)$/.test(size) ? size : "1024x1024";
+}
+
+/**
+ * Optional `complexity` request field. Sent only when configured, because not every image model
+ * accepts it and an unknown parameter fails the whole request.
+ */
+export function getImageComplexity(): string | null {
+  return process.env.OPENAI_IMAGE_COMPLEXITY?.trim() || null;
+}
+
 export class OpenAIConfigError extends Error {
   constructor(message = "OPENAI_API_KEY is not set") {
     super(message);

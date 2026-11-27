@@ -42,6 +42,7 @@ export function buildLessonPrompt(input: LessonPromptInput): { system: string; u
     `- \`romanization\`/\`exampleRomanization\`/sentence \`romanization\`: ${needsRomanization ? "always provide it." : "always null."}`,
     "- `partOfSpeech`: noun, verb, adjective, adverb, phrase, interjection, pronoun, number…",
     "- `example`: a short sentence using the word, with `exampleTranslation`.",
+    "- `picture`: only when the word can be shown clearly in a simple drawing with no writing — a concrete object, food, animal, place, person or simple action — a short English description of that drawing (3–12 words, e.g. \"a red apple\", \"a woman drinking a cup of coffee\"). It must show exactly the `translation`, nothing that needs letters or numbers. Otherwise null: greetings, polite phrases, function words, pronouns, numbers, time words, feelings and other abstract meanings are always null.",
     `- sentences: ${MAX_SENTENCES - 2}–${MAX_SENTENCES} short sentences (2–8 words), each using at least one of the new words, built from the new words and words the learner knows. One natural word order — avoid sentences whose words could just as well be arranged differently. Names and simple everyday words are fine.`,
     "- `focusWord`: one vocabulary `word` that appears in the sentence spelled exactly the same, or null.",
     "- `words`: the sentence split into words in order, without punctuation.",
