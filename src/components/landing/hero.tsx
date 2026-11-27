@@ -68,7 +68,7 @@ export function Hero() {
         <div className="relative mx-auto w-full max-w-[22.5rem] motion-safe:animate-rise motion-safe:[animation-delay:200ms] lg:mr-0">
           <LessonStepDemo className="h-[29rem] rotate-[1.5deg]" />
           <TutorCorrection className="absolute -bottom-24 -left-20 hidden w-[16.5rem] -rotate-2 sm:block" />
-          <div aria-hidden className="absolute -top-5 right-1 flex items-center gap-2 rounded-2xl bg-white px-3 py-2 text-ink-950 shadow-xl sm:-right-10">
+          <div aria-hidden className="absolute -top-5 right-1 flex items-center gap-2 rounded-2xl bg-white px-3 py-2 text-ink-950 shadow-xl sm:-right-10 lg:-right-3 xl:-right-10">
             <Target className="h-5 w-5 text-emerald-600" />
             <span className="text-sm font-bold">Daily goal 30/30 XP</span>
           </div>

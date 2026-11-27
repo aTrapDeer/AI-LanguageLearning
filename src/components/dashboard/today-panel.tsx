@@ -1,7 +1,7 @@
 "use client";
 
 import { Check, Flame, Settings2 } from "lucide-react";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { DailyGoalRing } from "@/components/learn";
 import { useCountUp } from "@/hooks/use-count-up";
 import type { LearnerSummary } from "@/hooks/use-learn-summary";
@@ -110,9 +110,12 @@ export function TodayPanel({
   options,
   saving,
   onSetGoal,
+  celebration,
   className,
 }: {
   summary: LearnerSummary;
+  /** Shown at the top of the panel on days worth celebrating. */
+  celebration?: ReactNode;
   options: number[];
   saving: boolean;
   onSetGoal: (goal: number) => Promise<boolean>;
@@ -126,6 +129,7 @@ export function TodayPanel({
       labelledBy="today-title"
       className={cn(streak.atRisk && "border-ember-300 bg-gradient-to-b from-ember-50 to-white", className)}
     >
+      {celebration}
       <div className="flex items-baseline justify-between gap-2">
         <h2 id="today-title" className="font-display text-xl font-bold tracking-tight text-ink-950">
           Today

@@ -43,10 +43,10 @@ export function Habits() {
             <p className="mt-2 text-ink-600">Watch your streak grow and celebrate milestones. Miss a day? Just start again.</p>
           </Reveal>
           <Reveal as="li" delay={160} className="rounded-[1.75rem] bg-white p-6 shadow-[0_18px_40px_-28px_rgb(24_18_63/0.35)] sm:p-7">
-            <div aria-hidden className="flex h-[6.5rem] items-center gap-4">
+            <div aria-hidden className="flex h-[6.5rem] items-center gap-4 md:flex-col md:items-start md:justify-center md:gap-2 lg:flex-row lg:items-center lg:gap-4">
               <div className="flex gap-1">
                 {[0, 1, 2].map((index) => (
-                  <Star key={index} className={cn("h-10 w-10 fill-amber-400 text-amber-400", index === 1 && "-translate-y-2")} />
+                  <Star key={index} className={cn("h-10 w-10 fill-amber-400 text-amber-400 md:h-8 md:w-8 lg:h-10 lg:w-10", index === 1 && "-translate-y-2 md:-translate-y-1 lg:-translate-y-2")} />
                 ))}
               </div>
               <div className="rounded-xl bg-ink-900 px-3 py-2 text-white">

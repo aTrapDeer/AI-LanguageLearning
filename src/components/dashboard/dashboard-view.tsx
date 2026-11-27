@@ -45,7 +45,8 @@ export function DashboardView() {
   const isNewLearner = Boolean(summary && summary.totalXp === 0 && summary.levelProgress.completed === 0 && summary.streak.longest === 0);
 
   let subline = "Loading your progress…";
-  if (summary && isNewLearner) subline = `Your ${summary.languageName} path starts with one short lesson. We'll take it from there.`;
+  if (summary && !summary.hasProgress) subline = `You haven't started ${summary.languageName} yet.`;
+  else if (summary && isNewLearner) subline = `Your ${summary.languageName} path starts with one short lesson. We'll take it from there.`;
   else if (summary) subline = `${summary.totalXp.toLocaleString("en")} XP in ${summary.languageName} · ${summary.cefr} ${summary.levelLabel}`;
 
   return (
@@ -75,7 +76,6 @@ export function DashboardView() {
           <SetupLanguage language={summary.language} languageName={summary.languageName} />
         ) : (
           <>
-            <CelebrationBanner summary={summary} />
             <div className="mt-5 grid gap-4 lg:grid-cols-[minmax(0,1fr)_368px] lg:gap-5">
               <ContinueCard
                 summary={summary}
@@ -88,6 +88,7 @@ export function DashboardView() {
                 options={goal.data?.options ?? [...DAILY_XP_GOAL_OPTIONS]}
                 saving={goal.saving}
                 onSetGoal={goal.setGoal}
+                celebration={<CelebrationBanner summary={summary} />}
                 className="lg:col-start-2 lg:row-start-1"
               />
               <ReviewPanel summary={summary} className="lg:col-start-2 lg:row-start-2" />

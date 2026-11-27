@@ -36,7 +36,7 @@ export function CelebrationBanner({ summary }: { summary: LearnerSummary }) {
       initial={reduceMotion ? false : { opacity: 0, y: -10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, ease: [0.2, 0.7, 0.2, 1] }}
-      className="relative mt-5 flex items-center gap-4 overflow-hidden rounded-[1.4rem] border border-ember-200 bg-gradient-to-r from-ember-50 via-ember-50 to-white px-4 py-3 text-ink-950 sm:px-5"
+      className="relative -mx-2 -mt-2 mb-4 flex items-center gap-3.5 overflow-hidden rounded-[1.25rem] border border-ember-200 bg-gradient-to-r from-ember-50 via-ember-50 to-white px-3.5 py-3 text-ink-950"
     >
       <span aria-hidden className="relative flex h-11 w-11 shrink-0 items-center justify-center">
         {!reduceMotion &&
@@ -58,8 +58,8 @@ export function CelebrationBanner({ summary }: { summary: LearnerSummary }) {
           <Icon className={milestone ? "h-5 w-5 fill-white text-white" : "h-5 w-5"} strokeWidth={2.5} />
         </motion.span>
       </span>
-      <p className="min-w-0 text-[15px] leading-snug">
-        <span className="font-display text-lg font-extrabold">{title}</span> <span className="text-ink-600">{text}</span>
+      <p className="min-w-0 text-sm leading-snug">
+        <span className="block font-display text-[17px] font-extrabold">{title}</span> <span className="text-ink-600">{text}</span>
       </p>
     </motion.div>
   );
