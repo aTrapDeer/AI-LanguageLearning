@@ -1,6 +1,12 @@
 import { NextResponse } from "next/server";
 import { enforceAiQuota, jsonError, requireUser } from "@/lib/api-auth";
-import { getOpenAIClient, getTranscriptionModel, isOpenAIConfigured, OpenAIConfigError } from "@/lib/openai";
+import {
+  getOpenAIClient,
+  getTranscriptionModel,
+  isOpenAIConfigured,
+  OpenAIConfigError,
+  transcriptionLanguageHint,
+} from "@/lib/openai";
 import { parseLanguage, tutorUnavailableResponse } from "@/lib/tutor/route-helpers";
 
 const MAX_AUDIO_BYTES = 10 * 1024 * 1024;
@@ -55,10 +61,11 @@ export async function POST(request: Request) {
 
     const mimeType = audioBlob.type || "audio/webm";
     const file = new File([audioBlob], fileNameFor(mimeType), { type: mimeType });
+    const model = getTranscriptionModel();
     const transcription = await getOpenAIClient().audio.transcriptions.create({
       file,
-      model: getTranscriptionModel(),
-      language: isEnglish ? "en" : language!.transcriptionCode,
+      model,
+      ...transcriptionLanguageHint(model, isEnglish ? "en" : language!.transcriptionCode),
     });
 
     return NextResponse.json({ text: transcription.text.trim() });

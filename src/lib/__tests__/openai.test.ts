@@ -1,6 +1,16 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { z } from "zod";
-import { generateJson, getSpeechModel, getTextModel, StructuredOutputError, type JsonChatClient } from "../openai";
+import {
+  generateJson,
+  getSpeechModel,
+  getTextModel,
+  getTextReasoningEffort,
+  getTranscriptionModel,
+  StructuredOutputError,
+  textModelParams,
+  transcriptionLanguageHint,
+  type JsonChatClient,
+} from "../openai";
 
 type CreateParams = Parameters<JsonChatClient["chat"]["completions"]["create"]>[0];
 
@@ -46,6 +56,8 @@ describe("generateJson", () => {
   afterEach(() => {
     delete process.env.OPENAI_TEXT_MODEL;
     delete process.env.OPENAI_TTS_MODEL;
+    delete process.env.OPENAI_TRANSCRIPTION_MODEL;
+    delete process.env.OPENAI_TEXT_REASONING_EFFORT;
   });
 
   it("returns validated data and sends a strict json_schema response format", async () => {
@@ -54,7 +66,8 @@ describe("generateJson", () => {
 
     expect(data.words[0].word).toBe("Hund");
     expect(calls).toHaveLength(1);
-    expect(calls[0].model).toBe("gpt-4o-mini");
+    expect(calls[0].model).toBe("gpt-6-luna");
+    expect(calls[0].reasoning_effort).toBe("none");
     expect(calls[0].temperature).toBe(0.3);
     expect(calls[0].response_format).toMatchObject({ type: "json_schema", json_schema: { name: "words", strict: true } });
     expect(calls[0].messages[0]).toMatchObject({ role: "system", content: "You make flashcards." });
@@ -122,14 +135,77 @@ describe("generateJson", () => {
     }
   });
 
+  it("defaults to models that are not scheduled for shutdown", () => {
+    expect(getTextModel()).toBe("gpt-6-luna");
+    expect(getSpeechModel()).toBe("gpt-realtime-2.1-mini");
+    expect(getTranscriptionModel()).toBe("gpt-transcribe");
+  });
+
   it("reads model names from env", async () => {
     process.env.OPENAI_TEXT_MODEL = "custom-text";
     process.env.OPENAI_TTS_MODEL = "custom-tts";
+    process.env.OPENAI_TRANSCRIPTION_MODEL = "custom-stt";
     expect(getTextModel()).toBe("custom-text");
     expect(getSpeechModel()).toBe("custom-tts");
+    expect(getTranscriptionModel()).toBe("custom-stt");
 
     const { client, calls } = fakeClient([JSON.stringify({ words: [{ word: "a", translation: "b" }] })]);
     await generateJson({ ...base, client });
     expect(calls[0].model).toBe("custom-text");
+  });
+});
+
+describe("textModelParams", () => {
+  afterEach(() => {
+    delete process.env.OPENAI_TEXT_MODEL;
+    delete process.env.OPENAI_TEXT_REASONING_EFFORT;
+  });
+
+  it("turns reasoning off by default and keeps temperature and the output cap", () => {
+    expect(getTextReasoningEffort()).toBe("none");
+    expect(textModelParams({ temperature: 0.7, maxTokens: 900 })).toEqual({
+      model: "gpt-6-luna",
+      reasoning_effort: "none",
+      temperature: 0.7,
+      max_completion_tokens: 900,
+    });
+    expect(textModelParams()).toEqual({ model: "gpt-6-luna", reasoning_effort: "none" });
+  });
+
+  it("drops temperature and leaves room for reasoning tokens when reasoning is on", () => {
+    process.env.OPENAI_TEXT_REASONING_EFFORT = "Low";
+    expect(textModelParams({ temperature: 0.7, maxTokens: 900 })).toEqual({
+      model: "gpt-6-luna",
+      reasoning_effort: "low",
+      max_completion_tokens: 25_900,
+    });
+  });
+
+  it('leaves reasoning_effort out when set to "off" and ignores unknown values', () => {
+    process.env.OPENAI_TEXT_MODEL = "custom-text";
+    process.env.OPENAI_TEXT_REASONING_EFFORT = "off";
+    expect(textModelParams({ temperature: 0.2 })).toEqual({ model: "custom-text", temperature: 0.2 });
+
+    process.env.OPENAI_TEXT_REASONING_EFFORT = "extreme";
+    expect(getTextReasoningEffort()).toBe("none");
+  });
+
+  it("sends the output cap as max_completion_tokens from generateJson", async () => {
+    const { client, calls } = fakeClient([JSON.stringify({ words: [{ word: "a", translation: "b" }] })]);
+    await generateJson({ ...base, client, maxTokens: 300 });
+    expect(calls[0].max_completion_tokens).toBe(300);
+    expect(calls[0]).not.toHaveProperty("max_tokens");
+  });
+});
+
+describe("transcriptionLanguageHint", () => {
+  it("uses a languages list for the current transcription models", () => {
+    expect(transcriptionLanguageHint("gpt-transcribe", "de")).toEqual({ languages: ["de"] });
+    expect(transcriptionLanguageHint("gpt-live-transcribe", "pt")).toEqual({ languages: ["pt"] });
+  });
+
+  it("keeps the single language field for older models", () => {
+    expect(transcriptionLanguageHint("whisper-1", "de")).toEqual({ language: "de" });
+    expect(transcriptionLanguageHint("gpt-4o-mini-transcribe", "ko")).toEqual({ language: "ko" });
   });
 });

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { enforceAiQuota, requireUser } from "@/lib/api-auth";
-import { getOpenAIClient, getTextModel, OpenAIConfigError } from "@/lib/openai";
+import { getOpenAIClient, OpenAIConfigError, textModelParams } from "@/lib/openai";
 import { getSupportedLanguageName, isSupportedLanguageCode } from "@/lib/language-config";
 
 const TravelTranslateSchema = z.object({
@@ -36,9 +36,8 @@ export async function POST(request: Request) {
     const openai = getOpenAIClient();
 
     const completion = await openai.chat.completions.create({
-      model: getTextModel(),
+      ...textModelParams({ temperature: 0.2 }),
       response_format: { type: "json_object" },
-      temperature: 0.2,
       messages: [
         {
           role: "system",

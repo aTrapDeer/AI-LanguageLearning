@@ -102,6 +102,6 @@ export function buildVoiceTutorInstructions(context: VoicePromptContext): string
 
 export function buildVoiceTranscriptionPrompt(languageName: string, mode: VoiceMode): string {
   return mode === "assisted"
-    ? `A language learner practising ${languageName}; they may mix ${languageName} and English. Transcribe exactly what is said, in the language spoken.`
-    : `A language learner speaking ${languageName}, possibly with mistakes and an accent. Transcribe exactly what is said without correcting it.`;
+    ? `A language learner practising ${languageName} with a tutor. They may mix ${languageName} and English, and their speech may contain grammar mistakes and a foreign accent.`
+    : `A language learner speaking ${languageName} with a tutor. Their speech may contain grammar mistakes, hesitations and a foreign accent.`;
 }

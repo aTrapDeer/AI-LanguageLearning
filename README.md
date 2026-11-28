@@ -36,7 +36,8 @@ other AI features show an "unavailable" state.
 - Tailwind CSS 3, shadcn-style components (`src/components/ui`), framer-motion
 - NextAuth v4 (credentials, optional Google OAuth) with JWT sessions
 - Turso / libSQL via `@libsql/client` (hand-written queries, schema auto-migrated)
-- OpenAI (chat completions, text-to-speech, transcription, Realtime API for voice, Images API)
+- OpenAI via the `openai` SDK 7 (Chat Completions with structured outputs, file transcription,
+  Realtime API for voice conversations and for read-aloud speech, Images API); needs Node.js 22+
 - sharp for normalising generated pictures to WebP
 - Vitest for unit and database tests
 
@@ -78,8 +79,27 @@ The database schema is created automatically on first use; see [TURSO-SETUP.md](
 - AI routes are protected by a per-user daily quota stored in the database. Defaults can be changed
   with `AI_DAILY_LIMIT_TEXT`, `AI_DAILY_LIMIT_SPEECH`, `AI_DAILY_LIMIT_TRANSCRIPTION`,
   `AI_DAILY_LIMIT_REALTIME` and `AI_DAILY_LIMIT_IMAGE` (a value of 0 or less removes the cap).
-- Model names can be overridden with `OPENAI_TEXT_MODEL`, `OPENAI_TTS_MODEL`,
-  `OPENAI_TRANSCRIPTION_MODEL`, `OPENAI_IMAGE_MODEL` and the `OPENAI_REALTIME_*` variables.
+- Model names can be overridden with environment variables. Defaults:
+
+  | Used for | Variable | Default |
+  | --- | --- | --- |
+  | Lessons, tutor, review words, travel text | `OPENAI_TEXT_MODEL` | `gpt-6-luna` |
+  | Listen button (`/api/tts`) | `OPENAI_TTS_MODEL` | `gpt-realtime-2.1-mini` |
+  | Chat microphone (`/api/transcribe`) | `OPENAI_TRANSCRIPTION_MODEL` | `gpt-transcribe` |
+  | Voice conversation and travel mode | `OPENAI_REALTIME_MODEL` | `gpt-realtime-2.1` |
+  | Transcripts inside realtime sessions | `OPENAI_REALTIME_TRANSCRIPTION_MODEL` | `gpt-transcribe` |
+  | Vocabulary pictures | `OPENAI_IMAGE_MODEL` | `gpt-image-2.6-flare` |
+
+  - Text generation uses Chat Completions with `reasoning_effort` set by `OPENAI_TEXT_REASONING_EFFORT`
+    (default `none`, which keeps replies fast; `off` leaves the parameter out). When reasoning is on,
+    `temperature` is not sent, as reasoning models reject it.
+  - Speech no longer uses the Speech API (`/v1/audio/speech`), whose models shut down on Jan 6, 2027.
+    `/api/tts` opens a short server-side Realtime WebSocket session (`src/lib/realtime-speech.ts`), has
+    the model read the text and returns the audio as WAV. `OPENAI_TTS_MODEL` must therefore be a
+    Realtime model, and `OPENAI_TTS_VOICE` (default `marin`) a Realtime voice. The browser's own
+    speech synthesis remains the fallback when this fails.
+  - `gpt-transcribe` takes its language hint as a `languages` list; the code still sends the single
+    `language` field when an older transcription model is configured.
 - Vocabulary pictures: `LESSON_IMAGES=off` turns them off completely (nothing generated or shown). By
   default a newly generated lesson starts up to `LESSON_IMAGES_PER_LESSON` (4) pictures and waits at
   most `LESSON_IMAGES_WAIT_MS` (10000) for them; the rest finish in the background and later lessons fill

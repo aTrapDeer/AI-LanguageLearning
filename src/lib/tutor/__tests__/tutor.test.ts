@@ -7,7 +7,14 @@ import type { JsonChatClient } from "../../openai";
 import { generateTutorReply } from "../generate";
 import { buildHistoryMessages, buildTutorSystemPrompt, describeReplyStyle, HISTORY_MESSAGE_LIMIT, type TutorPromptContext } from "../prompt";
 import { getTutorScenario, isTutorScenarioId, ROLE_PLAY_SCENARIOS, TUTOR_SCENARIO_IDS, TUTOR_SCENARIOS } from "../scenarios";
-import { normalizeTutorReply, readTutorPayload, TUTOR_MISTAKE_KINDS, TutorReplySchema, type TutorReply } from "../schema";
+import {
+  normalizeTutorReply,
+  readTutorPayload,
+  TUTOR_MISTAKE_KINDS,
+  TutorReplyFormatSchema,
+  TutorReplySchema,
+  type TutorReply,
+} from "../schema";
 
 const validReply: TutorReply = {
   reply: "Hallo! Wie heißt du?",
@@ -63,11 +70,18 @@ describe("tutor reply schema", () => {
   });
 
   it("is strict structured-output compatible", () => {
-    const format = zodResponseFormat(TutorReplySchema, "tutor_reply");
+    const format = zodResponseFormat(TutorReplyFormatSchema, "tutor_reply");
     const schema = format.json_schema.schema as { required: string[]; properties: Record<string, unknown> };
     expect(schema.required.sort()).toEqual(Object.keys(schema.properties).sort());
     expect(JSON.stringify(schema)).not.toContain("minLength");
     expect(JSON.stringify(schema)).not.toContain("$ref");
+  });
+
+  it("validates the same shape it asks the API for", () => {
+    expect(TutorReplyFormatSchema.safeParse(validReply).success).toBe(true);
+    // Blank text passes the wire shape but not local validation, which is what triggers the retry.
+    expect(TutorReplyFormatSchema.safeParse({ ...validReply, reply: "   " }).success).toBe(true);
+    expect(Object.keys(TutorReplyFormatSchema.shape)).toEqual(Object.keys(TutorReplySchema.shape));
   });
 
   it("rejects empty replies and unknown correction kinds", () => {

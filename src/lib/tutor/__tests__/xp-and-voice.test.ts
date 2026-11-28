@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { getUnitById } from "../../curriculum";
 import { XP_REWARDS } from "../../gamification";
 import { LANGUAGES } from "../../language-config";
-import { buildVoiceTutorRealtimeSession } from "../../openai-realtime";
+import { buildVoiceTutorRealtimeSession, getOpenAIRealtimeConfig } from "../../openai-realtime";
 import { buildVoiceTranscriptionPrompt, buildVoiceTutorInstructions, isVoiceMode, type VoicePromptContext } from "../voice-prompt";
 import { CHAT_XP_DAILY_TURN_CAP, chatTurnXp, isMeaningfulTurn, VOICE_SESSION_MAX_MINUTES, VOICE_XP_DAILY_CAP, voiceSessionXp } from "../xp";
 
@@ -116,9 +116,30 @@ describe("voice tutor instructions", () => {
       instructions: "x",
       transcriptionPrompt: buildVoiceTranscriptionPrompt("Portuguese (Brazilian)", "native"),
     });
-    expect(session.audio.input.transcription).toMatchObject({ language: "pt" });
+    expect(session.model).toBe("gpt-realtime-2.1");
+    expect(session.audio.input.transcription).toMatchObject({ model: "gpt-transcribe", languages: ["pt"] });
+    expect(session.audio.input.transcription).not.toHaveProperty("language");
     expect(session.output_modalities).toEqual(["audio"]);
     expect(session.audio.input.turn_detection.create_response).toBe(true);
     expect(session.instructions).toBe("x");
+  });
+
+  it("keeps realtime models overridable and falls back for unknown transcription models", () => {
+    const previous = { ...process.env };
+    try {
+      process.env.OPENAI_REALTIME_MODEL = "custom-realtime";
+      process.env.OPENAI_REALTIME_TRANSCRIPTION_MODEL = "gpt-4o-mini-transcribe";
+      const legacy = buildVoiceTutorRealtimeSession({ languageCode: "de", instructions: "x", transcriptionPrompt: "p" });
+      expect(legacy.model).toBe("custom-realtime");
+      expect(legacy.audio.input.transcription).toEqual({ model: "gpt-4o-mini-transcribe", language: "de", prompt: "p" });
+
+      process.env.OPENAI_REALTIME_TRANSCRIPTION_MODEL = "gpt-live-transcribe";
+      expect(getOpenAIRealtimeConfig().transcriptionModel).toBe("gpt-live-transcribe");
+
+      process.env.OPENAI_REALTIME_TRANSCRIPTION_MODEL = "not-a-model";
+      expect(getOpenAIRealtimeConfig().transcriptionModel).toBe("gpt-transcribe");
+    } finally {
+      process.env = previous;
+    }
   });
 });

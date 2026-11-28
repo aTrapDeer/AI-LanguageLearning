@@ -1,14 +1,19 @@
 import { getSupportedLanguageName, LANGUAGES, type SupportedLanguageCode } from "@/lib/language-config";
+import { transcriptionLanguageHint } from "@/lib/openai";
 
-const DEFAULT_REALTIME_MODEL = "gpt-realtime";
+const DEFAULT_REALTIME_MODEL = "gpt-realtime-2.1";
 const DEFAULT_REALTIME_VOICE = "alloy";
-const DEFAULT_TRANSCRIPTION_MODEL = "gpt-4o-mini-transcribe";
+const DEFAULT_TRANSCRIPTION_MODEL = "gpt-transcribe";
+/**
+ * Input-transcription models a session may be configured with. The last three are deprecated and
+ * shut down on Feb 26, 2027; they stay selectable until then and should be removed afterwards.
+ */
 const SUPPORTED_TRANSCRIPTION_MODELS = new Set([
+  "gpt-transcribe",
+  "gpt-live-transcribe",
   "whisper-1",
   "gpt-4o-transcribe",
   "gpt-4o-mini-transcribe",
-  "gpt-4o-mini-transcribe-2025-03-20",
-  "gpt-4o-mini-transcribe-2025-12-15",
 ]);
 
 type RealtimeOutputModality = "audio" | "text";
@@ -55,16 +60,14 @@ Your job:
 export function buildTravelRealtimeSession(languageCode: SupportedLanguageCode) {
   const languageName = getSupportedLanguageName(languageCode);
   const transcriptionLanguage = getRealtimeTranscriptionLanguage(languageCode);
-  const regionalHint =
-    languageCode === "pt-BR"
-      ? "Prefer Brazilian Portuguese vocabulary, pronunciation patterns, and spellings."
-      : `Prefer natural ${languageName} vocabulary and spelling conventions.`;
+  const regionalHint = languageCode === "pt-BR" ? " The speaker uses Brazilian Portuguese vocabulary and spellings." : "";
 
   return buildOpenAIRealtimeSession({
     instructions: buildTravelRealtimeInstructions(languageCode),
     outputModalities: ["text"],
     transcriptionLanguage,
-    transcriptionPrompt: `The speaker is expected to be speaking ${languageName}. ${regionalHint} Transcribe only what is spoken. Do not translate, summarize, or label the speech as another language unless the speaker clearly switches languages.`,
+    // Context about the audio only; OpenAI's transcription guide says not to restate the task here.
+    transcriptionPrompt: `Someone speaking ${languageName} to a traveler in an everyday situation such as directions, transport, food, shopping or lodging.${regionalHint}`,
     createResponse: false,
   });
 }
@@ -82,7 +85,9 @@ export function buildOpenAIRealtimeSession(options: RealtimeSessionOptions = {})
       input: {
         transcription: {
           model: config.transcriptionModel,
-          ...(options.transcriptionLanguage ? { language: options.transcriptionLanguage } : {}),
+          ...(options.transcriptionLanguage
+            ? transcriptionLanguageHint(config.transcriptionModel, options.transcriptionLanguage)
+            : {}),
           ...(options.transcriptionPrompt ? { prompt: options.transcriptionPrompt } : {}),
         },
         turn_detection: {

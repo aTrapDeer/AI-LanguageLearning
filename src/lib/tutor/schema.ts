@@ -14,44 +14,58 @@ export const MAX_VOCABULARY = 3;
 export const TUTOR_MISTAKE_KINDS = ["grammar", "vocabulary", "spelling", "word_order", "pronunciation", "other"] as const;
 
 // A refinement rather than .min(1): it is enforced locally (triggering generateJson's retry) without
-// adding a minLength keyword that strict structured outputs may reject. A factory, not a shared
-// instance, so the JSON schema inlines each field instead of emitting $ref definitions.
+// adding a minLength keyword that strict structured outputs may reject.
 const nonEmpty = () => z.string().refine((value) => value.trim().length > 0, "must not be empty");
 
-export const TutorCorrectionSchema = z.object({
-  original: nonEmpty().describe("The learner's wrong words, quoted exactly from their latest message."),
-  corrected: nonEmpty().describe("The corrected version of that phrase."),
-  explanation: nonEmpty().describe("One short, friendly sentence in English explaining why."),
-  kind: z.enum(TUTOR_MISTAKE_KINDS),
-});
+/**
+ * Builds the reply schema around a factory for its required text fields. A factory, not a shared
+ * instance, so the JSON schema inlines each field instead of emitting $ref definitions.
+ */
+function buildTutorReplySchema(text: () => z.ZodType<string>) {
+  const correction = z.object({
+    original: text().describe("The learner's wrong words, quoted exactly from their latest message."),
+    corrected: text().describe("The corrected version of that phrase."),
+    explanation: text().describe("One short, friendly sentence in English explaining why."),
+    kind: z.enum(TUTOR_MISTAKE_KINDS),
+  });
 
-export const TutorSuggestionSchema = z.object({
-  text: nonEmpty().describe("Something short the learner could say next, in the target language."),
-  translation: nonEmpty().describe("English meaning."),
-  romanization: z.string().nullable(),
-});
+  const suggestion = z.object({
+    text: text().describe("Something short the learner could say next, in the target language."),
+    translation: text().describe("English meaning."),
+    romanization: z.string().nullable(),
+  });
 
-export const TutorVocabularySchema = z.object({
-  word: nonEmpty().describe("A useful word or short phrase from the reply, in dictionary form."),
-  translation: nonEmpty().describe("English meaning."),
-  romanization: z.string().nullable(),
-});
+  const vocabulary = z.object({
+    word: text().describe("A useful word or short phrase from the reply, in dictionary form."),
+    translation: text().describe("English meaning."),
+    romanization: z.string().nullable(),
+  });
 
-export const TutorReplySchema = z.object({
-  reply: nonEmpty().describe("Your conversational reply, written only in the target language."),
-  romanization: z.string().nullable(),
-  translation: nonEmpty().describe("Natural English translation of `reply`."),
-  tip: z.string().nullable().describe("Optional short coaching note in English, or null."),
-  praise: z.string().nullable().describe("Short English praise when the learner's latest message was correct, else null."),
-  corrections: z.array(TutorCorrectionSchema),
-  suggestions: z.array(TutorSuggestionSchema),
-  vocabulary: z.array(TutorVocabularySchema),
-});
+  return z.object({
+    reply: text().describe("Your conversational reply, written only in the target language."),
+    romanization: z.string().nullable(),
+    translation: text().describe("Natural English translation of `reply`."),
+    tip: z.string().nullable().describe("Optional short coaching note in English, or null."),
+    praise: z.string().nullable().describe("Short English praise when the learner's latest message was correct, else null."),
+    corrections: z.array(correction),
+    suggestions: z.array(suggestion),
+    vocabulary: z.array(vocabulary),
+  });
+}
 
-export type TutorCorrection = z.infer<typeof TutorCorrectionSchema>;
-export type TutorSuggestion = z.infer<typeof TutorSuggestionSchema>;
-export type TutorVocabulary = z.infer<typeof TutorVocabularySchema>;
+/** Validates a reply locally: the required text fields must not be blank. */
+export const TutorReplySchema = buildTutorReplySchema(nonEmpty);
+
+/**
+ * The same shape with plain strings, used to build the JSON schema sent to the API. Refinements
+ * cannot be expressed in JSON Schema, and the OpenAI SDK refuses to convert a schema that has them.
+ */
+export const TutorReplyFormatSchema = buildTutorReplySchema(() => z.string());
+
 export type TutorReply = z.infer<typeof TutorReplySchema>;
+export type TutorCorrection = TutorReply["corrections"][number];
+export type TutorSuggestion = TutorReply["suggestions"][number];
+export type TutorVocabulary = TutorReply["vocabulary"][number];
 
 function cleanNullable(value: string | null | undefined): string | null {
   const trimmed = value?.trim();

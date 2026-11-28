@@ -5,16 +5,64 @@ import type { ZodType, ZodTypeDef } from "zod";
 
 /** Model names come from env so they can be changed without a deploy. */
 export function getTextModel(): string {
-  return process.env.OPENAI_TEXT_MODEL?.trim() || "gpt-4o-mini";
+  return process.env.OPENAI_TEXT_MODEL?.trim() || "gpt-6-luna";
 }
 
+const REASONING_EFFORTS = ["none", "minimal", "low", "medium", "high", "xhigh", "max"] as const;
+export type TextReasoningEffort = (typeof REASONING_EFFORTS)[number];
+
+/**
+ * Reasoning effort for text generation (`OPENAI_TEXT_REASONING_EFFORT`). The default is "none":
+ * lessons, tutor replies and translations are short, latency-sensitive requests, and "none" keeps
+ * `temperature` usable. Returns null for "off", which leaves the parameter out of the request (for
+ * a model that does not accept it).
+ */
+export function getTextReasoningEffort(): TextReasoningEffort | null {
+  const configured = process.env.OPENAI_TEXT_REASONING_EFFORT?.trim().toLowerCase();
+  if (configured === "off") {
+    return null;
+  }
+  return (REASONING_EFFORTS as readonly string[]).includes(configured ?? "") ? (configured as TextReasoningEffort) : "none";
+}
+
+/** Room left for reasoning tokens on top of a caller's visible-output cap when reasoning is on. */
+const REASONING_TOKEN_RESERVE = 25_000;
+
+/**
+ * Model, reasoning and sampling parameters shared by every Chat Completions request.
+ * - `temperature` is only accepted while the model is not reasoning, so it is dropped otherwise.
+ * - `max_completion_tokens` counts reasoning tokens too, so the cap is widened when reasoning is on.
+ */
+export function textModelParams(options: { model?: string; temperature?: number; maxTokens?: number } = {}) {
+  const effort = getTextReasoningEffort();
+  const reasoning = effort !== null && effort !== "none";
+
+  return {
+    model: options.model ?? getTextModel(),
+    ...(effort === null ? {} : { reasoning_effort: effort }),
+    ...(options.temperature === undefined || reasoning ? {} : { temperature: options.temperature }),
+    ...(options.maxTokens === undefined
+      ? {}
+      : { max_completion_tokens: options.maxTokens + (reasoning ? REASONING_TOKEN_RESERVE : 0) }),
+  };
+}
+
+/** Realtime model that reads text aloud for `/api/tts` (see `src/lib/realtime-speech.ts`). */
 export function getSpeechModel(): string {
-  return process.env.OPENAI_TTS_MODEL?.trim() || "tts-1";
+  return process.env.OPENAI_TTS_MODEL?.trim() || "gpt-realtime-2.1-mini";
 }
 
 /** File-upload transcription (the `/api/transcribe` and chat audio routes). */
 export function getTranscriptionModel(): string {
-  return process.env.OPENAI_TRANSCRIPTION_MODEL?.trim() || "whisper-1";
+  return process.env.OPENAI_TRANSCRIPTION_MODEL?.trim() || "gpt-transcribe";
+}
+
+/**
+ * The language hint for a transcription request. `gpt-transcribe` and `gpt-live-transcribe` take a
+ * `languages` list and reject the singular field; older transcription models only know `language`.
+ */
+export function transcriptionLanguageHint(model: string, languageCode: string): { languages: string[] } | { language: string } {
+  return /^gpt-(live-)?transcribe/.test(model) ? { languages: [languageCode] } : { language: languageCode };
 }
 
 /** Images API model for vocabulary pictures. */
@@ -111,6 +159,11 @@ export class StructuredOutputError extends Error {
 export interface GenerateJsonOptions<T> {
   /** Zod schema the output must satisfy. */
   schema: ZodType<T, ZodTypeDef, unknown>;
+  /**
+   * Schema converted to the JSON schema sent to the API, when it has to differ from `schema`: the
+   * same shape without refinements or transforms, which JSON Schema cannot express. Defaults to `schema`.
+   */
+  formatSchema?: ZodType;
   /** Short identifier sent to the API as the JSON schema name ([a-zA-Z0-9_-]). */
   schemaName: string;
   system: string;
@@ -162,7 +215,7 @@ export async function generateJson<T>(options: GenerateJsonOptions<T>): Promise<
   let responseFormat: ChatCompletionCreateParamsNonStreaming["response_format"];
   if (strict) {
     try {
-      const format = zodResponseFormat(options.schema as ZodType, options.schemaName);
+      const format = zodResponseFormat(options.formatSchema ?? (options.schema as ZodType), options.schemaName);
       responseFormat = { type: "json_schema", json_schema: format.json_schema };
     } catch (error) {
       throw new StructuredOutputError("config", `Schema "${options.schemaName}" is not strict-compatible`, {
@@ -188,11 +241,9 @@ export async function generateJson<T>(options: GenerateJsonOptions<T>): Promise<
     let completion: Awaited<ReturnType<JsonChatClient["chat"]["completions"]["create"]>>;
     try {
       completion = await client.chat.completions.create({
-        model: options.model ?? getTextModel(),
+        ...textModelParams({ model: options.model, temperature: options.temperature, maxTokens: options.maxTokens }),
         messages,
         response_format: responseFormat,
-        ...(options.temperature === undefined ? {} : { temperature: options.temperature }),
-        ...(options.maxTokens === undefined ? {} : { max_tokens: options.maxTokens }),
       });
     } catch (error) {
       throw new StructuredOutputError("api", error instanceof Error ? error.message : "OpenAI request failed", {

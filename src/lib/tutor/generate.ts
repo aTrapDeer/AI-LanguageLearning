@@ -1,7 +1,7 @@
 import type { ChatCompletionMessageParam } from "openai/resources/chat/completions";
 import { generateJson, type JsonChatClient } from "@/lib/openai";
 import { buildHistoryMessages, buildOpeningInstruction, buildTutorSystemPrompt, type HistoryEntry, type TutorPromptContext } from "./prompt";
-import { normalizeTutorReply, TutorReplySchema, type TutorReply } from "./schema";
+import { normalizeTutorReply, TutorReplyFormatSchema, TutorReplySchema, type TutorReply } from "./schema";
 
 /**
  * One tutor turn. With an empty history the tutor opens the conversation for the scenario;
@@ -20,6 +20,7 @@ export async function generateTutorReply(options: {
 
   const reply = await generateJson({
     schema: TutorReplySchema,
+    formatSchema: TutorReplyFormatSchema,
     schemaName: "tutor_reply",
     system: buildTutorSystemPrompt(options.context),
     user: messages,
